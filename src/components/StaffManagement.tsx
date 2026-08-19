@@ -28,6 +28,7 @@ import { openDriverWhatsApp } from '@/utils/driverDispatch';
 interface StaffManagementProps {
   staffList: Profile[];
   onAddStaff: (staffData: any) => Promise<boolean>;
+  onEditStaff?: (profileId: string, updatedData: Partial<Profile>) => Promise<boolean>;
   onToggleStatus: (profileId: string, currentActive: boolean) => Promise<void>;
   onUpdatePermissions: (profileId: string, permissions: StaffPermissions) => Promise<void>;
   onUpdatePasswordPin?: (profileId: string, newPin: string) => Promise<void>;
@@ -59,6 +60,7 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
 export const StaffManagement: React.FC<StaffManagementProps> = ({
   staffList,
   onAddStaff,
+  onEditStaff,
   onToggleStatus,
   onUpdatePermissions,
   onUpdatePasswordPin,
@@ -78,11 +80,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   const [newStaffPermissions, setNewStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Edit PIN Modal State
-  const [editingPinStaff, setEditingPinStaff] = useState<Profile | null>(null);
-  const [editPinInput, setEditPinInput] = useState('');
+  // 📝 Comprehensive Edit Staff Modal State
+  const [editingStaff, setEditingStaff] = useState<Profile | null>(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editPasswordPin, setEditPasswordPin] = useState('');
+  const [editTruckNotes, setEditTruckNotes] = useState('');
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [editPermissions, setEditPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
   const [showEditPin, setShowEditPin] = useState(false);
-  const [isUpdatingPin, setIsUpdatingPin] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Table active dropdown popup ID for permissions
   const [openDropdownStaffId, setOpenDropdownStaffId] = useState<string | null>(null);
@@ -99,6 +106,48 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     ? driversList 
     : staffList;
 
+  const handleOpenEditModal = (staff: Profile) => {
+    setEditingStaff(staff);
+    setEditFullName(staff.full_name);
+    setEditPhone(staff.phone || '+9665');
+    setEditPasswordPin(staff.password_pin || '1234');
+    setEditTruckNotes(staff.notes?.replace('شاحنة: ', '') || '');
+    setEditIsActive(staff.is_active);
+    setEditPermissions(staff.permissions || (staff.full_name.includes('سائق') ? DEFAULT_DRIVER_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS));
+    setShowEditPin(false);
+  };
+
+  const handleSaveFullEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+    setIsSavingEdit(true);
+
+    const isDriver = editingStaff.full_name.includes('سائق') || editingStaff.email?.includes('driver');
+    const updatedData: Partial<Profile> = {
+      full_name: editFullName,
+      phone: editPhone,
+      password_pin: isDriver ? undefined : editPasswordPin,
+      notes: isDriver && editTruckNotes ? `شاحنة: ${editTruckNotes}` : undefined,
+      is_active: editIsActive,
+      permissions: isDriver ? DEFAULT_DRIVER_PERMISSIONS : editPermissions,
+      can_view_all_records: isDriver ? false : editPermissions.can_view_all_contracts
+    };
+
+    if (onEditStaff) {
+      await onEditStaff(editingStaff.id, updatedData);
+    } else {
+      if (onUpdatePermissions && updatedData.permissions) {
+        await onUpdatePermissions(editingStaff.id, updatedData.permissions);
+      }
+      if (onUpdatePasswordPin && updatedData.password_pin) {
+        await onUpdatePasswordPin(editingStaff.id, updatedData.password_pin);
+      }
+    }
+
+    setIsSavingEdit(false);
+    setEditingStaff(null);
+  };
+
   const handleTogglePermission = async (staff: Profile, key: keyof StaffPermissions) => {
     const currentPerms: StaffPermissions = staff.permissions || (
       staff.full_name.includes('سائق') ? DEFAULT_DRIVER_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS
@@ -113,17 +162,6 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   const handleTestDriverWhatsApp = (driver: Profile) => {
     const msg = `مرحباً ${driver.full_name}، هذا إشعار تجريبي للتحقق من جاهزية استقبال أوامر مهام الحاويات (إنزال وسحب) لدى *المحترز للحاويات*. 🚚`;
     openDriverWhatsApp(driver.phone || '+966550000004', msg);
-  };
-
-  const handleSaveEditedPin = async () => {
-    if (!editingPinStaff || !editPinInput.trim()) return;
-    setIsUpdatingPin(true);
-    if (onUpdatePasswordPin) {
-      await onUpdatePasswordPin(editingPinStaff.id, editPinInput.trim());
-    }
-    setIsUpdatingPin(false);
-    setEditingPinStaff(null);
-    setEditPinInput('');
   };
 
   const handleSubmitNewStaff = async (e: React.FormEvent) => {
@@ -344,10 +382,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
 
                           {!isDriver && (
                             <button
-                              onClick={() => {
-                                setEditingPinStaff(staff);
-                                setEditPinInput(staff.password_pin || '1234');
-                              }}
+                              onClick={() => handleOpenEditModal(staff)}
                               style={{
                                 background: 'rgba(245, 158, 11, 0.12)',
                                 border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -361,7 +396,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                                 alignItems: 'center',
                                 gap: '4px'
                               }}
-                              title="تعديل الرمز السري للدخول"
+                              title="تعديل الرمز السري وبيانات الموظف"
                             >
                               <Key size={10} />
                               <span>الرمز: {staff.password_pin || '1234'}</span>
@@ -589,30 +624,55 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
 
                   {/* Actions */}
                   <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                    {staff.role !== 'admin' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      {/* ✏️ Full Edit Staff Modal Button */}
                       <button
-                        onClick={() => {
-                          if (confirm(`هل أنت متأكد من حذف ${staff.full_name}؟`)) {
-                            onDeleteStaff(staff.id);
-                          }
-                        }}
+                        onClick={() => handleOpenEditModal(staff)}
                         style={{
-                          background: 'rgba(239, 68, 68, 0.15)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          color: '#f87171',
-                          width: '32px',
-                          height: '32px',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: '#38bdf8',
                           borderRadius: '8px',
+                          padding: '6px 12px',
                           cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          gap: '6px',
+                          transition: 'all 0.2s ease'
                         }}
-                        title="حذف السجل"
+                        title="تعديل كافة بيانات الموظف وكلمة السر والصلاحيات في نافذة منبثقة"
                       >
-                        <Trash2 size={15} />
+                        <Edit3 size={14} />
+                        <span>تعديل ✏️</span>
                       </button>
-                    )}
+
+                      {staff.role !== 'admin' && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`هل أنت متأكد من حذف ${staff.full_name}؟`)) {
+                              onDeleteStaff(staff.id);
+                            }
+                          }}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#f87171',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="حذف السجل"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -956,14 +1016,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* 🔑 EDIT STAFF PIN MODAL (ADMIN CONTROL)                  */}
+      {/* ✏️ COMPREHENSIVE EDIT STAFF & PIN MODAL (ADMIN CONTROL)   */}
       {/* ======================================================== */}
-      {editingPinStaff && (
+      {editingStaff && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(2, 6, 23, 0.85)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(2, 6, 23, 0.88)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -973,137 +1033,330 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
         }}>
           <div style={{
             background: 'linear-gradient(145deg, #0f172a 0%, #050811 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
-            borderRadius: '20px',
-            maxWidth: '400px',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: '24px',
+            maxWidth: '520px',
             width: '100%',
-            padding: '24px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            position: 'relative'
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '26px',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.15)',
+            position: 'relative',
+            color: '#ffffff'
           }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
-                  background: 'rgba(245, 158, 11, 0.2)',
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: 'rgba(56, 189, 248, 0.18)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fbbf24'
+                  color: '#38bdf8'
                 }}>
-                  <Key size={18} />
+                  <Edit3 size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
-                    تعديل كلمة مرور الموظف
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                    تعديل بيانات وحساب الموظف
                   </h3>
-                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                    {editingPinStaff.full_name}
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    {editingStaff.full_name}
                   </span>
                 </div>
               </div>
 
               <button
-                onClick={() => setEditingPinStaff(null)}
+                onClick={() => setEditingStaff(null)}
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '10px',
                   color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '4px'
+                  width: '34px',
+                  height: '34px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
                 }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Input Form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Edit Form */}
+            <form onSubmit={handleSaveFullEdit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* 1. Full Name */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
-                    الرمز السري الجديد للدخول:
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#e2e8f0' }}>
+                  الاسم الكامل:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* 2. Phone Number */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#e2e8f0' }}>
+                  رقم جوال الواتساب للمهام:
+                </label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  dir="ltr"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* 3. Password PIN (Only for non-drivers or staff with system login) */}
+              {!editingStaff.full_name.includes('سائق') && !editingStaff.email?.includes('driver') && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Key size={14} />
+                      <span>كلمة المرور / الرمز السري للدخول:</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditPasswordPin(Math.floor(1000 + Math.random() * 9000).toString())}
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        color: '#fbbf24',
+                        borderRadius: '6px',
+                        padding: '2px 8px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      توليد رمز تلقائي 🎲
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showEditPin ? 'text' : 'password'}
+                      className="form-input"
+                      dir="ltr"
+                      value={editPasswordPin}
+                      onChange={(e) => setEditPasswordPin(e.target.value)}
+                      placeholder="مثال: 1234"
+                      required
+                      style={{ paddingLeft: '40px', letterSpacing: showEditPin ? '2px' : 'normal', fontWeight: 800 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPin(!showEditPin)}
+                      style={{
+                        position: 'absolute',
+                        left: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {showEditPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                    يدخل الموظف بالنقر على اسمه وإدخال هذا الرمز السري مباشرة.
+                  </span>
+                </div>
+              )}
+
+              {/* 4. Driver Notes / Truck Number */}
+              {(editingStaff.full_name.includes('سائق') || editingStaff.email?.includes('driver')) && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#94a3b8' }}>
+                    رقم الشاحنة / الرافعة أو المنطقة الميدانية:
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setEditPinInput(Math.floor(1000 + Math.random() * 9000).toString())}
-                    style={{
-                      background: 'rgba(245, 158, 11, 0.15)',
-                      border: '1px solid rgba(245, 158, 11, 0.3)',
-                      color: '#fbbf24',
-                      borderRadius: '6px',
-                      padding: '2px 8px',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    توليد رمز تلقائي 🎲
-                  </button>
-                </div>
-
-                <div style={{ position: 'relative' }}>
                   <input
-                    type={showEditPin ? 'text' : 'password'}
+                    type="text"
                     className="form-input"
-                    dir="ltr"
-                    value={editPinInput}
-                    onChange={(e) => setEditPinInput(e.target.value)}
-                    placeholder="مثال: 1234"
-                    style={{ paddingLeft: '40px', letterSpacing: showEditPin ? '2px' : 'normal', fontWeight: 800 }}
+                    placeholder="مثال: رافعة رقم 4 - شمال الرياض"
+                    value={editTruckNotes}
+                    onChange={(e) => setEditTruckNotes(e.target.value)}
                   />
+                </div>
+              )}
+
+              {/* 5. Account Status */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#e2e8f0' }}>
+                  حالة الحساب:
+                </label>
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => setShowEditPin(!showEditPin)}
+                    onClick={() => setEditIsActive(true)}
                     style={{
-                      position: 'absolute',
-                      left: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: '#94a3b8',
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: `1px solid ${editIsActive ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}`,
+                      background: editIsActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                      color: editIsActive ? '#34d399' : '#94a3b8',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
                       cursor: 'pointer'
                     }}
                   >
-                    {showEditPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                    نشط 🟢
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsActive(false)}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: `1px solid ${!editIsActive ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+                      background: !editIsActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                      color: !editIsActive ? '#f87171' : '#94a3b8',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    موقوف 🔴
                   </button>
                 </div>
               </div>
 
-              <div style={{
-                background: 'rgba(245, 158, 11, 0.08)',
-                border: '1px solid rgba(245, 158, 11, 0.2)',
-                borderRadius: '8px',
-                padding: '10px',
-                fontSize: '0.78rem',
-                color: '#fbbf24'
-              }}>
-                🔒 سيتمكن الموظف من الدخول فوراً باستخدام هذا الرمز بمجرد النقر على اسمه.
-              </div>
+              {/* 6. Permissions Checklist (For office staff) */}
+              {!editingStaff.full_name.includes('سائق') && editingStaff.role !== 'admin' && (
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#38bdf8', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '6px' }}>
+                    توزيع صلاحيات الموظف 🛡️
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_view_financials}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_view_financials: e.target.checked }))}
+                        style={{ accentColor: '#10b981' }}
+                      />
+                      <span>💰 رؤية المبالغ والأسعار</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_view_all_contracts}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_view_all_contracts: e.target.checked }))}
+                        style={{ accentColor: '#38bdf8' }}
+                      />
+                      <span>🌐 رؤية كافة العقود</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_create_contracts}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_create_contracts: e.target.checked }))}
+                        style={{ accentColor: '#fbbf24' }}
+                      />
+                      <span>📝 إنشاء وتوثيق عقود</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_extend_contracts}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_extend_contracts: e.target.checked }))}
+                        style={{ accentColor: '#38bdf8' }}
+                      />
+                      <span>🔄 تمديد وتأجيل السحب</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_collect_payments}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_collect_payments: e.target.checked }))}
+                        style={{ accentColor: '#10b981' }}
+                      />
+                      <span>💵 تحصيل كاش وسند قبض</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_send_payment_links}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_send_payment_links: e.target.checked }))}
+                        style={{ accentColor: '#fbbf24' }}
+                      />
+                      <span>💳 إرسال روابط سداد</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_manage_inventory}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_manage_inventory: e.target.checked }))}
+                        style={{ accentColor: '#10b981' }}
+                      />
+                      <span>📦 استلام وسحب للمخزون</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_send_whatsapp}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_send_whatsapp: e.target.checked }))}
+                        style={{ accentColor: '#10b981' }}
+                      />
+                      <span>📱 مراسلة بالواتساب</span>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setEditingPinStaff(null)}
+                  onClick={() => setEditingStaff(null)}
                 >
                   إلغاء
                 </button>
                 <button
-                  type="button"
+                  type="submit"
                   className="btn-primary"
-                  onClick={handleSaveEditedPin}
-                  disabled={isUpdatingPin || !editPinInput.trim()}
+                  disabled={isSavingEdit}
                 >
-                  {isUpdatingPin ? 'جارٍ الحفظ...' : 'حفظ الرمز السري الجديد 💾'}
+                  {isSavingEdit ? 'جارٍ حفظ التعديلات...' : 'حفظ التعديلات وكلمة السر 💾'}
                 </button>
               </div>
-            </div>
+
+            </form>
           </div>
         </div>
       )}

@@ -326,6 +326,20 @@ function MainDashboard() {
     }
   };
 
+  const handleEditStaff = async (profileId: string, updatedData: Partial<Profile>): Promise<boolean> => {
+    setStaffList(prev => prev.map(s => s.id === profileId ? { ...s, ...updatedData, updated_at: new Date().toISOString() } : s));
+    if (currentProfile?.id === profileId) {
+      setCurrentProfile(prev => prev ? { ...prev, ...updatedData, updated_at: new Date().toISOString() } : null);
+    }
+    try {
+      const { error } = await supabase.from('profiles').update(updatedData).eq('id', profileId);
+      if (error) console.error('Supabase profile update error:', error);
+    } catch (err) {
+      console.error('Failed to sync updated profile with Supabase:', err);
+    }
+    return true;
+  };
+
   // Filter contracts if employee doesn't have can_view_all_contracts
   const displayedContracts = contracts.filter(c => {
     if (currentRole === 'admin' || activePermissions.can_view_all_contracts) return true;
@@ -1220,6 +1234,7 @@ function MainDashboard() {
           <StaffManagement
             staffList={staffList}
             onAddStaff={handleAddStaff}
+            onEditStaff={handleEditStaff}
             onToggleStatus={handleToggleStaffStatus}
             onUpdatePermissions={handleUpdateStaffPermissions}
             onUpdatePasswordPin={handleUpdateStaffPin}
