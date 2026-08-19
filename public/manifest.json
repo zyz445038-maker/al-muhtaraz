@@ -1,0 +1,20 @@
+{
+  "name": "المحترز للحاويات | إدارة وتأجير الحاويات",
+  "short_name": "المحترز للحاويات",
+  "description": "المنصة الذكية لإدارة وتأجير الحاويات التجارية وعقود الأنقاض وتفويض السائقين والتحصيل المالي",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050811",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

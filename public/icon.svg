@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#050811"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Shield -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-opacity="0.4"/>
+
+  <!-- Glowing Container Emblem -->
+  <g transform="translate(64, 76) scale(0.75)" filter="url(#glow)">
+    <!-- Container Body -->
+    <path d="M40 160 L100 380 L412 380 L472 160 Z" fill="url(#goldGrad)"/>
+    
+    <!-- Ribs / Vertical Reinforcements -->
+    <line x1="160" y1="180" x2="175" y2="360" stroke="#78350f" stroke-width="12" stroke-linecap="round"/>
+    <line x1="256" y1="180" x2="256" y2="360" stroke="#78350f" stroke-width="12" stroke-linecap="round"/>
+    <line x1="352" y1="180" x2="337" y2="360" stroke="#78350f" stroke-width="12" stroke-linecap="round"/>
+    
+    <!-- Top Rim -->
+    <rect x="20" y="130" width="472" height="36" rx="8" fill="#fbbf24"/>
+    
+    <!-- Hooks / Lifting Lugs -->
+    <circle cx="90" cy="148" r="14" fill="#78350f"/>
+    <circle cx="422" cy="148" r="14" fill="#78350f"/>
+  </g>
+
+  <!-- Text / Brand Name -->
+  <text x="256" y="440" text-anchor="middle" fill="#fbbf24" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="900" letter-spacing="1">المحترز</text>
+</svg>
