@@ -270,8 +270,9 @@ const initialPaymentSettings: IPaymentSettings = {
 function MainDashboard() {
   // App State
   const [showSplash, setShowSplash] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentTab, setCurrentTab] = useState('search');
-  const [currentRole, setCurrentRole] = useState<UserRole>('admin');
+  const [currentRole, setCurrentRole] = useState<UserRole>('employee');
   
   // Data State
   const [containers, setContainers] = useState<Container[]>(initialContainers);
@@ -280,15 +281,15 @@ function MainDashboard() {
   const [notifications, setNotifications] = useState<NotificationLog[]>(initialNotifications);
   const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>(initialInAppNotifications);
   const [staffList, setStaffList] = useState<Profile[]>(initialStaff);
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(initialStaff[0]); // Default to Admin
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('staff-admin');
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [isStaffLoginModalOpen, setIsStaffLoginModalOpen] = useState(false);
   const [gatewaySettings, setGatewaySettings] = useState<IWhatsAppSettings>(initialGatewaySettings);
   const [paymentSettings, setPaymentSettings] = useState<IPaymentSettings>(initialPaymentSettings);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
   // Calculate active permissions based on role and selected employee
-  const currentStaff = currentProfile || staffList.find(s => s.id === selectedStaffId) || staffList.find(s => s.role !== 'admin');
+  const currentStaff = currentProfile || (selectedStaffId ? staffList.find(s => s.id === selectedStaffId) : null);
   const activePermissions: StaffPermissions = currentRole === 'admin'
     ? {
         can_view_all_contracts: true,
@@ -307,11 +308,20 @@ function MainDashboard() {
     setCurrentProfile(profile);
     setCurrentRole(profile.role);
     setSelectedStaffId(profile.id);
+    setIsAuthenticated(true);
+    setIsStaffLoginModalOpen(false);
     if (profile.role === 'employee') {
       if (['staff', 'gateway-settings', 'payment-settings'].includes(currentTab)) {
         setCurrentTab('search');
       }
     }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentProfile(null);
+    setSelectedStaffId('');
+    setIsStaffLoginModalOpen(true);
   };
 
   const handleUpdateStaffPin = async (profileId: string, newPin: string) => {
@@ -1139,6 +1149,7 @@ function MainDashboard() {
           setPreSelectedContainerId(undefined);
           setIsContractModalOpen(true);
         }}
+        onLogout={handleLogout}
         inAppNotifications={inAppNotifications}
         onMarkInAppAsRead={handleMarkInAppAsRead}
         onMarkAllInAppAsRead={handleMarkAllInAppAsRead}
@@ -1154,113 +1165,126 @@ function MainDashboard() {
         margin: '0 auto',
         padding: '30px 24px 60px 24px'
       }}>
-        {currentTab === 'search' && (
-          <SmartSearch
-            containers={containers}
-            contracts={displayedContracts}
-            customers={customers}
-            notifications={notifications}
-            userRole={currentRole}
-            permissions={activePermissions}
-            onOpenNewContractWithContainer={(cId) => {
-              setPreSelectedContainerId(cId);
-              setIsContractModalOpen(true);
-            }}
-            onSendWhatsApp={handleSendWhatsApp}
-            onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
-            onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
-            onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
-            onConfirmCashPayment={handleConfirmCashPayment}
-            onSendSadadLink={handleSendSadadLink}
-          />
-        )}
+        {!isAuthenticated || !currentProfile ? (
+          /* 🔒 LOCKED APPLICATION SCREEN (BEFORE PIN VERIFICATION) */
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+            textAlign: 'center',
+            padding: '40px 20px',
+            background: 'radial-gradient(circle at center, rgba(245, 158, 11, 0.08) 0%, rgba(5, 8, 17, 0.85) 70%)',
+            borderRadius: '28px',
+            border: '1px solid rgba(245, 158, 11, 0.2)',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{
+              width: '84px',
+              height: '84px',
+              borderRadius: '26px',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 45px rgba(245, 158, 11, 0.5)',
+              marginBottom: '22px'
+            }}>
+              <Truck size={44} color="#050811" />
+            </div>
+            <h2 style={{ fontSize: '2rem', fontWeight: 900, color: '#ffffff', marginBottom: '8px' }}>
+              المحترز للحاويات 🏗️
+            </h2>
+            <p style={{ fontSize: '1.05rem', color: '#94a3b8', maxWidth: '440px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+              🔒 مساحة العمل مقفلة بأمان. يرجى اختيار حسابك وإدخال الرمز السري للدخول بصلاحياتك المعتمدة.
+            </p>
+            <button
+              onClick={() => setIsStaffLoginModalOpen(true)}
+              className="btn-primary"
+              style={{ padding: '12px 30px', fontSize: '1rem', fontWeight: 800, borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <span>🔐 تسجيل دخول الموظفين والإدارة</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            {currentTab === 'search' && (
+              <SmartSearch
+                containers={containers}
+                contracts={displayedContracts}
+                customers={customers}
+                notifications={notifications}
+                userRole={currentRole}
+                permissions={activePermissions}
+                onOpenNewContractWithContainer={(cId) => {
+                  setPreSelectedContainerId(cId);
+                  setIsContractModalOpen(true);
+                }}
+                onSendWhatsApp={handleSendWhatsApp}
+                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
+                onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
+                onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
+                onConfirmCashPayment={handleConfirmCashPayment}
+                onSendSadadLink={handleSendSadadLink}
+              />
+            )}
 
-        {currentTab === 'containers' && (
-          <ContainersView
-            containers={containers}
-            contracts={displayedContracts}
-            userRole={currentRole}
-            permissions={activePermissions}
-            onUpdateStatus={handleUpdateContainerStatus}
-            onAddContainer={handleAddContainer}
-            onDeleteContainer={handleDeleteContainer}
-            onOpenRentModal={(cId) => {
-              setPreSelectedContainerId(cId);
-              setIsContractModalOpen(true);
-            }}
-            onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
-          />
-        )}
+            {currentTab === 'containers' && (
+              <ContainersView
+                containers={containers}
+                onUpdateStatus={handleUpdateContainerStatus}
+              />
+            )}
 
-        {currentTab === 'contracts' && (
-          <ContractsView
-            contracts={displayedContracts}
-            userRole={currentRole}
-            paymentSettings={paymentSettings}
-            permissions={activePermissions}
-            onUpdateContractStatus={handleUpdateContractStatus}
-            onDeleteContract={handleDeleteContract}
-            onSendWhatsApp={handleSendWhatsApp}
-            onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
-            onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
-            onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
-            onConfirmCashPayment={handleConfirmCashPayment}
-            onSendSadadLink={handleSendSadadLink}
-          />
-        )}
+            {currentTab === 'inventory' && (
+              <InventoryManagement
+                containers={containers}
+                contracts={contracts}
+                onUpdateContainerStatus={handleUpdateContainerStatus}
+                onOpenNewContractWithContainer={(cId) => {
+                  setPreSelectedContainerId(cId);
+                  setIsContractModalOpen(true);
+                }}
+                onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
+                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
+                onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
+                onSendWhatsApp={handleSendWhatsApp}
+                userRole={currentRole}
+                permissions={activePermissions}
+              />
+            )}
 
-        {currentTab === 'whatsapp' && (
-          <WhatsAppHub
-            notifications={notifications}
-            onMarkAsSent={handleMarkNotificationSent}
-            onSendWhatsApp={handleSendWhatsApp}
-          />
-        )}
+            {currentTab === 'staff' && currentRole === 'admin' && (
+              <StaffManagement
+                staffList={staffList}
+                onAddStaff={handleAddStaff}
+                onEditStaff={handleEditStaff}
+                onToggleStatus={handleToggleStaffStatus}
+                onUpdatePermissions={handleUpdateStaffPermissions}
+                onUpdatePasswordPin={handleUpdateStaffPin}
+                onDeleteStaff={handleDeleteStaff}
+              />
+            )}
 
-        {currentTab === 'inventory' && currentRole === 'admin' && (
-          <InventoryManagement
-            containers={containers}
-            contracts={contracts}
-            onBatchAddContainers={handleBatchAddContainers}
-            onUpdateContainerStatus={handleUpdateContainerStatus}
-            onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
-            onDeleteContainer={handleDeleteContainer}
-            onOpenNewContract={(cId) => {
-              setPreSelectedContainerId(cId);
-              setIsContractModalOpen(true);
-            }}
-            onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
-          />
-        )}
+            {currentTab === 'payment-settings' && currentRole === 'admin' && (
+              <PaymentSettings
+                settings={paymentSettings}
+                onSaveSettings={handleSavePaymentSettings}
+              />
+            )}
 
-        {currentTab === 'staff' && currentRole === 'admin' && (
-          <StaffManagement
-            staffList={staffList}
-            onAddStaff={handleAddStaff}
-            onEditStaff={handleEditStaff}
-            onToggleStatus={handleToggleStaffStatus}
-            onUpdatePermissions={handleUpdateStaffPermissions}
-            onUpdatePasswordPin={handleUpdateStaffPin}
-            onDeleteStaff={handleDeleteStaff}
-          />
-        )}
-
-        {currentTab === 'payment-settings' && currentRole === 'admin' && (
-          <PaymentSettings
-            settings={paymentSettings}
-            onSaveSettings={handleSavePaymentSettings}
-          />
-        )}
-
-        {currentTab === 'gateway-settings' && currentRole === 'admin' && (
-          <WhatsAppSettings
-            settings={gatewaySettings}
-            notifications={notifications}
-            onSaveSettings={handleSaveGatewaySettings}
-            onTestConnection={handleTestConnection}
-            onSendWhatsApp={handleSendWhatsApp}
-            onMarkAsSent={handleMarkNotificationSent}
-          />
+            {currentTab === 'gateway-settings' && currentRole === 'admin' && (
+              <WhatsAppSettings
+                settings={gatewaySettings}
+                notifications={notifications}
+                onSaveSettings={handleSaveGatewaySettings}
+                onTestConnection={handleTestConnection}
+                onSendWhatsApp={handleSendWhatsApp}
+                onMarkAsSent={handleMarkNotificationSent}
+              />
+            )}
+          </>
         )}
       </main>
 
@@ -1304,11 +1328,16 @@ function MainDashboard() {
 
       {/* 8. 🔐 Luxury Staff & Admin PIN Login Modal */}
       <StaffLoginModal
-        isOpen={isStaffLoginModalOpen}
-        onClose={() => setIsStaffLoginModalOpen(false)}
+        isOpen={!showSplash && (!isAuthenticated || isStaffLoginModalOpen)}
+        onClose={() => {
+          if (isAuthenticated) {
+            setIsStaffLoginModalOpen(false);
+          }
+        }}
         staffList={staffList}
         currentProfile={currentProfile}
         onSelectProfile={handleSelectProfile}
+        isMandatory={!isAuthenticated}
       />
 
       {/* Footer */}

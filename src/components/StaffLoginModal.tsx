@@ -23,6 +23,7 @@ interface StaffLoginModalProps {
   staffList: Profile[];
   currentProfile: Profile | null;
   onSelectProfile: (profile: Profile) => void;
+  isMandatory?: boolean;
 }
 
 export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
@@ -30,7 +31,8 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
   onClose,
   staffList,
   currentProfile,
-  onSelectProfile
+  onSelectProfile,
+  isMandatory = false
 }) => {
   const [selectedStaff, setSelectedStaff] = useState<Profile | null>(null);
   const [pin, setPin] = useState('');
@@ -55,31 +57,31 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
 
   // Handle Physical Keyboard Typing
   useEffect(() => {
-    if (!isOpen || !selectedStaff) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') {
-        if (pin.length < 8) {
-          handleDigitPress(e.key);
-        }
-      } else if (e.key === 'Backspace') {
-        handleBackspace();
-      } else if (e.key === 'Enter') {
-        handleSubmit();
-      } else if (e.key === 'Escape') {
-        if (selectedStaff) {
+      if (selectedStaff) {
+        if (e.key >= '0' && e.key <= '9') {
+          if (pin.length < 8) {
+            handleDigitPress(e.key);
+          }
+        } else if (e.key === 'Backspace') {
+          handleBackspace();
+        } else if (e.key === 'Enter') {
+          handleSubmit();
+        } else if (e.key === 'Escape') {
           setSelectedStaff(null);
           setPin('');
           setErrorMsg('');
-        } else {
-          onClose();
         }
+      } else if (e.key === 'Escape' && !isMandatory) {
+        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedStaff, pin]);
+  }, [isOpen, selectedStaff, pin, isMandatory]);
 
   if (!isOpen) return null;
 
@@ -131,54 +133,66 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(2, 6, 23, 0.88)',
-      backdropFilter: 'blur(12px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      padding: '16px',
-      direction: 'rtl'
-    }}>
+    <div 
+      onClick={(e) => {
+        // Only allow closing on backdrop click if login is not mandatory
+        if (!isMandatory && e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(2, 6, 23, 0.94)',
+        backdropFilter: 'blur(16px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '16px',
+        direction: 'rtl'
+      }}
+    >
       <div 
         className={isShaking ? 'shake-animation' : ''}
+        onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(5, 8, 17, 0.98) 100%)',
-          border: '1px solid rgba(245, 158, 11, 0.35)',
+          background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.98) 0%, rgba(5, 8, 17, 0.99) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.4)',
           borderRadius: '24px',
           maxWidth: '460px',
           width: '100%',
           padding: '28px 24px',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 158, 11, 0.12)',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 50px rgba(245, 158, 11, 0.15)',
           position: 'relative',
           color: '#ffffff'
         }}
       >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '20px',
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '10px',
-            color: '#94a3b8',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-        >
-          <X size={18} />
-        </button>
+        {/* Close Button (Hidden if login is mandatory to prevent bypass) */}
+        {!isMandatory && (
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+              color: '#94a3b8',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="إغلاق"
+          >
+            <X size={18} />
+          </button>
+        )}
 
         {/* ======================================================== */}
         {/* STAGE 1: SELECT EMPLOYEE PROFILE                         */}
