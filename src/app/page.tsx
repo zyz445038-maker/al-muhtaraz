@@ -1116,7 +1116,10 @@ function MainDashboard() {
       
       {/* 1. Dramatic Cinematic Splash Intro */}
       {showSplash && (
-        <SplashIntro onComplete={() => setShowSplash(false)} />
+        <SplashIntro onComplete={() => {
+          setShowSplash(false);
+          setIsStaffLoginModalOpen(true);
+        }} />
       )}
 
       {/* 2. Top Navigation Bar with 🔔 In-App Notification Bell & Active Employee Selector */}
