@@ -310,7 +310,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#ffffff' }}>
             {userRole === 'admin' || permissions?.can_view_financials !== false ? (
-              <>{stats.totalRevenue.toLocaleString()} <span style={{ fontSize: '0.85rem', color: '#fbbf24' }}>ر.س</span></>
+              <>{stats.totalRevenue.toLocaleString('en-US')} <span style={{ fontSize: '0.85rem', color: '#fbbf24' }}>ر.س</span></>
             ) : (
               <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>محجوب 🔒</span>
             )}
