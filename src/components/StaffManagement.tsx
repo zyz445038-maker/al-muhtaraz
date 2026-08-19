@@ -16,7 +16,11 @@ import {
   ChevronUp,
   X,
   Send,
-  MessageSquare
+  MessageSquare,
+  Lock,
+  Eye,
+  EyeOff,
+  Edit3
 } from 'lucide-react';
 import { Profile, StaffPermissions, UserRole } from '@/types/database';
 import { openDriverWhatsApp } from '@/utils/driverDispatch';
@@ -26,6 +30,7 @@ interface StaffManagementProps {
   onAddStaff: (staffData: any) => Promise<boolean>;
   onToggleStatus: (profileId: string, currentActive: boolean) => Promise<void>;
   onUpdatePermissions: (profileId: string, permissions: StaffPermissions) => Promise<void>;
+  onUpdatePasswordPin?: (profileId: string, newPin: string) => Promise<void>;
   onDeleteStaff: (profileId: string) => Promise<void>;
 }
 
@@ -56,6 +61,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   onAddStaff,
   onToggleStatus,
   onUpdatePermissions,
+  onUpdatePasswordPin,
   onDeleteStaff
 }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'staff' | 'drivers'>('all');
@@ -63,13 +69,20 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [passwordPin, setPasswordPin] = useState('1234');
+  const [showAddPin, setShowAddPin] = useState(false);
   const [phone, setPhone] = useState('+9665');
   const [truckNotes, setTruckNotes] = useState('');
   const [jobRole, setJobRole] = useState<'driver' | 'staff'>('driver');
   const [isPermissionsDropdownOpenInAdd, setIsPermissionsDropdownOpenInAdd] = useState(true);
   const [newStaffPermissions, setNewStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit PIN Modal State
+  const [editingPinStaff, setEditingPinStaff] = useState<Profile | null>(null);
+  const [editPinInput, setEditPinInput] = useState('');
+  const [showEditPin, setShowEditPin] = useState(false);
+  const [isUpdatingPin, setIsUpdatingPin] = useState(false);
 
   // Table active dropdown popup ID for permissions
   const [openDropdownStaffId, setOpenDropdownStaffId] = useState<string | null>(null);
@@ -102,6 +115,17 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     openDriverWhatsApp(driver.phone || '+966550000004', msg);
   };
 
+  const handleSaveEditedPin = async () => {
+    if (!editingPinStaff || !editPinInput.trim()) return;
+    setIsUpdatingPin(true);
+    if (onUpdatePasswordPin) {
+      await onUpdatePasswordPin(editingPinStaff.id, editPinInput.trim());
+    }
+    setIsUpdatingPin(false);
+    setEditingPinStaff(null);
+    setEditPinInput('');
+  };
+
   const handleSubmitNewStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (currentCount >= maxStaffLimit) {
@@ -116,7 +140,8 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
 
     const success = await onAddStaff({
       full_name: `${fullName} ${roleTitle}`,
-      email: isDriver ? `driver.${Date.now()}@almuhtaraz.com` : email,
+      email: isDriver ? `driver.${Date.now()}@almuhtaraz.com` : `staff.${Date.now()}@almuhtaraz.com`,
+      password_pin: isDriver ? undefined : (passwordPin || '1234'),
       phone,
       notes: isDriver && truckNotes ? `شاحنة: ${truckNotes}` : undefined,
       can_view_all_records: assignedPerms.can_view_all_contracts,
@@ -127,7 +152,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     if (success) {
       setIsAddModalOpen(false);
       setFullName('');
-      setEmail('');
+      setPasswordPin('1234');
       setPhone('+9665');
       setTruckNotes('');
       setJobRole('driver');
@@ -303,19 +328,47 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#ffffff' }}>
                           {staff.full_name}
                         </div>
-                        <span style={{
-                          display: 'inline-block',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          padding: '1px 8px',
-                          borderRadius: '4px',
-                          marginTop: '2px',
-                          background: isAdmin ? '#f59e0b' : isDriver ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-                          color: isAdmin ? '#050811' : isDriver ? '#34d399' : '#38bdf8',
-                          border: `1px solid ${isAdmin ? 'transparent' : isDriver ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
-                        }}>
-                          {isAdmin ? '👑 المدير العام' : isDriver ? '🚛 سائق رافعة وتوصيل ميداني' : '👷 موظف استقبال ومتابعة'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '1px 8px',
+                            borderRadius: '4px',
+                            background: isAdmin ? '#f59e0b' : isDriver ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                            color: isAdmin ? '#050811' : isDriver ? '#34d399' : '#38bdf8',
+                            border: `1px solid ${isAdmin ? 'transparent' : isDriver ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
+                          }}>
+                            {isAdmin ? '👑 المدير العام' : isDriver ? '🚛 سائق رافعة وتوصيل ميداني' : '👷 موظف استقبال ومتابعة'}
+                          </span>
+
+                          {!isDriver && (
+                            <button
+                              onClick={() => {
+                                setEditingPinStaff(staff);
+                                setEditPinInput(staff.password_pin || '1234');
+                              }}
+                              style={{
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                borderRadius: '6px',
+                                padding: '1px 6px',
+                                color: '#fbbf24',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="تعديل الرمز السري للدخول"
+                            >
+                              <Key size={10} />
+                              <span>الرمز: {staff.password_pin || '1234'}</span>
+                              <Edit3 size={10} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -699,21 +752,62 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 </div>
               )}
 
-              {/* Email (ONLY for Office Staff) */}
+              {/* Password PIN (ONLY for Office Staff) */}
               {jobRole === 'staff' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
-                    البريد الإلكتروني لتسجيل الدخول:
-                  </label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    dir="ltr"
-                    placeholder="staff@almuhtaraz.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Key size={14} />
+                      <span>كلمة المرور / الرمز السري للدخول:</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordPin(Math.floor(1000 + Math.random() * 9000).toString())}
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        color: '#fbbf24',
+                        borderRadius: '6px',
+                        padding: '2px 8px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      توليد رمز تلقائي 🎲
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showAddPin ? 'text' : 'password'}
+                      className="form-input"
+                      dir="ltr"
+                      placeholder="مثال: 1234 أو رمز مخصص"
+                      value={passwordPin}
+                      onChange={(e) => setPasswordPin(e.target.value)}
+                      required
+                      style={{ paddingLeft: '40px', letterSpacing: showAddPin ? '2px' : 'normal', fontWeight: 800 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPin(!showAddPin)}
+                      style={{
+                        position: 'absolute',
+                        left: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {showAddPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                    يدخل الموظف بالنقر على اسمه وإدخال هذا الرمز السري مباشرة دون الحاجة لبريد إلكتروني.
+                  </span>
                 </div>
               )}
 
@@ -857,6 +951,159 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 🔑 EDIT STAFF PIN MODAL (ADMIN CONTROL)                  */}
+      {/* ======================================================== */}
+      {editingPinStaff && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(2, 6, 23, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '16px',
+          direction: 'rtl'
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg, #0f172a 0%, #050811 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            borderRadius: '20px',
+            maxWidth: '400px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            position: 'relative'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fbbf24'
+                }}>
+                  <Key size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                    تعديل كلمة مرور الموظف
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                    {editingPinStaff.full_name}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingPinStaff(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Input Form */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
+                    الرمز السري الجديد للدخول:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEditPinInput(Math.floor(1000 + Math.random() * 9000).toString())}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      color: '#fbbf24',
+                      borderRadius: '6px',
+                      padding: '2px 8px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    توليد رمز تلقائي 🎲
+                  </button>
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showEditPin ? 'text' : 'password'}
+                    className="form-input"
+                    dir="ltr"
+                    value={editPinInput}
+                    onChange={(e) => setEditPinInput(e.target.value)}
+                    placeholder="مثال: 1234"
+                    style={{ paddingLeft: '40px', letterSpacing: showEditPin ? '2px' : 'normal', fontWeight: 800 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPin(!showEditPin)}
+                    style={{
+                      position: 'absolute',
+                      left: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {showEditPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.2)',
+                borderRadius: '8px',
+                padding: '10px',
+                fontSize: '0.78rem',
+                color: '#fbbf24'
+              }}>
+                🔒 سيتمكن الموظف من الدخول فوراً باستخدام هذا الرمز بمجرد النقر على اسمه.
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditingPinStaff(null)}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleSaveEditedPin}
+                  disabled={isUpdatingPin || !editPinInput.trim()}
+                >
+                  {isUpdatingPin ? 'جارٍ الحفظ...' : 'حفظ الرمز السري الجديد 💾'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

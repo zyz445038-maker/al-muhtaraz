@@ -17,6 +17,7 @@ export interface Profile {
   email: string;
   phone?: string;
   role: UserRole;
+  password_pin?: string;
   is_active: boolean;
   can_view_all_records: boolean; // legacy
   permissions?: StaffPermissions;

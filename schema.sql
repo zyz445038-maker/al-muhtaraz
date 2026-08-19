@@ -27,12 +27,16 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT UNIQUE NOT NULL,                                  -- البريد الإلكتروني
     phone TEXT,                                                  -- رقم الجوال
     role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('admin', 'employee')), -- الصلاحية: مدير أو موظف
+    password_pin TEXT DEFAULT '1234',                            -- كلمة المرور / الرمز السري المحدد من قبل المدير
     is_active BOOLEAN NOT NULL DEFAULT true,                     -- حالة الحساب (نشط / موقوف)
     can_view_all_records BOOLEAN NOT NULL DEFAULT true,          -- هل يرى كافة العقود أم العقود التي أدخلها فقط
     notes TEXT,                                                  -- ملاحظات إضافية
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ترقية الأعمدة لضمان وجود حقل password_pin
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_pin TEXT DEFAULT '1234';
 
 COMMENT ON TABLE public.profiles IS 'جدول الموظفين والإدارة وتحديد الصلاحيات وحالة الحسابات';
 

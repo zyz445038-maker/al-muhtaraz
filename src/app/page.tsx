@@ -34,6 +34,7 @@ import { ReceiptModal } from '@/components/ReceiptModal';
 import { ExtendContractModal } from '@/components/ExtendContractModal';
 import { InventoryManagement } from '@/components/InventoryManagement';
 import { DriverDispatchModal } from '@/components/DriverDispatchModal';
+import { StaffLoginModal } from '@/components/StaffLoginModal';
 import { formatDriverWhatsAppMessage } from '@/utils/driverDispatch';
 
 // Sample Seed Data
@@ -44,6 +45,7 @@ const initialStaff: Profile[] = [
     email: 'admin@almuhtaraz.com',
     phone: '+966500000001',
     role: 'admin',
+    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: {
@@ -77,6 +79,7 @@ const initialStaff: Profile[] = [
     email: 'm.shammari@almuhtaraz.com',
     phone: '+966550000002',
     role: 'employee',
+    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: DEFAULT_STAFF_PERMISSIONS,
@@ -101,6 +104,7 @@ const initialStaff: Profile[] = [
     email: 'a.mutairi@almuhtaraz.com',
     phone: '+966550000005',
     role: 'employee',
+    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: DEFAULT_STAFF_PERMISSIONS,
@@ -276,13 +280,15 @@ function MainDashboard() {
   const [notifications, setNotifications] = useState<NotificationLog[]>(initialNotifications);
   const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>(initialInAppNotifications);
   const [staffList, setStaffList] = useState<Profile[]>(initialStaff);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('staff-3'); // Default to field driver
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(initialStaff[0]); // Default to Admin
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('staff-admin');
+  const [isStaffLoginModalOpen, setIsStaffLoginModalOpen] = useState(false);
   const [gatewaySettings, setGatewaySettings] = useState<IWhatsAppSettings>(initialGatewaySettings);
   const [paymentSettings, setPaymentSettings] = useState<IPaymentSettings>(initialPaymentSettings);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
   // Calculate active permissions based on role and selected employee
-  const currentStaff = staffList.find(s => s.id === selectedStaffId) || staffList.find(s => s.role !== 'admin');
+  const currentStaff = currentProfile || staffList.find(s => s.id === selectedStaffId) || staffList.find(s => s.role !== 'admin');
   const activePermissions: StaffPermissions = currentRole === 'admin'
     ? {
         can_view_all_contracts: true,
@@ -294,7 +300,31 @@ function MainDashboard() {
         can_manage_inventory: true,
         can_send_whatsapp: true
       }
-    : (currentStaff?.permissions || (currentStaff?.full_name?.includes('سائق') ? DEFAULT_DRIVER_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS));
+    : (currentProfile?.permissions || currentStaff?.permissions || DEFAULT_STAFF_PERMISSIONS);
+
+  // Profile selection & PIN update handlers
+  const handleSelectProfile = (profile: Profile) => {
+    setCurrentProfile(profile);
+    setCurrentRole(profile.role);
+    setSelectedStaffId(profile.id);
+    if (profile.role === 'employee') {
+      if (['staff', 'gateway-settings', 'payment-settings'].includes(currentTab)) {
+        setCurrentTab('search');
+      }
+    }
+  };
+
+  const handleUpdateStaffPin = async (profileId: string, newPin: string) => {
+    setStaffList(prev => prev.map(s => s.id === profileId ? { ...s, password_pin: newPin } : s));
+    if (currentProfile?.id === profileId) {
+      setCurrentProfile(prev => prev ? { ...prev, password_pin: newPin } : null);
+    }
+    try {
+      await supabase.from('profiles').update({ password_pin: newPin }).eq('id', profileId);
+    } catch (err) {
+      console.error('Failed to sync PIN with Supabase:', err);
+    }
+  };
 
   // Filter contracts if employee doesn't have can_view_all_contracts
   const displayedContracts = contracts.filter(c => {
@@ -1081,6 +1111,8 @@ function MainDashboard() {
         setCurrentTab={setCurrentTab}
         currentRole={currentRole}
         setCurrentRole={setCurrentRole}
+        currentProfile={currentProfile}
+        onOpenStaffLoginModal={() => setIsStaffLoginModalOpen(true)}
         staffList={staffList}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}
@@ -1190,6 +1222,7 @@ function MainDashboard() {
             onAddStaff={handleAddStaff}
             onToggleStatus={handleToggleStaffStatus}
             onUpdatePermissions={handleUpdateStaffPermissions}
+            onUpdatePasswordPin={handleUpdateStaffPin}
             onDeleteStaff={handleDeleteStaff}
           />
         )}
@@ -1249,6 +1282,15 @@ function MainDashboard() {
           handleSendWhatsApp(phone, msg);
           return true;
         }}
+      />
+
+      {/* 8. 🔐 Luxury Staff & Admin PIN Login Modal */}
+      <StaffLoginModal
+        isOpen={isStaffLoginModalOpen}
+        onClose={() => setIsStaffLoginModalOpen(false)}
+        staffList={staffList}
+        currentProfile={currentProfile}
+        onSelectProfile={handleSelectProfile}
       />
 
       {/* Footer */}

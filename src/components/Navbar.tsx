@@ -23,6 +23,8 @@ interface NavbarProps {
   setCurrentTab: (tab: string) => void;
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
+  currentProfile?: Profile | null;
+  onOpenStaffLoginModal?: () => void;
   staffList?: Profile[];
   selectedStaffId?: string;
   setSelectedStaffId?: (id: string) => void;
@@ -41,6 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setCurrentTab,
   currentRole,
   setCurrentRole,
+  currentProfile,
+  onOpenStaffLoginModal,
   staffList = [],
   selectedStaffId,
   setSelectedStaffId,
@@ -313,82 +317,49 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Role Switcher for preview / auth */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(30, 41, 59, 0.6)',
-            padding: '4px',
-            borderRadius: '10px',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
-          }}>
+          {/* 🔐 Interactive Staff Account / PIN Login Badge */}
+          {onOpenStaffLoginModal && (
             <button
-              onClick={() => setCurrentRole('admin')}
+              onClick={onOpenStaffLoginModal}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
-                padding: '5px 10px',
-                borderRadius: '7px',
-                border: 'none',
+                gap: '8px',
+                background: currentRole === 'admin' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(56, 189, 248, 0.12)',
+                border: `1px solid ${currentRole === 'admin' ? '#f59e0b' : '#38bdf8'}`,
+                borderRadius: '12px',
+                padding: '6px 12px',
+                color: '#ffffff',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                background: currentRole === 'admin' ? '#f59e0b' : 'transparent',
-                color: currentRole === 'admin' ? '#050811' : '#94a3b8'
+                transition: 'all 0.2s ease',
+                boxShadow: currentRole === 'admin' ? '0 0 15px rgba(245, 158, 11, 0.2)' : '0 0 15px rgba(56, 189, 248, 0.2)'
               }}
+              title="تبديل أو تسجيل دخول الموظف بالرمز السري"
             >
-              <ShieldCheck size={14} />
-              <span>المدير</span>
-            </button>
-            <button
-              onClick={() => setCurrentRole('employee')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '5px 10px',
-                borderRadius: '7px',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                background: currentRole === 'employee' ? '#0ea5e9' : 'transparent',
-                color: currentRole === 'employee' ? '#ffffff' : '#94a3b8'
-              }}
-            >
-              <UserCheck size={14} />
-              <span>موظف</span>
-            </button>
-          </div>
-
-          {/* If Employee Role: Show Active Staff Selector Dropdown (Office staff only, Drivers do not login) */}
-          {currentRole === 'employee' && staffList.length > 0 && setSelectedStaffId && (
-            <select
-              value={selectedStaffId}
-              onChange={(e) => setSelectedStaffId(e.target.value)}
-              style={{
-                background: '#0f172a',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+              <div style={{
+                width: '26px',
+                height: '26px',
                 borderRadius: '8px',
-                padding: '5px 8px',
-                fontSize: '0.78rem',
-                fontFamily: 'inherit',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-              title="تحديد حساب موظف الاستقبال لمعاينة صلاحياته"
-            >
-              {staffList.filter(s => s.role !== 'admin' && !s.full_name.includes('سائق')).map(s => (
-                <option key={s.id} value={s.id}>
-                  👷 {s.full_name}
-                </option>
-              ))}
-            </select>
+                background: currentRole === 'admin' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #38bdf8, #0284c7)',
+                color: currentRole === 'admin' ? '#000000' : '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 900,
+                fontSize: '0.8rem'
+              }}>
+                {currentRole === 'admin' ? '👑' : '👷'}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: currentRole === 'admin' ? '#fbbf24' : '#38bdf8', lineHeight: 1.2 }}>
+                  {currentRole === 'admin' ? '👑 المدير العام' : (currentProfile?.full_name?.split(' ')[0] || '👷 موظف استقبال')}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '1px' }}>
+                  {currentRole === 'admin' ? 'صلاحيات كاملة ▾' : 'دخول بالرمز السري 🔒'}
+                </div>
+              </div>
+            </button>
           )}
 
           {/* Replay Intro Button */}
