@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Truck, Lock, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -289,6 +289,35 @@ function MainDashboard() {
   const [paymentSettings, setPaymentSettings] = useState<IPaymentSettings>(initialPaymentSettings);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
+  // WhatsApp Alert System – persistent failure notifications
+  interface WhatsAppAlert {
+    id: string;
+    type: 'success' | 'error';
+    recipient: 'customer' | 'driver';
+    recipientName: string;
+    recipientPhone: string;
+    contractNumber: string;
+    message: string;
+    errorMessage?: string;
+    timestamp: string;
+  }
+  const [whatsappAlerts, setWhatsappAlerts] = useState<WhatsAppAlert[]>([]);
+  const dismissAlert = useCallback((id: string) => setWhatsappAlerts(prev => prev.filter(a => a.id !== id)), []);
+  const retryAlert = useCallback(async (alert: WhatsAppAlert) => {
+    try {
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: alert.recipientPhone, message: alert.message })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWhatsappAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, type: 'success', errorMessage: undefined } : a));
+        setTimeout(() => dismissAlert(alert.id), 4000);
+      }
+    } catch {}
+  }, [dismissAlert]);
+
   // Calculate active permissions based on role and selected employee
   const currentStaff = currentProfile || (selectedStaffId ? staffList.find(s => s.id === selectedStaffId) : null);
   const activePermissions: StaffPermissions = currentRole === 'admin'
@@ -412,13 +441,75 @@ function MainDashboard() {
     fetchSupabaseData();
   }, []);
 
-  // WhatsApp Sender Helper (Fallback wa.me)
+  // WhatsApp Sender Helper (Fallback wa.me – for manual send buttons only)
   const handleSendWhatsApp = (phone: string, message: string) => {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const encoded = encodeURIComponent(message);
     const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
     window.open(url, '_blank');
   };
+
+  // 🔕 Silent WhatsApp Send with Persistent Alert Feedback
+  const sendSilentWhatsApp = useCallback(async (
+    phone: string,
+    message: string,
+    recipient: 'customer' | 'driver',
+    recipientName: string,
+    contractNumber: string,
+    extraPayload?: Record<string, string>
+  ) => {
+    const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message, ...extraPayload })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Success: show brief green toast that auto-dismisses after 5s
+        const successAlert: WhatsAppAlert = {
+          id: alertId,
+          type: 'success',
+          recipient,
+          recipientName,
+          recipientPhone: phone,
+          contractNumber,
+          message,
+          timestamp: new Date().toISOString()
+        };
+        setWhatsappAlerts(prev => [successAlert, ...prev]);
+        setTimeout(() => dismissAlert(alertId), 5000);
+      } else {
+        // Failure: show persistent red alert that stays until manually dismissed
+        const errorAlert: WhatsAppAlert = {
+          id: alertId,
+          type: 'error',
+          recipient,
+          recipientName,
+          recipientPhone: phone,
+          contractNumber,
+          message,
+          errorMessage: data.error || 'تعذّر الوصول إلى بوابة الواتساب',
+          timestamp: new Date().toISOString()
+        };
+        setWhatsappAlerts(prev => [errorAlert, ...prev]);
+      }
+    } catch (err: any) {
+      const errorAlert: WhatsAppAlert = {
+        id: alertId,
+        type: 'error',
+        recipient,
+        recipientName,
+        recipientPhone: phone,
+        contractNumber,
+        message,
+        errorMessage: err?.message || 'خطأ في الاتصال بالشبكة',
+        timestamp: new Date().toISOString()
+      };
+      setWhatsappAlerts(prev => [errorAlert, ...prev]);
+    }
+  }, [dismissAlert]);
 
   // In-App Notification Handlers
   const handleMarkInAppAsRead = async (id: string) => {
@@ -696,22 +787,29 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
-    // 🚀 100% Silent Background WhatsApp Send (no external tab redirects)
+    // 🚀 Tracked Silent WhatsApp Dispatch with Persistent Alert Feedback
     if (contract.customer?.phone) {
-      try {
-        fetch('/api/whatsapp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: contract.customer.phone,
-            message: messageContent,
-            contract_id: contract.id,
-            customer_id: contract.customer_id,
-            recipient_role: 'customer',
-            notification_type: 'contract_created'
-          })
-        }).catch(err => console.warn('Background silent WhatsApp send:', err));
-      } catch (e) {}
+      await sendSilentWhatsApp(
+        contract.customer.phone,
+        messageContent,
+        'customer',
+        contract.customer?.name || 'العميل',
+        contract.contract_number,
+        { contract_id: contract.id, customer_id: contract.customer_id, recipient_role: 'customer', notification_type: 'contract_extended' }
+      );
+    }
+    // Dispatch to assigned driver if present
+    const extDriver = staffList.find(s => s.id === contract.assigned_employee_id);
+    if (extDriver?.phone) {
+      const driverMsg = `🔄 تمديد عقد حاوية\nرقم العقد: ${contract.contract_number}\nرقم الحاوية: ${contract.container?.container_number || '-'}\nالعميل: ${contract.customer?.name || '-'} (${contract.customer?.phone || '-'})\nموعد السحب الجديد: ${new Date(newEndDate).toLocaleDateString('ar-SA')}\nمدة إضافية: +${additionalDays} يوم`;
+      await sendSilentWhatsApp(
+        extDriver.phone,
+        driverMsg,
+        'driver',
+        extDriver.full_name,
+        contract.contract_number,
+        { contract_id: contract.id, recipient_role: 'driver', notification_type: 'contract_extended' }
+      );
     }
 
     // Trigger celebration
@@ -1026,22 +1124,29 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [newInApp, ...prev]);
 
-    // 🚀 100% Silent Background WhatsApp Send (no external tab redirects)
+    // 🚀 Tracked Silent WhatsApp Dispatch with Persistent Alert Feedback
     if (customerObj.phone) {
-      try {
-        fetch('/api/whatsapp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: customerObj.phone,
-            message: messageContent,
-            contract_id: newContract.id,
-            customer_id: customerObj.id,
-            recipient_role: 'customer',
-            notification_type: 'contract_created'
-          })
-        }).catch(err => console.warn('Background silent WhatsApp send:', err));
-      } catch (e) {}
+      await sendSilentWhatsApp(
+        customerObj.phone,
+        messageContent,
+        'customer',
+        customerObj.name,
+        newContract.contract_number,
+        { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
+      );
+    }
+    // Silent dispatch to assigned driver/employee
+    if (assignedStaff?.phone) {
+      const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
+      const driverMsg = `مهمة تنزيل حاوية جديدة 🚛\nرقم العقد: ${newContract.contract_number}\nرقم الحاوية: ${containerObj?.container_number || '-'}\nالعميل: ${customerObj.name} (${customerObj.phone})\nالموقع: ${mapsUrl}\nموعد التنزيل: ${contractData.expected_pickup_time ? new Date(contractData.expected_pickup_time).toLocaleString('ar-SA') : '-'}`;
+      await sendSilentWhatsApp(
+        assignedStaff.phone,
+        driverMsg,
+        'driver',
+        assignedStaff.full_name,
+        newContract.contract_number,
+        { contract_id: newContract.id, recipient_role: 'driver', notification_type: 'driver_dispatch' }
+      );
     }
 
     // Trigger celebration confetti
@@ -1151,8 +1256,129 @@ function MainDashboard() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
+      {/* ===== 🔔 WhatsApp Dispatch Alert Overlay ===== */}
+      {whatsappAlerts.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: '16px',
+          left: '16px',
+          right: '16px',
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          alignItems: 'stretch',
+          pointerEvents: 'none'
+        }}>
+          {whatsappAlerts.map(alert => (
+            <div key={alert.id} style={{
+              pointerEvents: 'all',
+              background: alert.type === 'error'
+                ? 'rgba(239,68,68,0.97)'
+                : 'rgba(22,163,74,0.97)',
+              border: `2px solid ${alert.type === 'error' ? '#b91c1c' : '#15803d'}`,
+              borderRadius: '14px',
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '14px',
+              boxShadow: alert.type === 'error'
+                ? '0 8px 32px rgba(239,68,68,0.5), 0 2px 8px rgba(0,0,0,0.4)'
+                : '0 8px 32px rgba(22,163,74,0.35), 0 2px 8px rgba(0,0,0,0.3)',
+              backdropFilter: 'blur(8px)',
+              animation: 'slideInFromTop 0.35s cubic-bezier(.2,.8,.3,1.1)',
+              direction: 'rtl'
+            }}>
+              {/* Icon */}
+              <span style={{ fontSize: '26px', flexShrink: 0, marginTop: '2px' }}>
+                {alert.type === 'error' ? '⚠️' : '✅'}
+              </span>
+              {/* Content */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '4px' }}>
+                  {alert.type === 'error'
+                    ? `⛔ فشل إرسال الواتساب إلى ${alert.recipient === 'customer' ? 'العميل' : 'السائق'}: ${alert.recipientName}`
+                    : `✅ تم الإرسال بنجاح إلى ${alert.recipient === 'customer' ? 'العميل' : 'السائق'}: ${alert.recipientName}`
+                  }
+                </div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.88)', marginBottom: '4px' }}>
+                  عقد رقم: {alert.contractNumber} • {alert.recipientPhone}
+                </div>
+                {alert.type === 'error' && alert.errorMessage && (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,220,220,0.9)', marginBottom: '6px' }}>
+                    تفاصيل الخطأ: {alert.errorMessage}
+                  </div>
+                )}
+                {/* Action Buttons */}
+                {alert.type === 'error' && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    <button
+                      onClick={() => retryAlert(alert)}
+                      style={{
+                        background: 'rgba(255,255,255,0.2)',
+                        border: '1px solid rgba(255,255,255,0.5)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        padding: '5px 14px',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.35)')}
+                      onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+                    >🔄 إعادة المحاولة</button>
+                    <button
+                      onClick={() => handleSendWhatsApp(alert.recipientPhone, alert.message)}
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: '1px solid rgba(255,255,255,0.4)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        padding: '5px 14px',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.28)')}
+                      onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                    >📲 إرسال يدوي عبر الواتساب</button>
+                  </div>
+                )}
+              </div>
+              {/* Dismiss Button */}
+              <button
+                onClick={() => dismissAlert(alert.id)}
+                style={{
+                  background: 'rgba(255,255,255,0.18)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#fff',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.38)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+                title="إغلاق التنبيه"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* ===== End Alert Overlay ===== */}
+      
       {/* 1. Dramatic Cinematic Splash Intro */}
       {showSplash && (
+
         <SplashIntro onComplete={() => {
           setShowSplash(false);
           setIsStaffLoginModalOpen(true);

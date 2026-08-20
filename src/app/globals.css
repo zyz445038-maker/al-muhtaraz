@@ -486,3 +486,15 @@ html, body {
     opacity: 1;
   }
 }
+
+@keyframes slideInFromTop {
+  0% {
+    transform: translateY(-28px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
