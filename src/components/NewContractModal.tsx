@@ -110,11 +110,19 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [locationAddress, setLocationAddress] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   
-  // Pricing
-  const [totalCost, setTotalCost] = useState(150);
-  const [paidAmount, setPaidAmount] = useState(150);
+  // Pricing & Financial Calculations
+  const [baseCost, setBaseCost] = useState(150);
+  const [discountAmount, setDiscountAmount] = useState(0); // خصم
+  const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Derived Financial Amounts
+  const totalCost = Math.max(0, baseCost - (discountAmount || 0));
+  const effectivePaidAmount = paymentChoice === 'cash'
+    ? (downPayment > 0 ? downPayment : totalCost)
+    : (downPayment > 0 ? downPayment : 0);
+  const remainingAmount = Math.max(0, totalCost - effectivePaidAmount);
 
   // Helper: Apply Date Preset
   const applyDatePreset = (preset: 'today' | 'tomorrow' | 'after_tomorrow') => {
@@ -172,16 +180,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
         setContractType(found.type);
         setSelectedContainerId(found.id);
         if (found.type === 'debris') {
-          const cost = found.daily_rate || 150;
-          setTotalCost(cost);
-          if (paymentChoice === 'cash') setPaidAmount(cost);
-          else setPaidAmount(0);
+          const cost = (found.daily_rate || 150) * durationDays;
+          setBaseCost(cost);
         } else {
           setPeriodType('monthly');
           const cost = found.monthly_rate || 3500;
-          setTotalCost(cost);
-          if (paymentChoice === 'cash') setPaidAmount(cost);
-          else setPaidAmount(0);
+          setBaseCost(cost);
         }
       }
     }
@@ -204,7 +208,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     }
   }, [contractType, periodType, durationDays, startDate]);
 
-  // Auto calculate cost on container/period change
+  // Auto calculate base cost on container/period change
   useEffect(() => {
     const cont = containers.find(c => c.id === selectedContainerId);
     if (cont) {
@@ -218,23 +222,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
         if (periodType === 'annual') mult = 12;
         cost = monthly * mult;
       }
-      setTotalCost(cost);
-      if (paymentChoice === 'cash') {
-        setPaidAmount(cost);
-      } else {
-        setPaidAmount(0);
-      }
+      setBaseCost(cost);
     }
-  }, [selectedContainerId, contractType, periodType, durationDays, containers, paymentChoice]);
+  }, [selectedContainerId, contractType, periodType, durationDays, containers]);
 
   // Handle Payment Choice Change
   const handlePaymentChoiceChange = (choice: PaymentChoice) => {
     setPaymentChoice(choice);
-    if (choice === 'cash') {
-      setPaidAmount(totalCost);
-    } else {
-      setPaidAmount(0);
-    }
   };
 
   // Fetch Current Device GPS Location
@@ -267,15 +261,15 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const handleContractTypeChange = (type: ContainerType) => {
     setContractType(type);
     setSelectedContainerId('');
+    setDiscountAmount(0);
+    setDownPayment(0);
     if (type === 'debris') {
       setPeriodType('daily');
-      setDurationDays(1);
-      setTotalCost(150);
-      setPaidAmount(paymentChoice === 'cash' ? 150 : 0);
+      setDurationDays(3);
+      setBaseCost(450);
     } else {
       setPeriodType('monthly');
-      setTotalCost(3500);
-      setPaidAmount(paymentChoice === 'cash' ? 3500 : 0);
+      setBaseCost(3500);
     }
   };
 
@@ -293,6 +287,18 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     setIsSaving(true);
     const contractNumber = `CTR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    const finalTotalCost = Math.max(0, baseCost - discountAmount);
+    const finalPaid = effectivePaidAmount;
+    const finalRemaining = Math.max(0, finalTotalCost - finalPaid);
+
+    let notesWithFinancials = notes;
+    const financialNotes = [];
+    if (discountAmount > 0) financialNotes.push(`خصم: ${discountAmount} ر.س`);
+    if (downPayment > 0) financialNotes.push(`دفعة على الحساب: ${downPayment} ر.س`);
+    if (financialNotes.length > 0) {
+      notesWithFinancials = notesWithFinancials ? `${notesWithFinancials} | ${financialNotes.join(' - ')}` : financialNotes.join(' - ');
+    }
+
     const contractPayload = {
       contract_number: contractNumber,
       container_id: selectedContainerId,
@@ -309,10 +315,11 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       location_longitude: longitude,
       google_maps_url: googleMapsUrl,
       location_address: locationAddress,
-      total_cost: totalCost,
-      paid_amount: paymentChoice === 'cash' ? totalCost : paidAmount,
+      total_cost: finalTotalCost,
+      paid_amount: finalPaid,
+      remaining_amount: finalRemaining,
       payment_choice: paymentChoice,
-      notes: notes
+      notes: notesWithFinancials
     };
 
     const success = await onSaveContract(contractPayload);
@@ -327,6 +334,8 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       setGoogleMapsUrl('');
       setLocationAddress('');
       setPaymentChoice('cash');
+      setDiscountAmount(0);
+      setDownPayment(0);
     }
   };
 
@@ -975,35 +984,199 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
             </div>
           </div>
 
-          {/* 6. Pricing Summary Strip (القيمة الإجمالية والمبلغ المتبقي) */}
+          {/* 6. Pricing & Financial Calculation Strip (إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي + خصم) */}
           <div style={{
             background: 'rgba(15, 23, 42, 0.85)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '14px',
-            padding: '14px 18px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '12px',
-            textAlign: 'center'
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: '16px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
           }}>
-            <div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>إجمالي تكلفة العقد</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#fbbf24' }}>
-                {totalCost} ر.س
+            
+            {/* Top 4-Column Row: إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '10px',
+              textAlign: 'center'
+            }}>
+              {/* 1. إجمالي المبلغ */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '10px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
+                  إجمالي المبلغ
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#fbbf24' }}>
+                  {totalCost} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div style={{ fontSize: '0.68rem', color: '#94a3b8', textDecoration: 'line-through', marginTop: '2px' }}>
+                    الأصل: {baseCost} ر.س
+                  </div>
+                )}
+              </div>
+
+              {/* 2. دفعة على الحساب */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '12px',
+                padding: '8px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 700 }}>
+                  دفعة على الحساب
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={totalCost}
+                    className="form-input"
+                    style={{
+                      height: '32px',
+                      padding: '2px 4px',
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      color: '#38bdf8',
+                      borderColor: 'rgba(56, 189, 248, 0.4)',
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      width: '100%'
+                    }}
+                    value={downPayment === 0 ? '' : downPayment}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(totalCost, Number(e.target.value) || 0));
+                      setDownPayment(val);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ر.س</span>
+                </div>
+              </div>
+
+              {/* 3. المبلغ المدفوع */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '12px',
+                padding: '10px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.76rem', color: '#34d399', marginBottom: '4px', fontWeight: 700 }}>
+                  المبلغ المدفوع
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#34d399' }}>
+                  {effectivePaidAmount} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
+                  {paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة مسددة' : 'آجل / رابط'}
+                </div>
+              </div>
+
+              {/* 4. المبلغ المتبقي */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: `1px solid ${remainingAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                borderRadius: '12px',
+                padding: '10px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.76rem', color: remainingAmount > 0 ? '#f87171' : '#34d399', marginBottom: '4px', fontWeight: 700 }}>
+                  المبلغ المتبقي
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: remainingAmount > 0 ? '#f87171' : '#34d399' }}>
+                  {remainingAmount} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: remainingAmount > 0 ? '#fca5a5' : '#86efac', marginTop: '2px' }}>
+                  {remainingAmount > 0 ? 'متبقي للتحصيل' : 'مسدد بالكامل ✅'}
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>المبلغ المدفوع الآن</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: '900', color: paymentChoice === 'cash' ? '#34d399' : '#38bdf8' }}>
-                {paymentChoice === 'cash' ? totalCost : paidAmount} ر.س
+
+            {/* Bottom Row: خصم */}
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.4)',
+              border: '1px dashed rgba(255, 255, 255, 0.15)',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#e2e8f0' }}>
+                  خصم:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '130px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={baseCost}
+                    className="form-input"
+                    style={{
+                      height: '32px',
+                      padding: '2px 8px',
+                      fontSize: '0.92rem',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      color: '#fbbf24',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      borderColor: 'rgba(245, 158, 11, 0.3)'
+                    }}
+                    value={discountAmount === 0 ? '' : discountAmount}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(baseCost, Number(e.target.value) || 0));
+                      setDiscountAmount(val);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>ر.س</span>
+                </div>
+              </div>
+
+              {/* Quick Discount Chips */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {[0, 20, 50, 100].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setDiscountAmount(amt)}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      border: `1px solid ${discountAmount === amt ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                      background: discountAmount === amt ? 'rgba(245, 158, 11, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                      color: discountAmount === amt ? '#fbbf24' : '#94a3b8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {amt === 0 ? 'بدون خصم' : `خصم ${amt} ر.س`}
+                  </button>
+                ))}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>المتبقي المطلوب</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: '900', color: paymentChoice === 'cash' ? '#34d399' : '#f87171' }}>
-                {paymentChoice === 'cash' ? 0 : totalCost} ر.س
-              </div>
-            </div>
+
           </div>
 
           {/* 7. Mandatory Payment Method Matrices (تحت القيمة الإجمالية والمتبقي وقبل التوثيق) */}

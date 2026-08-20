@@ -895,10 +895,10 @@ function MainDashboard() {
 
     const isCash = contractData.payment_choice === 'cash';
     const isSadad = contractData.payment_choice === 'sadad';
-    const totalCost = contractData.total_cost;
-    const paidAmount = isCash ? totalCost : (contractData.paid_amount || 0);
-    const remainingAmount = isCash ? 0 : (totalCost - paidAmount);
-    const paymentStatus: PaymentStatus = isCash ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid');
+    const totalCost = Number(contractData.total_cost) || 0;
+    const paidAmount = Number(contractData.paid_amount ?? (isCash ? totalCost : 0));
+    const remainingAmount = Number(contractData.remaining_amount ?? Math.max(0, totalCost - paidAmount));
+    const paymentStatus: PaymentStatus = remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid');
     const paymentMethod: PaymentMethod = isCash ? 'cash' : (isSadad ? 'mada' : 'cash');
 
     const newContract: Contract = {
@@ -923,7 +923,7 @@ function MainDashboard() {
       remaining_amount: remainingAmount,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
-      receipt_number: isCash ? receiptNumber : undefined,
+      receipt_number: (isCash || paidAmount > 0) ? receiptNumber : undefined,
       status: 'active',
       notes: contractData.notes,
       created_at: new Date().toISOString(),
@@ -937,25 +937,27 @@ function MainDashboard() {
     setContracts(prev => [newContract, ...prev]);
     setContainers(prev => prev.map(c => c.id === contractData.container_id ? { ...c, status: 'rented' } : c));
 
-    // If Cash: Create Receipt immediately
-    if (isCash) {
+    // If Cash or partial down payment: Create Receipt immediately
+    if (isCash || paidAmount > 0) {
       const newReceipt: Receipt = {
         id: `rcp-${Date.now()}`,
         receipt_number: receiptNumber,
         contract_id: newContract.id,
         customer_id: customerObj.id,
         customer_name: customerObj.name,
-        amount: totalCost,
-        payment_method: 'cash',
+        amount: paidAmount > 0 ? paidAmount : totalCost,
+        payment_method: isCash ? 'cash' : 'mada',
         contract_number: newContract.contract_number,
         container_number: containerObj?.container_number,
         container_type: newContract.contract_type,
         issued_at: new Date().toISOString(),
-        notes: 'تم الاستلام نقداً (كاش فوري عند توثيق العقد)'
+        notes: `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`,
+        created_at: new Date().toISOString()
       };
       setReceipts(prev => [newReceipt, ...prev]);
-      // Open PDF Receipt Modal immediately
-      setSelectedReceiptContract(newContract);
+      if (isCash) {
+        setSelectedReceiptContract(newContract);
+      }
     }
 
     // Auto-generate notification for WhatsApp
