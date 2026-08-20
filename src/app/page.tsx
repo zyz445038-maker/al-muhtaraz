@@ -610,7 +610,10 @@ function MainDashboard() {
     additionalDays: number,
     additionalCost: number,
     paymentChoice: 'cash' | 'sadad' | 'postpaid',
-    newEndDate: string
+    newEndDate: string,
+    paidAmount?: number,
+    discountAmount?: number,
+    downPayment?: number
   ): Promise<boolean> => {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return false;
@@ -619,10 +622,20 @@ function MainDashboard() {
     const isCash = paymentChoice === 'cash';
     const isSadad = paymentChoice === 'sadad';
 
-    const newTotalCost = contract.total_cost + additionalCost;
-    const newPaidAmount = isCash ? (contract.paid_amount + additionalCost) : contract.paid_amount;
-    const newRemainingAmount = isCash ? (contract.remaining_amount || 0) : ((contract.remaining_amount || 0) + additionalCost);
+    const netCost = Number(additionalCost) || 0;
+    const effectivePaid = Number(paidAmount ?? (isCash ? netCost : 0));
+    const newTotalCost = (contract.total_cost || 0) + netCost;
+    const newPaidAmount = (contract.paid_amount || 0) + effectivePaid;
+    const newRemainingAmount = Math.max(0, newTotalCost - newPaidAmount);
     const newStatus: ContractStatus = 'extended';
+
+    let extensionNotes = `تمديد (+${additionalDays} يوم)`;
+    const notesParts = [];
+    if (discountAmount && discountAmount > 0) notesParts.push(`خصم: ${discountAmount} ر.س`);
+    if (downPayment && downPayment > 0) notesParts.push(`دفعة: ${downPayment} ر.س`);
+    if (notesParts.length > 0) {
+      extensionNotes += ` [${notesParts.join(' - ')}]`;
+    }
 
     const updatedContract: Contract = {
       ...contract,
@@ -633,30 +646,33 @@ function MainDashboard() {
       paid_amount: newPaidAmount,
       remaining_amount: newRemainingAmount,
       status: newStatus,
-      receipt_number: isCash ? receiptNumber : contract.receipt_number
+      receipt_number: (isCash || effectivePaid > 0) ? receiptNumber : contract.receipt_number,
+      notes: contract.notes ? `${contract.notes} | ${extensionNotes}` : extensionNotes
     };
 
     // Update Local State
     setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
 
-    // If Cash: Create Receipt for the extension payment
-    if (isCash) {
+    // If Cash or partial down payment on extension: Create Receipt
+    if (isCash || effectivePaid > 0) {
       const newReceipt: Receipt = {
         id: `rcp-${Date.now()}`,
         receipt_number: receiptNumber,
         contract_id: contract.id,
         customer_id: contract.customer_id,
         customer_name: contract.customer?.name || 'العميل',
-        amount: additionalCost,
-        payment_method: 'cash',
+        amount: effectivePaid > 0 ? effectivePaid : netCost,
+        payment_method: isCash ? 'cash' : 'mada',
         contract_number: contract.contract_number,
         container_number: contract.container?.container_number,
         container_type: contract.contract_type,
         issued_at: new Date().toISOString(),
-        notes: `سند قبض تمديد عقد (+${additionalDays} يوم) نقداً كاش`
+        notes: `سند قبض تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${newRemainingAmount} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`
       };
       setReceipts(prev => [newReceipt, ...prev]);
-      setSelectedReceiptContract(updatedContract);
+      if (isCash) {
+        setSelectedReceiptContract(updatedContract);
+      }
     }
 
     // Prepare WhatsApp Message

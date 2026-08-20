@@ -27,7 +27,10 @@ interface ExtendContractModalProps {
     additionalDays: number, 
     additionalCost: number, 
     paymentChoice: PaymentChoice, 
-    newEndDate: string
+    newEndDate: string,
+    paidAmount?: number,
+    discountAmount?: number,
+    downPayment?: number
   ) => Promise<boolean>;
 }
 
@@ -39,14 +42,16 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 }) => {
   const [additionalDays, setAdditionalDays] = useState(1);
   const [additionalMonths, setAdditionalMonths] = useState(1);
-  const [additionalCost, setAdditionalCost] = useState(150);
+  const [baseExtensionCost, setBaseExtensionCost] = useState(150);
+  const [discountAmount, setDiscountAmount] = useState(0); // خصم
+  const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [newEndDate, setNewEndDate] = useState('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isDebris = contract?.contract_type === 'debris';
 
-  // Calculate new end date and additional cost whenever inputs change
+  // Calculate new end date and base cost whenever inputs change
   useEffect(() => {
     if (!contract) return;
 
@@ -55,14 +60,14 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
     if (isDebris) {
       const dailyRate = contract.container?.daily_rate || 150;
       const cost = dailyRate * additionalDays;
-      setAdditionalCost(cost);
+      setBaseExtensionCost(cost);
 
       const nextDate = new Date(baseEnd.getTime() + additionalDays * 24 * 60 * 60 * 1000);
       setNewEndDate(nextDate.toISOString().slice(0, 16));
     } else {
       const monthlyRate = contract.container?.monthly_rate || 3500;
       const cost = monthlyRate * additionalMonths;
-      setAdditionalCost(cost);
+      setBaseExtensionCost(cost);
 
       const nextDate = new Date(baseEnd);
       nextDate.setMonth(nextDate.getMonth() + additionalMonths);
@@ -72,6 +77,18 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
   if (!isOpen || !contract) return null;
 
+  // Derived Financial Calculations
+  const netExtensionCost = Math.max(0, baseExtensionCost - (discountAmount || 0));
+  const effectivePaidAmount = paymentChoice === 'cash'
+    ? (downPayment > 0 ? downPayment : netExtensionCost)
+    : (downPayment > 0 ? downPayment : 0);
+  const remainingExtensionAmount = Math.max(0, netExtensionCost - effectivePaidAmount);
+
+  // Overall Contract Impact
+  const newContractTotal = (contract.total_cost || 0) + netExtensionCost;
+  const newContractPaid = (contract.paid_amount || 0) + effectivePaidAmount;
+  const newContractRemaining = Math.max(0, newContractTotal - newContractPaid);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -80,9 +97,12 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
     const success = await onConfirmExtension(
       contract.id,
       daysToAdd,
-      additionalCost,
+      netExtensionCost,
       paymentChoice,
-      new Date(newEndDate).toISOString()
+      new Date(newEndDate).toISOString(),
+      effectivePaidAmount,
+      discountAmount,
+      downPayment
     );
 
     setIsSubmitting(false);
@@ -90,23 +110,25 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
       onClose();
       setAdditionalDays(1);
       setAdditionalMonths(1);
+      setDiscountAmount(0);
+      setDownPayment(0);
       setPaymentChoice('cash');
     }
   };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', padding: '30px' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px', padding: '26px' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
           <div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: '800', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <RotateCw size={22} color="var(--accent-gold)" />
               <span>تمديد عقد الحاوية ({contract.contract_number})</span>
             </h2>
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px' }}>
-              تأجيل موعد السحب، احتساب التكلفة الإضافية، وتوثيق السداد
+            <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '2px' }}>
+              تأجيل موعد السحب، تطبيق الخصومات والدفعات، وتوثيق السداد
             </p>
           </div>
 
@@ -134,39 +156,45 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
           background: 'rgba(15, 23, 42, 0.7)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          padding: '14px 18px',
+          padding: '12px 16px',
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '12px',
-          marginBottom: '18px'
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '10px',
+          marginBottom: '16px'
         }}>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>العميل / المقاول</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>العميل / المقاول</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#ffffff' }}>
               {contract.customer?.name || 'العميل'}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>رقم الحاوية</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#fbbf24' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>رقم الحاوية</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#fbbf24' }}>
               {contract.container?.container_number || '-'}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>الموعد الحالي للسحب</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#f87171' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>الموعد الحالي للسحب</div>
+            <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#f87171' }}>
               {new Date(contract.expected_pickup_time || contract.end_date).toLocaleDateString('ar-SA')}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>المدفوع سابقاً</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#34d399' }}>
+              {contract.paid_amount || 0} ر.س
             </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
           {/* 1. Duration Extension Picker */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             {isDebris ? (
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
                   عدد الأيام الإضافية المطلوبة:
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -177,13 +205,13 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                       onClick={() => setAdditionalDays(num)}
                       style={{
                         flex: '1 0 calc(25% - 6px)',
-                        padding: '8px 0',
+                        padding: '6px 0',
                         borderRadius: '8px',
                         border: `1px solid ${additionalDays === num ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
                         background: additionalDays === num ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.6)',
                         color: additionalDays === num ? '#38bdf8' : '#ffffff',
                         fontWeight: 700,
-                        fontSize: '0.85rem',
+                        fontSize: '0.82rem',
                         cursor: 'pointer'
                       }}
                     >
@@ -194,7 +222,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
               </div>
             ) : (
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
                   الأشهر الإضافية للتجديد:
                 </label>
                 <select
@@ -212,7 +240,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
             {/* New Pickup Date */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#34d399' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#34d399' }}>
                 موعد السحب الجديد بعد التمديد:
               </label>
               <input
@@ -221,40 +249,217 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 value={newEndDate}
                 onChange={(e) => setNewEndDate(e.target.value)}
                 required
-                style={{ borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)' }}
+                style={{ borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)', height: '38px' }}
               />
             </div>
           </div>
 
-          {/* 2. Financial Summary Strip */}
+          {/* 2. Financial Summary Strip (4 Columns + Discount Strip) */}
           <div style={{
             background: 'rgba(15, 23, 42, 0.85)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '12px',
-            padding: '14px 18px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '12px',
-            textAlign: 'center'
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: '14px',
+            padding: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
           }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>التكلفة السابقة</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#e2e8f0' }}>
-                {contract.total_cost} ر.س
+            
+            {/* 4-Column Row */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '8px',
+              textAlign: 'center'
+            }}>
+              {/* 1. قيمة التمديد (إجمالي المبلغ) */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '10px',
+                padding: '8px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '2px', fontWeight: 700 }}>
+                  إجمالي المبلغ
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fbbf24' }}>
+                  {netExtensionCost} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', textDecoration: 'line-through' }}>
+                    الأصل: {baseExtensionCost} ر.س
+                  </div>
+                )}
+              </div>
+
+              {/* 2. دفعة على الحساب */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '10px',
+                padding: '6px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#38bdf8', marginBottom: '2px', fontWeight: 700 }}>
+                  دفعة على الحساب
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={netExtensionCost}
+                    className="form-input"
+                    style={{
+                      height: '28px',
+                      padding: '2px 4px',
+                      fontSize: '0.9rem',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      color: '#38bdf8',
+                      borderColor: 'rgba(56, 189, 248, 0.4)',
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      width: '100%'
+                    }}
+                    value={downPayment === 0 ? '' : downPayment}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(netExtensionCost, Number(e.target.value) || 0));
+                      setDownPayment(val);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>ر.س</span>
+                </div>
+              </div>
+
+              {/* 3. المبلغ المدفوع */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '10px',
+                padding: '8px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.74rem', color: '#34d399', marginBottom: '2px', fontWeight: 700 }}>
+                  المبلغ المدفوع
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#34d399' }}>
+                  {effectivePaidAmount} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                  {paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة تمديد' : 'غير مسدد'}
+                </div>
+              </div>
+
+              {/* 4. المبلغ المتبقي */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: `1px solid ${remainingExtensionAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                borderRadius: '10px',
+                padding: '8px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.74rem', color: remainingExtensionAmount > 0 ? '#f87171' : '#34d399', marginBottom: '2px', fontWeight: 700 }}>
+                  المبلغ المتبقي
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: remainingExtensionAmount > 0 ? '#f87171' : '#34d399' }}>
+                  {remainingExtensionAmount} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
+                </div>
+                <div style={{ fontSize: '0.65rem', color: remainingExtensionAmount > 0 ? '#fca5a5' : '#86efac' }}>
+                  {remainingExtensionAmount > 0 ? 'متبقي للتمديد' : 'مسدد بالكامل ✅'}
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#fbbf24' }}>قيمة التمديد الإضافي</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#fbbf24' }}>
-                +{additionalCost} ر.س
+
+            {/* Discount Strip */}
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.4)',
+              border: '1px dashed rgba(255, 255, 255, 0.15)',
+              borderRadius: '10px',
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#e2e8f0' }}>
+                  خصم:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={baseExtensionCost}
+                    className="form-input"
+                    style={{
+                      height: '28px',
+                      padding: '2px 6px',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      color: '#fbbf24',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      borderColor: 'rgba(245, 158, 11, 0.3)'
+                    }}
+                    value={discountAmount === 0 ? '' : discountAmount}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(baseExtensionCost, Number(e.target.value) || 0));
+                      setDiscountAmount(val);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>ر.س</span>
+                </div>
+              </div>
+
+              {/* Quick Discount Chips */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                {[0, 20, 50, 100].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setDiscountAmount(amt)}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      border: `1px solid ${discountAmount === amt ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                      background: discountAmount === amt ? 'rgba(245, 158, 11, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                      color: discountAmount === amt ? '#fbbf24' : '#94a3b8',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {amt === 0 ? 'بدون خصم' : `خصم ${amt} ر.س`}
+                  </button>
+                ))}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#34d399' }}>إجمالي العقد الجديد</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '900', color: '#34d399' }}>
-                {contract.total_cost + additionalCost} ر.س
-              </div>
+
+            {/* Overall Contract Status Bar */}
+            <div style={{
+              fontSize: '0.76rem',
+              color: '#94a3b8',
+              display: 'flex',
+              justifyContent: 'space-between',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              paddingTop: '6px'
+            }}>
+              <span>إجمالي العقد التراكمي: <b style={{ color: '#ffffff' }}>{newContractTotal} ر.س</b></span>
+              <span>المسدد الكلي: <b style={{ color: '#34d399' }}>{newContractPaid} ر.س</b></span>
+              <span>المتبقي الكلي: <b style={{ color: newContractRemaining > 0 ? '#f87171' : '#34d399' }}>{newContractRemaining} ر.س</b></span>
             </div>
+
           </div>
 
           {/* 3. Payment Method Choice Matrix for Extension */}
@@ -262,10 +467,10 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
             background: 'rgba(15, 23, 42, 0.9)',
             border: '2px solid rgba(245, 158, 11, 0.35)',
             borderRadius: '14px',
-            padding: '14px 18px'
+            padding: '12px 16px'
           }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '800', color: '#fbbf24', marginBottom: '8px' }}>
-              طريقة سداد قيمة التمديد (+{additionalCost} ر.س):
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '800', color: '#fbbf24', marginBottom: '8px' }}>
+              طريقة سداد قيمة التمديد (+{netExtensionCost} ر.س):
             </label>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -284,10 +489,10 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 }}
               >
                 <Banknote size={20} color={paymentChoice === 'cash' ? '#34d399' : '#94a3b8'} style={{ margin: '0 auto 2px auto' }} />
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: paymentChoice === 'cash' ? '#34d399' : '#ffffff' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: paymentChoice === 'cash' ? '#34d399' : '#ffffff' }}>
                   💵 كاش (مستلم)
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
                   سند قبض تمديد فوري
                 </div>
               </div>
@@ -306,10 +511,10 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 }}
               >
                 <CreditCard size={20} color={paymentChoice === 'sadad' ? '#fbbf24' : '#94a3b8'} style={{ margin: '0 auto 2px auto' }} />
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: paymentChoice === 'sadad' ? '#fbbf24' : '#ffffff' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: paymentChoice === 'sadad' ? '#fbbf24' : '#ffffff' }}>
                   💳 سداد (إلكتروني)
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
                   إرسال رابط بالواتساب
                 </div>
               </div>
@@ -328,10 +533,10 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 }}
               >
                 <Hourglass size={20} color={paymentChoice === 'postpaid' ? '#38bdf8' : '#94a3b8'} style={{ margin: '0 auto 2px auto' }} />
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: paymentChoice === 'postpaid' ? '#38bdf8' : '#ffffff' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: paymentChoice === 'postpaid' ? '#38bdf8' : '#ffffff' }}>
                   ⏳ آجل (على الحساب)
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
                   تحصيل عند السحب النهائي
                 </div>
               </div>
@@ -340,7 +545,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '4px' }}>
             <button
               type="button"
               className="btn-secondary"
