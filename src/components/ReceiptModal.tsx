@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   X,
   Printer,
   Share2,
   CheckCircle2,
-  Truck,
   ShieldCheck,
   Calendar,
   CreditCard,
@@ -15,8 +14,8 @@ import {
   FileText,
   DollarSign,
   MapPin,
-  Phone,
-  User
+  User,
+  Truck
 } from 'lucide-react';
 import { Contract, Receipt, PaymentMethod } from '@/types/database';
 
@@ -28,7 +27,7 @@ interface ReceiptModalProps {
   onSendWhatsAppReceipt?: (phone: string, message: string) => void;
 }
 
-// Arabic number to words
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function numberToArabicWords(amount: number): string {
   const num = Math.floor(amount);
   if (num === 0) return 'صفر ريال';
@@ -66,6 +65,7 @@ function getPaymentMethodLabel(method?: PaymentMethod): { label: string; icon: s
   }
 }
 
+// ─── Component ───────────────────────────────────────────────────────────────
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
   onClose,
@@ -74,78 +74,93 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onSendWhatsAppReceipt
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const [receiptUrl, setReceiptUrl] = useState('');
 
+  // ── Derived values (safe to compute even when contract is null) ────────────
+  const receiptNumber = (receipt?.receipt_number
+    || contract?.receipt_number
+    || `RCP-${new Date().getFullYear()}-${(contract?.contract_number || '').replace(/[^0-9]/g, '') || '0001'}`);
+
+  const paidAmount    = Number(receipt?.amount ?? contract?.paid_amount ?? contract?.total_cost ?? 0);
+  const totalCost     = Number(contract?.total_cost ?? paidAmount);
+  const remaining     = Math.max(0, totalCost - paidAmount);
+  const paymentMethod = receipt?.payment_method || contract?.payment_method || 'mada';
+  const methodInfo    = getPaymentMethodLabel(paymentMethod);
+  const arabicWords   = numberToArabicWords(paidAmount);
+  const issueDate     = receipt?.issued_at
+    ? new Date(receipt.issued_at)
+    : new Date(contract?.updated_at || contract?.created_at || Date.now());
+  const contractType  = contract?.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
+  const startDate     = contract?.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-';
+  const endDate       = contract?.end_date   ? new Date(contract.end_date).toLocaleDateString('ar-SA')   : '-';
+
+  // ── Build QR URL (needs window, so inside useEffect) ─────────────────────
+  useEffect(() => {
+    if (!isOpen || !contract) { setReceiptUrl(''); return; }
+    const receiptData = {
+      receiptNumber,
+      contractNumber: contract.contract_number,
+      customerName: contract.customer?.name || '-',
+      customerPhone: contract.customer?.phone || '-',
+      containerNumber: contract.container?.container_number || '-',
+      contractType,
+      paidAmount,
+      totalCost,
+      paymentMethod,
+      startDate,
+      endDate,
+      locationAddress: contract.location_address || '',
+      issueDate: issueDate.toISOString(),
+      notes: receipt?.notes || ''
+    };
+    try {
+      const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(receiptData)))));
+      setReceiptUrl(`${window.location.origin}/receipt/${receiptNumber}?d=${encoded}`);
+    } catch {
+      setReceiptUrl(window.location.origin);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, contract?.id, receiptNumber]);
+
+  // ── Early return after all hooks ─────────────────────────────────────────
   if (!isOpen || !contract) return null;
 
-  const receiptNumber = receipt?.receipt_number
-    || contract.receipt_number
-    || `RCP-${new Date().getFullYear()}-${contract.contract_number.replace(/[^0-9]/g, '') || '0001'}`;
-
-  const paidAmount   = Number(receipt?.amount ?? contract.paid_amount ?? contract.total_cost);
-  const totalCost    = Number(contract.total_cost ?? paidAmount);
-  const remaining    = Math.max(0, totalCost - paidAmount);
-  const paymentMethod = receipt?.payment_method || contract.payment_method || 'mada';
-  const methodInfo   = getPaymentMethodLabel(paymentMethod);
-  const arabicWords  = numberToArabicWords(paidAmount);
-  const issueDate    = receipt?.issued_at
-    ? new Date(receipt.issued_at)
-    : new Date(contract.updated_at || contract.created_at);
-
-  const contractType = contract.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
-  const startDate    = contract.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-';
-  const endDate      = contract.end_date   ? new Date(contract.end_date).toLocaleDateString('ar-SA')   : '-';
-
-  // ─── QR Data: structured JSON that any QR scanner can read ───────────────
-  const qrData = JSON.stringify({
-    سند: receiptNumber,
-    عقد: contract.contract_number,
-    عميل: contract.customer?.name || '-',
-    هاتف: contract.customer?.phone || '-',
-    حاوية: contract.container?.container_number || '-',
-    نوع: contractType,
-    مبلغ: `${paidAmount} ر.س`,
-    دفع: methodInfo.label,
-    تاريخ: issueDate.toLocaleDateString('ar-SA'),
-    موقع: contract.location_address || '-',
-    جهة: 'مؤسسة المحترز للحاويات',
-    ضريبي: '300099887700003'
-  });
-
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handlePrint = () => {
     const content = printRef.current?.innerHTML;
     if (!content) return;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
-    win.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <meta charset="UTF-8"/>
-        <title>سند قبض - ${receiptNumber}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: 'Cairo', sans-serif; background: #fff; color: #0f172a; direction: rtl; }
-          .receipt-paper { max-width: 760px; margin: 0 auto; padding: 32px; }
-        </style>
-      </head>
-      <body>
-        <div class="receipt-paper">${content}</div>
-        <script>window.onload=()=>{window.print();window.close();}<\/script>
-      </body>
-      </html>
-    `);
+    win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>سند قبض - ${receiptNumber}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Cairo', sans-serif; background: #fff; color: #0f172a; direction: rtl; }
+    .receipt-paper { max-width: 760px; margin: 0 auto; padding: 32px; }
+    table { border-collapse: collapse; }
+    td, th { padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="receipt-paper">${content}</div>
+  <script>window.onload=()=>{window.print();window.close();}<\/script>
+</body>
+</html>`);
     win.document.close();
   };
 
   const handleShare = () => {
     if (contract.customer?.phone && onSendWhatsAppReceipt) {
-      const msg = `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nيسعدنا إرسال سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\nالمبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\nطريقة الدفع: ${methodInfo.label}\nتاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
+      const msg = `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\n💰 المبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
       onSendWhatsAppReceipt(contract.customer.phone, msg);
     }
   };
 
-  /* ─── SHARED ROW STYLE ─────────────────────────────────────────────────── */
+  /* ─── Shared cell styles ─────────────────────────────────────────────────── */
   const rowLabel: React.CSSProperties = {
     padding: '9px 14px',
     background: '#f8fafc',
@@ -171,7 +186,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.75)',
+          background: 'rgba(0,0,0,0.78)',
           backdropFilter: 'blur(6px)',
           zIndex: 9000,
           display: 'flex',
@@ -193,7 +208,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             boxShadow: '0 30px 80px rgba(0,0,0,0.85)',
             overflow: 'hidden',
             marginTop: '8px',
-            marginBottom: '24px',
+            marginBottom: '32px',
             flexShrink: 0
           }}
         >
@@ -253,6 +268,26 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
           </div>
 
+          {/* ── RECEIPT LINK BANNER (shows URL for QR) ──────────────── */}
+          {receiptUrl && (
+            <div style={{
+              padding: '8px 16px',
+              background: 'rgba(14,165,233,0.08)',
+              borderBottom: '1px solid rgba(14,165,233,0.15)',
+              display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'
+            }}>
+              <span style={{ fontSize: '0.72rem', color: '#7dd3fc' }}>🔗 رابط السند الإلكتروني (مضمّن في QR):</span>
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: '0.68rem', color: '#38bdf8', wordBreak: 'break-all', textDecoration: 'underline' }}
+              >
+                {receiptUrl.length > 80 ? receiptUrl.slice(0, 80) + '...' : receiptUrl}
+              </a>
+            </div>
+          )}
+
           {/* ── PRINTABLE RECEIPT BODY ──────────────────────────────── */}
           <div
             ref={printRef}
@@ -274,14 +309,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               flexWrap: 'wrap',
               gap: '12px'
             }}>
-              {/* Company Info */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                   <div style={{
                     width: '42px', height: '42px', borderRadius: '10px',
                     background: 'linear-gradient(135deg,#d97706,#b45309)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                   }}>
                     <Truck size={22} color="#fff" />
                   </div>
@@ -299,15 +332,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   الرياض – المملكة العربية السعودية &nbsp;|&nbsp; 📞 920001234
                 </div>
               </div>
-
-              {/* Receipt Badge */}
               <div style={{
-                background: '#f8fafc',
-                border: '2px solid #e2e8f0',
-                borderRadius: '10px',
-                padding: '10px 16px',
-                textAlign: 'center',
-                minWidth: '160px'
+                background: '#f8fafc', border: '2px solid #e2e8f0',
+                borderRadius: '10px', padding: '10px 16px',
+                textAlign: 'center', minWidth: '160px'
               }}>
                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
                   PAYMENT RECEIPT
@@ -315,12 +343,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>
                   سند قبض
                 </div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>
-                  {receiptNumber}
-                </div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>{receiptNumber}</div>
                 <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
-                  {issueDate.toLocaleDateString('ar-SA')} &nbsp;
-                  {issueDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                  {issueDate.toLocaleDateString('ar-SA')} — {issueDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
@@ -330,11 +355,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
               gap: '10px',
-              background: '#f1f5f9',
-              borderRadius: '8px',
-              padding: '12px 14px',
-              margin: '16px 0',
-              fontSize: '0.8rem'
+              background: '#f1f5f9', borderRadius: '8px',
+              padding: '12px 14px', margin: '16px 0', fontSize: '0.8rem'
             }}>
               <div>
                 <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>رقم العقد:</span>
@@ -358,7 +380,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '18px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                 <tbody>
-                  {/* Customer */}
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ ...rowLabel, width: '36%' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -374,8 +395,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       )}
                     </td>
                   </tr>
-
-                  {/* Amount */}
                   <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
                     <td style={{ ...rowLabel, borderLeftColor: '#bbf7d0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -395,8 +414,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </div>
                     </td>
                   </tr>
-
-                  {/* Payment Method */}
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={rowLabel}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -413,9 +430,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </span>
                     </td>
                   </tr>
-
-                  {/* Purpose */}
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <tr style={{ borderBottom: remaining > 0 || contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
                     <td style={rowLabel}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <FileText size={13} /> سداداً عن:
@@ -423,16 +438,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     </td>
                     <td style={{ ...rowValue, lineHeight: 1.6 }}>
                       قيمة تأجير حاوية ({contractType}) رقم ({contract.container?.container_number || '-'})
-                      {contract.location_address && (
-                        <span> بموقع ({contract.location_address})</span>
-                      )}
+                      {contract.location_address && <span> بموقع ({contract.location_address})</span>}
                       {' '}للفترة من ({startDate}) إلى ({endDate}).
                     </td>
                   </tr>
-
-                  {/* Totals */}
                   {remaining > 0 && (
-                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <tr style={{ borderBottom: contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
                       <td style={rowLabel}>ملاحظات مالية:</td>
                       <td style={rowValue}>
                         <span style={{ color: '#b45309', fontWeight: 700 }}>
@@ -443,8 +454,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </td>
                     </tr>
                   )}
-
-                  {/* Location */}
                   {contract.google_maps_url && (
                     <tr>
                       <td style={rowLabel}>
@@ -463,7 +472,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               </table>
             </div>
 
-            {/* FOOTER: QR + SEAL */}
+            {/* FOOTER: QR + Stamp */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -473,46 +482,40 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               flexWrap: 'wrap',
               gap: '16px'
             }}>
-              {/* Real QR Code */}
+              {/* QR Code — points to receipt page */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div style={{
-                  padding: '6px',
-                  border: '2px solid #0f172a',
-                  borderRadius: '10px',
-                  background: '#fff',
-                  display: 'inline-block',
-                  lineHeight: 0
+                  padding: '6px', border: '2px solid #0f172a',
+                  borderRadius: '10px', background: '#fff',
+                  display: 'inline-block', lineHeight: 0
                 }}>
-                  <QRCodeSVG
-                    value={qrData}
-                    size={88}
-                    level="M"
-                    includeMargin={false}
-                    fgColor="#0f172a"
-                    bgColor="#ffffff"
-                  />
+                  {receiptUrl ? (
+                    <QRCodeSVG
+                      value={receiptUrl}
+                      size={92}
+                      level="M"
+                      includeMargin={false}
+                      fgColor="#0f172a"
+                      bgColor="#ffffff"
+                    />
+                  ) : (
+                    <div style={{ width: 92, height: 92, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.65rem' }}>
+                      جارٍ التوليد...
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#475569', maxWidth: '160px', lineHeight: 1.5 }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    color: '#059669', fontWeight: 800, marginBottom: '4px'
-                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 800, marginBottom: '4px' }}>
                     <CheckCircle2 size={12} />
                     <span>سند معتمد إلكترونياً</span>
                   </div>
-                  <div>امسح الرمز للتحقق الفوري من بيانات السند والعقد</div>
-                  <div style={{ marginTop: '4px', color: '#94a3b8' }}>
-                    يحتوي على جميع بيانات العقد والعميل
-                  </div>
+                  <div>امسح الرمز لعرض السند الرسمي كاملاً على هاتفك</div>
+                  <div style={{ marginTop: '4px', color: '#94a3b8' }}>ت.ض: 300099887700003</div>
                 </div>
               </div>
-
               {/* Stamp */}
               <div style={{ textAlign: 'center', minWidth: '180px' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                  fontSize: '0.7rem', color: '#64748b', marginBottom: '28px'
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.7rem', color: '#64748b', marginBottom: '28px' }}>
                   <ShieldCheck size={12} color="#059669" />
                   <span>التوقيع المعتمد &amp; الختم الرسمي</span>
                 </div>
@@ -522,36 +525,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               </div>
             </div>
 
-            {/* WATERMARK */}
+            {/* LEGAL BAR */}
             <div style={{
-              marginTop: '16px',
-              padding: '8px 14px',
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
-              borderRadius: '6px',
-              fontSize: '0.7rem',
-              color: '#92400e',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              flexWrap: 'wrap'
+              marginTop: '16px', padding: '8px 14px',
+              background: '#fffbeb', border: '1px solid #fde68a',
+              borderRadius: '6px', fontSize: '0.7rem', color: '#92400e',
+              display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'
             }}>
               <Building2 size={12} />
               <span>
-                هذا السند صادر إلكترونياً وهو ملزم قانونياً وفق أنظمة التجارة الإلكترونية السعودية.
-                رقم الضريبة: 300099887700003 | جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
+                هذا السند صادر إلكترونياً وهو ملزم قانونياً. جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
+                ت.ض: 300099887700003 | س.ت: 1010889900
               </span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Print Styles */}
-      <style>{`
-        @media print {
-          body > *:not(.receipt-print-target) { display: none !important; }
-        }
-      `}</style>
     </>
   );
 };
