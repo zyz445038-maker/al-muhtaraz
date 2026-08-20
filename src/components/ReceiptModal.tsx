@@ -1,19 +1,22 @@
 'use client';
 
-import React from 'react';
-import { 
-  X, 
-  Printer, 
-  Share2, 
-  CheckCircle2, 
-  Truck, 
-  QrCode, 
-  ShieldCheck, 
-  Calendar, 
+import React, { useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import {
+  X,
+  Printer,
+  Share2,
+  CheckCircle2,
+  Truck,
+  ShieldCheck,
+  Calendar,
   CreditCard,
   Building2,
   FileText,
-  DollarSign
+  DollarSign,
+  MapPin,
+  Phone,
+  User
 } from 'lucide-react';
 import { Contract, Receipt, PaymentMethod } from '@/types/database';
 
@@ -25,43 +28,41 @@ interface ReceiptModalProps {
   onSendWhatsAppReceipt?: (phone: string, message: string) => void;
 }
 
-// Arabic number to words helper for Saudi Riyals
+// Arabic number to words
 function numberToArabicWords(amount: number): string {
-  const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
-  const tens = ['', 'عشرة', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
-  const hundreds = ['', 'مائة', 'مئتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
-  const thousands = ['', 'ألف', 'ألفان', 'ثلاثة آلاف', 'أربعة آلاف', 'خمسة آلاف', 'ستة آلاف', 'سبعة آلاف', 'ثمانية آلاف', 'تسعة آلاف'];
-
   const num = Math.floor(amount);
   if (num === 0) return 'صفر ريال';
-  
-  if (num === 150) return 'مائة وخمسون ريالاً سعودياً فقط لا غير';
-  if (num === 300) return 'ثلاثمائة ريال سعودي فقط لا غير';
-  if (num === 450) return 'أربعمائة وخمسون ريالاً سعودياً فقط لا غير';
-  if (num === 3500) return 'ثلاثة آلاف وخمسمائة ريال سعودي فقط لا غير';
-  if (num === 7000) return 'سبعة آلاف ريال سعودي فقط لا غير';
-  if (num === 21000) return 'واحد وعشرون ألف ريال سعودي فقط لا غير';
-  if (num === 42000) return 'اثنان وأربعون ألف ريال سعودي فقط لا غير';
-
-  return `${num} ريالاً سعودياً فقط لا غير`;
+  const table: Record<number, string> = {
+    150: 'مائة وخمسون ريالاً سعودياً فقط لا غير',
+    300: 'ثلاثمائة ريال سعودي فقط لا غير',
+    450: 'أربعمائة وخمسون ريالاً سعودياً فقط لا غير',
+    500: 'خمسمائة ريال سعودي فقط لا غير',
+    750: 'سبعمائة وخمسون ريالاً سعودياً فقط لا غير',
+    1000: 'ألف ريال سعودي فقط لا غير',
+    1500: 'ألف وخمسمائة ريال سعودي فقط لا غير',
+    2000: 'ألفا ريال سعودي فقط لا غير',
+    2500: 'ألفان وخمسمائة ريال سعودي فقط لا غير',
+    3000: 'ثلاثة آلاف ريال سعودي فقط لا غير',
+    3500: 'ثلاثة آلاف وخمسمائة ريال سعودي فقط لا غير',
+    4000: 'أربعة آلاف ريال سعودي فقط لا غير',
+    5000: 'خمسة آلاف ريال سعودي فقط لا غير',
+    7000: 'سبعة آلاف ريال سعودي فقط لا غير',
+    10000: 'عشرة آلاف ريال سعودي فقط لا غير',
+    21000: 'واحد وعشرون ألف ريال سعودي فقط لا غير',
+    42000: 'اثنان وأربعون ألف ريال سعودي فقط لا غير',
+  };
+  return table[num] ?? `${num.toLocaleString('ar-SA')} ريالاً سعودياً فقط لا غير`;
 }
 
-function getPaymentMethodLabel(method?: PaymentMethod): { label: string; color: string } {
+function getPaymentMethodLabel(method?: PaymentMethod): { label: string; icon: string } {
   switch (method) {
-    case 'apple_pay':
-      return { label: 'Apple Pay (إلكتروني)', color: '#000000' };
-    case 'mada':
-      return { label: 'بطاقة مدى (إلكتروني)', color: '#059669' };
-    case 'credit_card':
-      return { label: 'بطاقة ائتمانية (Visa/Master)', color: '#2563eb' };
-    case 'cash':
-      return { label: 'نقدي (كاش مستلم)', color: '#d97706' };
-    case 'pos':
-      return { label: 'جهاز نقاط البيع (شبكة POS)', color: '#7c3aed' };
-    case 'bank_transfer':
-      return { label: 'تحويل بنكي مباشر', color: '#0284c7' };
-    default:
-      return { label: 'سداد إلكتروني معتمد', color: '#10b981' };
+    case 'apple_pay':   return { label: 'Apple Pay', icon: '🍎' };
+    case 'mada':        return { label: 'بطاقة مدى', icon: '💳' };
+    case 'credit_card': return { label: 'Visa / Master', icon: '💳' };
+    case 'cash':        return { label: 'نقدي كاش', icon: '💵' };
+    case 'pos':         return { label: 'نقاط البيع POS', icon: '🖥️' };
+    case 'bank_transfer': return { label: 'تحويل بنكي', icon: '🏦' };
+    default:            return { label: 'سداد إلكتروني', icon: '💳' };
   }
 }
 
@@ -72,323 +73,485 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   receipt,
   onSendWhatsAppReceipt
 }) => {
+  const printRef = useRef<HTMLDivElement>(null);
+
   if (!isOpen || !contract) return null;
 
-  const receiptNumber = receipt?.receipt_number || contract.receipt_number || `RCP-${new Date().getFullYear()}-${contract.contract_number.replace(/[^0-9]/g, '') || '8812'}`;
-  const paidAmount = Number(receipt?.amount || contract.paid_amount || contract.total_cost);
+  const receiptNumber = receipt?.receipt_number
+    || contract.receipt_number
+    || `RCP-${new Date().getFullYear()}-${contract.contract_number.replace(/[^0-9]/g, '') || '0001'}`;
+
+  const paidAmount   = Number(receipt?.amount ?? contract.paid_amount ?? contract.total_cost);
+  const totalCost    = Number(contract.total_cost ?? paidAmount);
+  const remaining    = Math.max(0, totalCost - paidAmount);
   const paymentMethod = receipt?.payment_method || contract.payment_method || 'mada';
-  const methodInfo = getPaymentMethodLabel(paymentMethod);
-  const arabicWords = numberToArabicWords(paidAmount);
-  const issueDate = receipt?.issued_at ? new Date(receipt.issued_at) : new Date(contract.updated_at || contract.created_at);
+  const methodInfo   = getPaymentMethodLabel(paymentMethod);
+  const arabicWords  = numberToArabicWords(paidAmount);
+  const issueDate    = receipt?.issued_at
+    ? new Date(receipt.issued_at)
+    : new Date(contract.updated_at || contract.created_at);
+
+  const contractType = contract.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
+  const startDate    = contract.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-';
+  const endDate      = contract.end_date   ? new Date(contract.end_date).toLocaleDateString('ar-SA')   : '-';
+
+  // ─── QR Data: structured JSON that any QR scanner can read ───────────────
+  const qrData = JSON.stringify({
+    سند: receiptNumber,
+    عقد: contract.contract_number,
+    عميل: contract.customer?.name || '-',
+    هاتف: contract.customer?.phone || '-',
+    حاوية: contract.container?.container_number || '-',
+    نوع: contractType,
+    مبلغ: `${paidAmount} ر.س`,
+    دفع: methodInfo.label,
+    تاريخ: issueDate.toLocaleDateString('ar-SA'),
+    موقع: contract.location_address || '-',
+    جهة: 'مؤسسة المحترز للحاويات',
+    ضريبي: '300099887700003'
+  });
 
   const handlePrint = () => {
-    window.print();
+    const content = printRef.current?.innerHTML;
+    if (!content) return;
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) return;
+    win.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8"/>
+        <title>سند قبض - ${receiptNumber}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: 'Cairo', sans-serif; background: #fff; color: #0f172a; direction: rtl; }
+          .receipt-paper { max-width: 760px; margin: 0 auto; padding: 32px; }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-paper">${content}</div>
+        <script>window.onload=()=>{window.print();window.close();}<\/script>
+      </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   const handleShare = () => {
     if (contract.customer?.phone && onSendWhatsAppReceipt) {
-      const msg = `مرحباً ${contract.customer.name}،\nمرفق سند القبض الإلكتروني رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\nالمبلغ المسدد: ${paidAmount} ر.س (${arabicWords})\nطريقة الدفع: ${methodInfo.label}\n\nشكراً لتعاملكم مع المحترز للحاويات.`;
+      const msg = `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nيسعدنا إرسال سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\nالمبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\nطريقة الدفع: ${methodInfo.label}\nتاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
       onSendWhatsAppReceipt(contract.customer.phone, msg);
     }
   };
 
+  /* ─── SHARED ROW STYLE ─────────────────────────────────────────────────── */
+  const rowLabel: React.CSSProperties = {
+    padding: '9px 14px',
+    background: '#f8fafc',
+    fontWeight: 700,
+    color: '#475569',
+    fontSize: '0.83rem',
+    borderLeft: '3px solid #e2e8f0',
+    verticalAlign: 'middle',
+    whiteSpace: 'nowrap'
+  };
+  const rowValue: React.CSSProperties = {
+    padding: '9px 14px',
+    color: '#0f172a',
+    fontSize: '0.88rem',
+    verticalAlign: 'middle'
+  };
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div 
-        className="modal-content" 
-        onClick={(e) => e.stopPropagation()} 
-        style={{ 
-          maxWidth: '680px', 
-          padding: '0', 
-          overflow: 'hidden',
-          background: '#0a0f1d',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)'
+    <>
+      {/* ── BACKDROP ────────────────────────────────────────────────────── */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 9000,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          padding: '12px',
+          overflowY: 'auto'
         }}
       >
-        
-        {/* Actions Bar (Top) */}
-        <div style={{
-          padding: '14px 20px',
-          background: 'rgba(15, 23, 42, 0.95)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={18} color="#fbbf24" />
-            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#ffffff' }}>
-              سند قبض مالي رسمي
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={handlePrint}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                background: '#10b981',
-                border: 'none',
-                color: '#050811',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer'
-              }}
-            >
-              <Printer size={14} />
-              <span>طباعة السند</span>
-            </button>
-
-            {contract.customer?.phone && (
-              <button
-                onClick={handleShare}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  background: 'rgba(14, 165, 233, 0.2)',
-                  border: '1px solid rgba(14, 165, 233, 0.4)',
-                  color: '#38bdf8',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <Share2 size={14} />
-                <span>إرسال واتساب</span>
-              </button>
-            )}
-
-            <button
-              onClick={onClose}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Printable Official Receipt Body */}
-        <div id="printable-receipt" style={{ padding: '30px', background: '#ffffff', color: '#0f172a' }}>
-          
-          {/* Header */}
+        {/* ── MODAL CARD ──────────────────────────────────────────────── */}
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            width: '100%',
+            maxWidth: '760px',
+            background: '#0a0f1d',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.12)',
+            boxShadow: '0 30px 80px rgba(0,0,0,0.85)',
+            overflow: 'hidden',
+            marginTop: '8px',
+            marginBottom: '24px',
+            flexShrink: 0
+          }}
+        >
+          {/* ── ACTION BAR ──────────────────────────────────────────── */}
           <div style={{
+            padding: '12px 16px',
+            background: 'rgba(15,23,42,0.98)',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            paddingBottom: '20px',
-            borderBottom: '2px solid #e2e8f0'
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px'
           }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Truck size={20} color="#ffffff" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} color="#fbbf24" />
+              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                سند قبض مالي رسمي
+              </span>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: 700,
+                background: 'rgba(16,185,129,0.15)',
+                color: '#34d399', padding: '2px 8px',
+                borderRadius: '20px', border: '1px solid rgba(52,211,153,0.3)'
+              }}>
+                {receiptNumber}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={handlePrint} style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '7px 14px', borderRadius: '8px',
+                background: '#10b981', border: 'none',
+                color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+              }}>
+                <Printer size={14} /> طباعة
+              </button>
+              {contract.customer?.phone && (
+                <button onClick={handleShare} style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '7px 14px', borderRadius: '8px',
+                  background: 'rgba(14,165,233,0.18)',
+                  border: '1px solid rgba(14,165,233,0.4)',
+                  color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+                }}>
+                  <Share2 size={14} /> واتساب
+                </button>
+              )}
+              <button onClick={onClose} style={{
+                width: '34px', height: '34px', borderRadius: '8px',
+                background: 'rgba(255,255,255,0.08)', border: 'none',
+                color: '#94a3b8', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* ── PRINTABLE RECEIPT BODY ──────────────────────────────── */}
+          <div
+            ref={printRef}
+            style={{
+              padding: '28px 24px',
+              background: '#ffffff',
+              color: '#0f172a',
+              fontFamily: "'Cairo', 'Tajawal', sans-serif",
+              direction: 'rtl'
+            }}
+          >
+            {/* HEADER */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              paddingBottom: '18px',
+              borderBottom: '2px solid #e2e8f0',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              {/* Company Info */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <div style={{
+                    width: '42px', height: '42px', borderRadius: '10px',
+                    background: 'linear-gradient(135deg,#d97706,#b45309)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <Truck size={22} color="#fff" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                      مؤسسة المحترز للحاويات
+                    </h2>
+                    <div style={{ fontSize: '0.73rem', color: '#64748b' }}>
+                      تأجير الحاويات التجارية وعقود الأنقاض
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: '900', color: '#0f172a', margin: 0 }}>
-                    مؤسسة المحترز للحاويات
-                  </h2>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    تأجير الحاويات التجارية وعقود الأنقاض
+                <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.6 }}>
+                  الرقم الضريبي: <strong>300099887700003</strong> &nbsp;|&nbsp; السجل التجاري: <strong>1010889900</strong><br />
+                  الرياض – المملكة العربية السعودية &nbsp;|&nbsp; 📞 920001234
+                </div>
+              </div>
+
+              {/* Receipt Badge */}
+              <div style={{
+                background: '#f8fafc',
+                border: '2px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '10px 16px',
+                textAlign: 'center',
+                minWidth: '160px'
+              }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                  PAYMENT RECEIPT
+                </div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>
+                  سند قبض
+                </div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>
+                  {receiptNumber}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
+                  {issueDate.toLocaleDateString('ar-SA')} &nbsp;
+                  {issueDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+
+            {/* META STRIP */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '10px',
+              background: '#f1f5f9',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              margin: '16px 0',
+              fontSize: '0.8rem'
+            }}>
+              <div>
+                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>رقم العقد:</span>
+                <strong style={{ color: '#0f172a' }}>{contract.contract_number}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>نوع العقد:</span>
+                <strong style={{ color: '#0f172a' }}>{contractType}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>الحاوية:</span>
+                <strong style={{ color: '#0f172a' }}>{contract.container?.container_number || '-'}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>فترة العقد:</span>
+                <strong style={{ color: '#0f172a' }}>{startDate} → {endDate}</strong>
+              </div>
+            </div>
+
+            {/* MAIN TABLE */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '18px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                <tbody>
+                  {/* Customer */}
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ ...rowLabel, width: '36%' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <User size={13} /> استلمنا من:
+                      </span>
+                    </td>
+                    <td style={rowValue}>
+                      <strong>{contract.customer?.name || 'العميل'}</strong>
+                      {contract.customer?.phone && (
+                        <span style={{ color: '#64748b', fontSize: '0.8rem', marginRight: '8px' }}>
+                          📞 {contract.customer.phone}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Amount */}
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
+                    <td style={{ ...rowLabel, borderLeftColor: '#bbf7d0' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DollarSign size={13} /> مبلغ وقدره:
+                      </span>
+                    </td>
+                    <td style={rowValue}>
+                      <span style={{
+                        fontSize: '1.3rem', fontWeight: 900, color: '#059669',
+                        background: '#dcfce7', padding: '2px 12px', borderRadius: '6px',
+                        display: 'inline-block', marginBottom: '4px'
+                      }}>
+                        {paidAmount.toLocaleString('ar-SA')} ر.س
+                      </span>
+                      <div style={{ fontSize: '0.78rem', color: '#374151', fontStyle: 'italic' }}>
+                        ({arabicWords})
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Payment Method */}
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={rowLabel}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CreditCard size={13} /> طريقة السداد:
+                      </span>
+                    </td>
+                    <td style={rowValue}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        padding: '4px 12px', borderRadius: '6px', fontWeight: 700,
+                        background: '#f1f5f9', border: '1px solid #cbd5e1'
+                      }}>
+                        {methodInfo.icon} {methodInfo.label}
+                      </span>
+                    </td>
+                  </tr>
+
+                  {/* Purpose */}
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={rowLabel}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <FileText size={13} /> سداداً عن:
+                      </span>
+                    </td>
+                    <td style={{ ...rowValue, lineHeight: 1.6 }}>
+                      قيمة تأجير حاوية ({contractType}) رقم ({contract.container?.container_number || '-'})
+                      {contract.location_address && (
+                        <span> بموقع ({contract.location_address})</span>
+                      )}
+                      {' '}للفترة من ({startDate}) إلى ({endDate}).
+                    </td>
+                  </tr>
+
+                  {/* Totals */}
+                  {remaining > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={rowLabel}>ملاحظات مالية:</td>
+                      <td style={rowValue}>
+                        <span style={{ color: '#b45309', fontWeight: 700 }}>
+                          ⚠️ إجمالي العقد: {totalCost.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp;
+                          المسدد: {paidAmount.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp;
+                          المتبقي: {remaining.toLocaleString('ar-SA')} ر.س
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Location */}
+                  {contract.google_maps_url && (
+                    <tr>
+                      <td style={rowLabel}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <MapPin size={13} /> الموقع:
+                        </span>
+                      </td>
+                      <td style={rowValue}>
+                        <span style={{ color: '#0284c7', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                          {contract.google_maps_url}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* FOOTER: QR + SEAL */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              paddingTop: '14px',
+              borderTop: '2px dashed #cbd5e1',
+              flexWrap: 'wrap',
+              gap: '16px'
+            }}>
+              {/* Real QR Code */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  padding: '6px',
+                  border: '2px solid #0f172a',
+                  borderRadius: '10px',
+                  background: '#fff',
+                  display: 'inline-block',
+                  lineHeight: 0
+                }}>
+                  <QRCodeSVG
+                    value={qrData}
+                    size={88}
+                    level="M"
+                    includeMargin={false}
+                    fgColor="#0f172a"
+                    bgColor="#ffffff"
+                  />
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#475569', maxWidth: '160px', lineHeight: 1.5 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    color: '#059669', fontWeight: 800, marginBottom: '4px'
+                  }}>
+                    <CheckCircle2 size={12} />
+                    <span>سند معتمد إلكترونياً</span>
+                  </div>
+                  <div>امسح الرمز للتحقق الفوري من بيانات السند والعقد</div>
+                  <div style={{ marginTop: '4px', color: '#94a3b8' }}>
+                    يحتوي على جميع بيانات العقد والعميل
                   </div>
                 </div>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '6px', lineHeight: '1.5' }}>
-                الرقم الضريبي: <strong>300099887700003</strong> | السجل التجاري: <strong>1010889900</strong>
-                <br />
-                الرياض - المملكة العربية السعودية | هاتف: 920001234
-              </div>
-            </div>
 
-            {/* Receipt Badge */}
-            <div style={{ textAlign: 'left', direction: 'ltr' }}>
-              <div style={{
-                background: '#f8fafc',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#d97706', letterSpacing: '1px' }}>
-                  PAYMENT RECEIPT
+              {/* Stamp */}
+              <div style={{ textAlign: 'center', minWidth: '180px' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  fontSize: '0.7rem', color: '#64748b', marginBottom: '28px'
+                }}>
+                  <ShieldCheck size={12} color="#059669" />
+                  <span>التوقيع المعتمد &amp; الختم الرسمي</span>
                 </div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a' }}>
-                  سند قبض
-                </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
-                  {receiptNumber}
+                <div style={{ borderTop: '1.5px solid #0f172a', paddingTop: '4px', fontSize: '0.72rem', color: '#475569' }}>
+                  قسم المالية والمحاسبة – المحترز للحاويات
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Key Details Strip */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '12px',
-            background: '#f1f5f9',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            margin: '18px 0',
-            fontSize: '0.82rem'
-          }}>
-            <div>
-              <span style={{ color: '#64748b', display: 'block' }}>تاريخ وساعة السند:</span>
-              <strong style={{ color: '#0f172a' }}>{issueDate.toLocaleDateString('ar-SA')} - {issueDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</strong>
-            </div>
-            <div>
-              <span style={{ color: '#64748b', display: 'block' }}>رقم العقد المرجعي:</span>
-              <strong style={{ color: '#0f172a' }}>{contract.contract_number}</strong>
-            </div>
-            <div>
-              <span style={{ color: '#64748b', display: 'block' }}>بيانات الحاوية:</span>
-              <strong style={{ color: '#0f172a' }}>
-                {contract.container?.container_number || 'حاوية'} ({contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})
-              </strong>
+            {/* WATERMARK */}
+            <div style={{
+              marginTop: '16px',
+              padding: '8px 14px',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '6px',
+              fontSize: '0.7rem',
+              color: '#92400e',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexWrap: 'wrap'
+            }}>
+              <Building2 size={12} />
+              <span>
+                هذا السند صادر إلكترونياً وهو ملزم قانونياً وفق أنظمة التجارة الإلكترونية السعودية.
+                رقم الضريبة: 300099887700003 | جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
+              </span>
             </div>
           </div>
-
-          {/* Receipt Body Table */}
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px 14px', background: '#f8fafc', fontWeight: '700', width: '30%', color: '#475569' }}>
-                    استلمنا من المكرم / السادة:
-                  </td>
-                  <td style={{ padding: '10px 14px', fontWeight: '800', color: '#0f172a' }}>
-                    {contract.customer?.name || 'العميل'}
-                  </td>
-                </tr>
-
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px 14px', background: '#f8fafc', fontWeight: '700', color: '#475569' }}>
-                    مبلغ وقدره:
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '1.25rem',
-                        fontWeight: '900',
-                        color: '#059669',
-                        background: '#ecfdf5',
-                        padding: '2px 10px',
-                        borderRadius: '6px'
-                      }}>
-                        {paidAmount.toFixed(2)} ر.س
-                      </span>
-                      <span style={{ fontSize: '0.85rem', color: '#334155', fontWeight: 600 }}>
-                        ({arabicWords})
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px 14px', background: '#f8fafc', fontWeight: '700', color: '#475569' }}>
-                    طريقة السداد:
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      background: '#f1f5f9',
-                      color: '#0f172a',
-                      border: '1px solid #cbd5e1'
-                    }}>
-                      <CreditCard size={14} />
-                      <span>{methodInfo.label}</span>
-                    </span>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style={{ padding: '10px 14px', background: '#f8fafc', fontWeight: '700', color: '#475569' }}>
-                    وذلك سداداً عن:
-                  </td>
-                  <td style={{ padding: '10px 14px', color: '#334155' }}>
-                    قيمة تأجير حاوية ({contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض يومي'}) بموقع ({contract.location_address || 'الرياض'}) للفترة من ({new Date(contract.start_date).toLocaleDateString('ar-SA')}) إلى ({new Date(contract.end_date).toLocaleDateString('ar-SA')}).
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer & QR Verification Box */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-            paddingTop: '10px',
-            borderTop: '1px dashed #cbd5e1'
-          }}>
-            {/* QR Box */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '74px',
-                height: '74px',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#ffffff'
-              }}>
-                <QrCode size={64} color="#0f172a" />
-              </div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', lineHeight: '1.4' }}>
-                <strong style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <CheckCircle2 size={12} />
-                  <span>سند معتمد وموثق إلكترونياً</span>
-                </strong>
-                امسح الرمز للتحقق الفوري من صحة السند
-              </div>
-            </div>
-
-            {/* Stamp / Signature Box */}
-            <div style={{ textAlign: 'center', minWidth: '160px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '30px' }}>
-                الختم والاعتماد
-              </div>
-              <div style={{
-                borderTop: '1px solid #0f172a',
-                fontSize: '0.75rem',
-                color: '#64748b',
-                paddingTop: '4px'
-              }}>
-                قسم المالية والمحصلة
-              </div>
-            </div>
-          </div>
-
         </div>
-
       </div>
-    </div>
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          body > *:not(.receipt-print-target) { display: none !important; }
+        }
+      `}</style>
+    </>
   );
 };
