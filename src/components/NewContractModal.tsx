@@ -17,11 +17,52 @@ import {
   UserCheck,
   CreditCard,
   Banknote,
-  Hourglass
+  Hourglass,
+  Sun,
+  Sunset,
+  Moon,
+  Zap,
+  Plus,
+  Minus,
+  Sparkles,
+  Sliders
 } from 'lucide-react';
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod } from '@/types/database';
 
 export type PaymentChoice = 'cash' | 'sadad' | 'postpaid';
+
+// Date Helpers
+const pad = (n: number) => (n < 10 ? '0' + n : `${n}`);
+
+const toLocalIso = (date: Date) => {
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+
+const formatArabicDateTime = (isoStr: string) => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return isoStr;
+  const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  
+  const dayName = days[d.getDay()];
+  const dayNum = d.getDate();
+  const monthName = months[d.getMonth()];
+  const year = d.getFullYear();
+  
+  let hours = d.getHours();
+  const minutes = pad(d.getMinutes());
+  const ampm = hours >= 12 ? 'م' : 'ص';
+  hours = hours % 12 || 12;
+  const formattedHours = pad(hours);
+  
+  return `${dayName}، ${dayNum} ${monthName} ${year} — ${formattedHours}:${minutes} ${ampm}`;
+};
 
 interface NewContractModalProps {
   isOpen: boolean;
@@ -53,9 +94,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('+9665');
   
-  // Dates & Durations
-  const [durationDays, setDurationDays] = useState(1);
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 16));
+  // Dates & Durations Quick Selection State
+  const [startDatePreset, setStartDatePreset] = useState<'today' | 'tomorrow' | 'after_tomorrow' | 'custom'>('today');
+  const [startTimePreset, setStartTimePreset] = useState<'now' | 'morning' | 'noon' | 'afternoon' | 'evening' | 'custom'>('morning');
+  const [showAdvancedDateTime, setShowAdvancedDateTime] = useState(false);
+
+  const [durationDays, setDurationDays] = useState(3); // Default 3 days (most popular)
+  const [startDate, setStartDate] = useState(toLocalIso(new Date()));
   const [pickupDate, setPickupDate] = useState('');
   
   // Location
@@ -70,6 +115,38 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [paidAmount, setPaidAmount] = useState(150);
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Helper: Apply Date Preset
+  const applyDatePreset = (preset: 'today' | 'tomorrow' | 'after_tomorrow') => {
+    setStartDatePreset(preset);
+    const target = new Date();
+    if (preset === 'tomorrow') target.setDate(target.getDate() + 1);
+    if (preset === 'after_tomorrow') target.setDate(target.getDate() + 2);
+
+    // Keep current time from existing startDate
+    const current = new Date(startDate);
+    target.setHours(current.getHours(), current.getMinutes(), 0, 0);
+    setStartDate(toLocalIso(target));
+  };
+
+  // Helper: Apply Time Slot Preset
+  const applyTimePreset = (preset: 'now' | 'morning' | 'noon' | 'afternoon' | 'evening') => {
+    setStartTimePreset(preset);
+    const target = new Date(startDate);
+    if (preset === 'now') {
+      const now = new Date();
+      target.setHours(now.getHours(), now.getMinutes(), 0, 0);
+    } else if (preset === 'morning') {
+      target.setHours(8, 0, 0, 0); // 8:00 ص
+    } else if (preset === 'noon') {
+      target.setHours(12, 0, 0, 0); // 12:00 م
+    } else if (preset === 'afternoon') {
+      target.setHours(16, 0, 0, 0); // 4:00 م
+    } else if (preset === 'evening') {
+      target.setHours(20, 0, 0, 0); // 8:00 م
+    }
+    setStartDate(toLocalIso(target));
+  };
 
   // Filter available containers based on type
   const availableContainers = containers.filter(c => 
@@ -433,65 +510,421 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
             </div>
           </div>
 
-          {/* 4. Dates & Durations */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            {contractType === 'debris' ? (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                  عدد الأيام (يومي):
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  className="form-input"
-                  value={durationDays}
-                  onChange={(e) => setDurationDays(Math.max(1, parseInt(e.target.value) || 1))}
-                  required
-                />
+          {/* 4. Dates, Time & Duration Fast Quick-Select System */}
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: '18px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={18} color="#fbbf24" />
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fbbf24' }}>
+                  4. اختيار التاريخ والوقت والمدة بنقرة سريعة ⚡
+                </span>
               </div>
-            ) : (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                  فترة العقد التجاري:
-                </label>
-                <select
-                  className="form-select"
-                  value={periodType}
-                  onChange={(e) => setPeriodType(e.target.value as ContractPeriodType)}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedDateTime(!showAdvancedDateTime)}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  padding: '4px 10px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Sliders size={13} />
+                <span>{showAdvancedDateTime ? 'إخفاء التعديل المخصص' : 'تخصيص يدوي دقيق ⚙️'}</span>
+              </button>
+            </div>
+
+            {/* A. Quick Date Selection (اليوم / غداً / بعد غد) */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                📅 يوم التنزيل:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('today')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startDatePreset === 'today' ? '#f59e0b' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startDatePreset === 'today' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                    color: startDatePreset === 'today' ? '#fbbf24' : '#e2e8f0',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
                 >
-                  <option value="monthly">شهري (1 شهر)</option>
-                  <option value="semi_annual">نصف سنوي (6 أشهر)</option>
-                  <option value="annual">سنوي (12 شهر)</option>
-                </select>
+                  <Zap size={14} />
+                  <span>اليوم (فوري)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('tomorrow')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startDatePreset === 'tomorrow' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startDatePreset === 'tomorrow' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                    color: startDatePreset === 'tomorrow' ? '#38bdf8' : '#e2e8f0',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Sun size={14} />
+                  <span>غداً</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('after_tomorrow')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startDatePreset === 'after_tomorrow' ? '#a78bfa' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startDatePreset === 'after_tomorrow' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                    color: startDatePreset === 'after_tomorrow' ? '#c4b5fd' : '#e2e8f0',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Calendar size={14} />
+                  <span>بعد غد</span>
+                </button>
+              </div>
+            </div>
+
+            {/* B. Quick Time Slot Selection (فترة العمل / الوقت) */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                ⏰ وقت وفترة التنزيل الميداني:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => applyTimePreset('now')}
+                  style={{
+                    padding: '7px 4px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startTimePreset === 'now' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startTimePreset === 'now' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(30, 41, 59, 0.4)',
+                    color: startTimePreset === 'now' ? '#34d399' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}
+                >
+                  <Zap size={13} />
+                  <span>الآن فوراً</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyTimePreset('morning')}
+                  style={{
+                    padding: '7px 4px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startTimePreset === 'morning' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startTimePreset === 'morning' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(30, 41, 59, 0.4)',
+                    color: startTimePreset === 'morning' ? '#fbbf24' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}
+                >
+                  <Sun size={13} />
+                  <span>صباحاً 8:00ص</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyTimePreset('noon')}
+                  style={{
+                    padding: '7px 4px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startTimePreset === 'noon' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startTimePreset === 'noon' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(30, 41, 59, 0.4)',
+                    color: startTimePreset === 'noon' ? '#38bdf8' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}
+                >
+                  <Sun size={13} />
+                  <span>ظهراً 12:00م</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyTimePreset('afternoon')}
+                  style={{
+                    padding: '7px 4px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startTimePreset === 'afternoon' ? '#f97316' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startTimePreset === 'afternoon' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(30, 41, 59, 0.4)',
+                    color: startTimePreset === 'afternoon' ? '#fb923c' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}
+                >
+                  <Sunset size={13} />
+                  <span>عصراً 4:00م</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyTimePreset('evening')}
+                  style={{
+                    padding: '7px 4px',
+                    borderRadius: '10px',
+                    border: `1px solid ${startTimePreset === 'evening' ? '#a78bfa' : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: startTimePreset === 'evening' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(30, 41, 59, 0.4)',
+                    color: startTimePreset === 'evening' ? '#c4b5fd' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px'
+                  }}
+                >
+                  <Moon size={13} />
+                  <span>مساءً 8:00م</span>
+                </button>
+              </div>
+            </div>
+
+            {/* C. Quick Duration Selection (الأيام / الشهور) */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0' }}>
+                  ⏳ مدة بقاء الحاوية عند العميل:
+                </label>
+                {contractType === 'debris' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDurationDays(d => Math.max(1, d - 1))}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fbbf24', minWidth: '55px', textAlign: 'center' }}>
+                      {durationDays} {durationDays === 1 ? 'يوم' : durationDays === 2 ? 'يومان' : durationDays <= 10 ? 'أيام' : 'يوماً'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDurationDays(d => d + 1)}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {contractType === 'debris' ? (
+                /* Debris Quick Days Chips */
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[
+                    { days: 1, label: '1 يوم' },
+                    { days: 2, label: '2 يوم' },
+                    { days: 3, label: '3 أيام ⭐' },
+                    { days: 4, label: '4 أيام' },
+                    { days: 5, label: '5 أيام' },
+                    { days: 7, label: '7 أيام (أسبوع)' },
+                    { days: 10, label: '10 أيام' },
+                    { days: 15, label: '15 يوم' },
+                    { days: 30, label: '30 يوم (شهر)' },
+                  ].map(item => {
+                    const isSelected = durationDays === item.days;
+                    return (
+                      <button
+                        key={item.days}
+                        type="button"
+                        onClick={() => setDurationDays(item.days)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: `1px solid ${isSelected ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isSelected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(30, 41, 59, 0.5)',
+                          color: isSelected ? '#fbbf24' : '#e2e8f0',
+                          fontWeight: isSelected ? 800 : 600,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Commercial Quick Period Chips */
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {[
+                    { type: 'monthly', label: '1 شهر (30 يوم)' },
+                    { type: 'semi_annual', label: '6 أشهر (نصف سنوي)' },
+                    { type: 'annual', label: '12 شهر (سنوي كامل)' },
+                  ].map(item => {
+                    const isSelected = periodType === item.type;
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => setPeriodType(item.type as ContractPeriodType)}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: `1px solid ${isSelected ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isSelected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(30, 41, 59, 0.5)',
+                          color: isSelected ? '#fbbf24' : '#e2e8f0',
+                          fontWeight: isSelected ? 800 : 600,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* D. Live Arabic Schedule Summary Card */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                  🚛 <strong style={{ color: '#38bdf8' }}>توقيت التنزيل:</strong> {formatArabicDateTime(startDate)}
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                  📦 <strong style={{ color: '#fbbf24' }}>موعد السحب المتوقع:</strong> {formatArabicDateTime(pickupDate)}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>✨ نظام التنبيه: سيرسل النظام إشعار تذكير آلي للعميل وسائق الرافعة قبل 4 ساعات من موعد السحب.</span>
+              </div>
+            </div>
+
+            {/* E. Optional Advanced Native Datetime Inputs (Hidden by default) */}
+            {showAdvancedDateTime && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                paddingTop: '8px',
+                borderTop: '1px dashed rgba(255, 255, 255, 0.1)'
+              }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, marginBottom: '4px', color: '#94a3b8' }}>
+                    تعديل تاريخ ووقت التنزيل يدوياً:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-input"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setStartDatePreset('custom');
+                      setStartTimePreset('custom');
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, marginBottom: '4px', color: '#94a3b8' }}>
+                    تعديل موعد السحب يدوياً:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-input"
+                    value={pickupDate}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                  />
+                </div>
               </div>
             )}
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                تاريخ ووقت التنزيل:
-              </label>
-              <input
-                type="datetime-local"
-                className="form-input"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#fbbf24' }}>
-                موعد السحب المتوقع:
-              </label>
-              <input
-                type="datetime-local"
-                className="form-input"
-                value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-                required
-              />
-            </div>
           </div>
 
           {/* 5. GPS Location & Google Maps */}

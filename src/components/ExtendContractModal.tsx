@@ -169,14 +169,14 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
                   عدد الأيام الإضافية المطلوبة:
                 </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[1, 2, 3, 5, 7].map((num) => (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[1, 2, 3, 5, 7, 10, 15].map((num) => (
                     <button
                       type="button"
                       key={num}
                       onClick={() => setAdditionalDays(num)}
                       style={{
-                        flex: 1,
+                        flex: '1 0 calc(25% - 6px)',
                         padding: '8px 0',
                         borderRadius: '8px',
                         border: `1px solid ${additionalDays === num ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
