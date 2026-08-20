@@ -1527,6 +1527,34 @@ function MainDashboard() {
               />
             )}
 
+            {/* ✅ CONTRACTS TAB */}
+            {currentTab === 'contracts' && (
+              <ContractsView
+                contracts={displayedContracts}
+                userRole={currentRole}
+                paymentSettings={paymentSettings}
+                permissions={activePermissions}
+                onUpdateContractStatus={handleUpdateContractStatus}
+                onDeleteContract={handleDeleteContract}
+                onSendWhatsApp={handleSendWhatsApp}
+                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
+                onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
+                onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
+                onConfirmCashPayment={handleConfirmCashPayment}
+                onSendSadadLink={handleSendSadadLink}
+              />
+            )}
+
+            {/* ✅ WHATSAPP HUB TAB */}
+            {currentTab === 'whatsapp' && (
+              <WhatsAppHub
+                notifications={notifications}
+                onMarkAsSent={handleMarkNotificationSent}
+                onSendWhatsApp={handleSendWhatsApp}
+              />
+            )}
+
+
             {currentTab === 'gateway-settings' && currentRole === 'admin' && (
               <WhatsAppSettings
                 settings={gatewaySettings}
