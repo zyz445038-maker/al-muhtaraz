@@ -654,6 +654,21 @@ function MainDashboard() {
       console.warn('Synced payment locally:', e);
     }
 
+    // 🚀 Tracked Silent WhatsApp Dispatch for Receipt Confirmation
+    if (contract.customer?.phone) {
+      const receiptAmount = remaining > 0 ? remaining : contract.total_cost;
+      const receiptUrl = typeof window !== 'undefined' ? `${window.location.origin}/receipt/${receiptNumber}` : `https://almuhtaraz.com/receipt/${receiptNumber}`;
+      const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وإصدار سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\n🧾 رابط السند الإلكتروني مع كود QR:\n${receiptUrl}\n\nشكراً لتعاملكم معنا 🏗️`;
+      await sendSilentWhatsApp(
+        contract.customer.phone,
+        receiptMsg,
+        'customer',
+        contract.customer?.name || 'العميل',
+        contract.contract_number,
+        { contract_id: contract.id, customer_id: contract.customer_id, recipient_role: 'customer', notification_type: 'custom_alert' }
+      );
+    }
+
     // Automatically open receipt modal to view / print
     setSelectedReceiptContract(updatedContract);
   };
@@ -1551,6 +1566,9 @@ function MainDashboard() {
                 notifications={notifications}
                 onMarkAsSent={handleMarkNotificationSent}
                 onSendWhatsApp={handleSendWhatsApp}
+                gatewaySettings={gatewaySettings}
+                onSaveGatewaySettings={handleSaveGatewaySettings}
+                onTestConnection={handleTestConnection}
               />
             )}
 
