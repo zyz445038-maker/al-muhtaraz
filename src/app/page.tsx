@@ -670,10 +670,10 @@ function MainDashboard() {
         notes: `سند قبض تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${newRemainingAmount} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`
       };
       setReceipts(prev => [newReceipt, ...prev]);
-      if (isCash) {
-        setSelectedReceiptContract(updatedContract);
-      }
     }
+
+    // Always display the full updated contract & extension receipt directly on screen
+    setSelectedReceiptContract(updatedContract);
 
     // Prepare WhatsApp Message
     const formattedDate = new Date(newEndDate).toLocaleDateString('ar-SA');
@@ -696,9 +696,22 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
-    // Send WhatsApp
+    // 🚀 100% Silent Background WhatsApp Send (no external tab redirects)
     if (contract.customer?.phone) {
-      handleSendWhatsApp(contract.customer.phone, messageContent);
+      try {
+        fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: contract.customer.phone,
+            message: messageContent,
+            contract_id: contract.id,
+            customer_id: contract.customer_id,
+            recipient_role: 'customer',
+            notification_type: 'contract_created'
+          })
+        }).catch(err => console.warn('Background silent WhatsApp send:', err));
+      } catch (e) {}
     }
 
     // Trigger celebration
@@ -971,10 +984,10 @@ function MainDashboard() {
         created_at: new Date().toISOString()
       };
       setReceipts(prev => [newReceipt, ...prev]);
-      if (isCash) {
-        setSelectedReceiptContract(newContract);
-      }
     }
+
+    // Always display the full official contract & receipt voucher directly on screen
+    setSelectedReceiptContract(newContract);
 
     // Auto-generate notification for WhatsApp
     let messageContent = `مرحباً ${customerObj.name}، تم توثيق عقدك رقم (${newContract.contract_number}) بنجاح لدى المحترز للحاويات. رقم الحاوية: ${containerObj?.container_number || '-'}. شكراً لثقتكم بنا.`;
@@ -1013,13 +1026,8 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [newInApp, ...prev]);
 
-    // Send WhatsApp if Sadad or general notice
+    // 🚀 100% Silent Background WhatsApp Send (no external tab redirects)
     if (customerObj.phone) {
-      handleSendWhatsApp(customerObj.phone, messageContent);
-    }
-
-    // 🚀 Automatically send server-side WhatsApp message if Evolution API mode
-    if (gatewaySettings.auto_send_enabled && gatewaySettings.mode === 'evolution') {
       try {
         fetch('/api/whatsapp/send', {
           method: 'POST',
@@ -1032,7 +1040,7 @@ function MainDashboard() {
             recipient_role: 'customer',
             notification_type: 'contract_created'
           })
-        }).catch(err => console.warn('Background auto-send dispatch:', err));
+        }).catch(err => console.warn('Background silent WhatsApp send:', err));
       } catch (e) {}
     }
 
