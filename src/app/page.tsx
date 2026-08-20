@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import { Truck, Lock, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { 
   Container, 
