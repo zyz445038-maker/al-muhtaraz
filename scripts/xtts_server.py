@@ -1,20 +1,24 @@
 """
-XTTS v2 Fast Inference Server for Al-Muhtaraz Application
-Run: python scripts/xtts_server.py
+XTTS v2 Fast Inference Server with Arabic Tashkeel & Natural Flow
 """
 
 import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
-import io
+import torch
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import mishkal.tashkeel
+
+# تفعيل التشكيل التلقائي
+vocalizer = mishkal.tashkeel.TashkeelClass()
 
 try:
     from TTS.api import TTS
-    print("Loading Coqui XTTS v2 model (Arabic + Voice Cloning)...")
-    tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
-    print("XTTS v2 model loaded successfully!")
+    print("⏳ جاري تحميل نموذج Coqui XTTS v2...")
+    use_gpu = torch.cuda.is_available()
+    tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=use_gpu)
+    print(f"✅ تم تحميل نموذج XTTS v2 بنجاح (GPU: {use_gpu})!")
 except ImportError:
-    print("Note: To run local XTTS v2, install: pip install TTS torch torchaudio")
+    print("⚠️ تأكد من تثبيت: pip install TTS torch torchaudio mishkal")
     tts = None
 
 class XTTSHandler(BaseHTTPRequestHandler):
@@ -23,26 +27,33 @@ class XTTSHandler(BaseHTTPRequestHandler):
         post_data = self.rfile.read(content_length)
         data = json.loads(post_data.decode('utf-8'))
 
-        text = data.get('text', '')
+        raw_text = data.get('text', '').strip()
         language = data.get('language', 'ar')
-        speaker_wav = data.get('speaker_wav', 'saudi_female_sample.wav')
+        speaker_wav = data.get('speaker_wav', 'public/audio/saudi_voice_sample.wav')
 
-        if not tts:
-            self.send_response(500)
+        if not tts or not raw_text:
+            self.send_response(400)
             self.end_headers()
-            self.wfile.write(b"XTTS library not installed")
+            self.wfile.write(b"Server not ready or missing text")
             return
 
         try:
-            out_file = io.BytesIO()
-            # Synthesize with voice cloning
+            # 1. تطبيق التشكيل التلقائي للنص العربي لضبط مخارج الحروف
+            processed_text = vocalizer.tashkeel_text(raw_text)
+
+            output_path = "temp_xtts_output.wav"
+            
+            # 2. التوليد مع ضبط سرعة الإلقاء والاستقرار
             tts.tts_to_file(
-                text=text,
-                file_path="temp_xtts_output.wav",
+                text=processed_text,
+                file_path=output_path,
                 speaker_wav=speaker_wav,
-                language=language
+                language=language,
+                split_sentences=True, # تقسيم الجمل للوقف الطبيعي
+                speed=1.05            # تسريع خفيف لمنع التردد الآلي
             )
-            with open("temp_xtts_output.wav", "rb") as f:
+
+            with open(output_path, "rb") as f:
                 audio_bytes = f.read()
 
             self.send_response(200)
@@ -50,7 +61,9 @@ class XTTSHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(audio_bytes)))
             self.end_headers()
             self.wfile.write(audio_bytes)
+
         except Exception as e:
+            print(f"❌ Error during generation: {e}")
             self.send_response(500)
             self.end_headers()
             self.wfile.write(str(e).encode('utf-8'))
@@ -59,5 +72,5 @@ if __name__ == '__main__':
     port = 8020
     server_address = ('', port)
     httpd = HTTPServer(server_address, XTTSHandler)
-    print(f"XTTS v2 Server running on http://localhost:{port}")
+    print(f"🚀 سيرفر XTTS يعمل الآن على: http://localhost:{port}")
     httpd.serve_forever()
