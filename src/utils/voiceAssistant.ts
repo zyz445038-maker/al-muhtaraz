@@ -1,6 +1,76 @@
-// Voice Assistant Engine: Speech-to-Text & Cheerful Saudi Female Voice Synthesizer
+// Voice Assistant Engine: Advanced Saudi Dialect NLP Semantic Copilot & Arabic Phonetic Number Converter
 
-// ─── 1. Cheerful Saudi Dialect Response Formatter ─────────────────────────────
+// ─── 1. Arabic Number to Words Converter (تَفقيط الأرقام صوتياً) ───────────────
+export function numberToArabicWords(num: number): string {
+  if (num === 0) return 'صفر';
+  if (isNaN(num)) return '';
+
+  const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة'];
+  const teens = ['عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+  const tens = ['', 'عشرة', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+  const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+
+  function convertChunk(n: number): string {
+    let result = '';
+    const h = Math.floor(n / 100);
+    const remainder = n % 100;
+
+    if (h > 0) {
+      result += hundreds[h];
+    }
+
+    if (remainder > 0) {
+      if (result !== '') result += ' و';
+      if (remainder <= 10) {
+        result += ones[remainder];
+      } else if (remainder < 20) {
+        result += teens[remainder - 10];
+      } else {
+        const t = Math.floor(remainder / 10);
+        const o = remainder % 10;
+        if (o > 0) {
+          result += ones[o] + ' و' + tens[t];
+        } else {
+          result += tens[t];
+        }
+      }
+    }
+    return result;
+  }
+
+  const thousands = Math.floor(num / 1000);
+  const remaining = num % 1000;
+  let finalResult = '';
+
+  if (thousands > 0) {
+    if (thousands === 1) finalResult += 'ألف';
+    else if (thousands === 2) finalResult += 'ألفان';
+    else if (thousands >= 3 && thousands <= 10) finalResult += convertChunk(thousands) + ' آلاف';
+    else finalResult += convertChunk(thousands) + ' ألف';
+  }
+
+  if (remaining > 0) {
+    if (finalResult !== '') finalResult += ' و';
+    finalResult += convertChunk(remaining);
+  }
+
+  return finalResult;
+}
+
+// ─── 2. Advanced Arabic & Saudi Dialect Semantic Normalizer ─────────────────────
+function normalizeArabicText(text: string): string {
+  return text
+    .replace(/[ًٌٍَُِّْ]/g, '') // remove tashkeel
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[ى]/g, 'ي')
+    .replace(/[^ا-ي0-9\s]/g, ' ') // remove special chars
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+// ─── 3. Cognitive Saudi Dialect Intent Analyzer & Response Generator ─────────────
 export function formatSaudiCheerResponse(rawIntent: string, data: {
   availableCount?: number;
   totalIncome?: number;
@@ -10,66 +80,80 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   activeCount?: number;
   customText?: string;
 }): { speechText: string; displayText: string } {
-  const { availableCount = 0, totalIncome = 0, cashIncome = 0, electronicIncome = 0, expiringCount = 0, activeCount = 0, customText } = data;
+  const { 
+    availableCount = 0, 
+    totalIncome = 0, 
+    cashIncome = 0, 
+    electronicIncome = 0, 
+    expiringCount = 0, 
+    activeCount = 0, 
+    customText 
+  } = data;
 
   if (customText) {
     return { speechText: customText, displayText: customText };
   }
 
-  const intent = rawIntent.toLowerCase().trim();
+  const normalized = normalizeArabicText(rawIntent);
 
-  // 💰 1. Financial Status / Income / Cash / Revenue / Accounts Query
-  if (
-    intent.includes('مالي') || 
-    intent.includes('مالية') || 
-    intent.includes('المالية') || 
-    intent.includes('حساب') || 
-    intent.includes('كاش') || 
-    intent.includes('دخل') || 
-    intent.includes('ايراد') || 
-    intent.includes('إيراد') || 
-    intent.includes('أرباح') || 
-    intent.includes('ارباح') || 
-    intent.includes('فلوس') || 
-    intent.includes('سداد') || 
-    intent.includes('تحصيل')
-  ) {
-    const speech = `يسعد لي قلبك يا بو سعود! التقرير المالي لليوم: إجمالي الدخل وصل ${totalIncome.toLocaleString('ar-SA')} ريال، منها كاش ${cashIncome.toLocaleString('ar-SA')} ريال، وسداد إلكتروني ${electronicIncome.toLocaleString('ar-SA')} ريال. عساها مداخيل الخير والبركة يا رب!`;
-    const display = `💰 **يسعد لي هاليوم يا بو سعود! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **الكاش المستلم:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني (مدى/فيزا):** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
+  // Semantic Clusters
+  const financialTokens = [
+    'مالي', 'ماليه', 'فلوس', 'دخل', 'ايراد', 'ارباح', 'ربح', 'كاش', 'سداد', 'حساب', 
+    'كم جانا', 'كم جبنا', 'كم طلعنا', 'كم كسبنا', 'كم صفينا', 'كم صفى', 'دراهم', 
+    'قبض', 'سندات', 'فواتير', 'مدفوعات', 'تحصيل', 'مبيعات', 'حسابات'
+  ];
+
+  const containerTokens = [
+    'حاويه', 'حاويات', 'مخزن', 'مستودع', 'حوش', 'شاغر', 'شواغر', 'فاضي', 'فاضيه', 
+    'متاح', 'متوفر', 'كم باقي', 'وش باقي', 'وش عندنا', 'كم عندنا', 'اسطول', 
+    'انقاض', 'تجاري', 'تجاريه', 'مقاس', 'كم حبه', 'كم قطعه'
+  ];
+
+  const expiringTokens = [
+    'منتهي', 'منتهيه', 'خالص', 'خالصه', 'بتنتهي', 'تنتهي', 'بكره', 'غدا', 'باكر', 
+    'سحب', 'نشيل', 'نسحب', 'بلديه', 'امانه', 'غرامه', 'غرامات', 'مخالفه', 'مخالفات', 
+    'انذار', 'تاخير', 'متاخر', 'متاخره'
+  ];
+
+  const driverTokens = [
+    'سائق', 'سائقين', 'سواق', 'سواقين', 'دريول', 'عمال', 'ميدان', 'سيارات', 
+    'تريلات', 'سطحات', 'رافعات', 'رافعه', 'مشاوير', 'من شغال', 'من مداوم'
+  ];
+
+  const generalBriefTokens = [
+    'علوم', 'وش العلوم', 'عطني العلوم', 'وش الوضع', 'وش الاخبار', 'وش صار', 
+    'علمني', 'ملخص', 'تقرير', 'وش فيه اليوم', 'كيف الشغل', 'كيف الامور', 
+    'بشرني', 'بشري', 'شلون الشغل', 'صباح الخير', 'مساء الخير', 'يا هلا'
+  ];
+
+  // Helper matching function
+  const hasToken = (tokens: string[]) => tokens.some(t => normalized.includes(normalizeArabicText(t)));
+
+  // 💰 1. Financial Status / Income / Cash / Revenue
+  if (hasToken(financialTokens)) {
+    const totalWords = numberToArabicWords(totalIncome);
+    const cashWords = numberToArabicWords(cashIncome);
+    const electronicWords = numberToArabicWords(electronicIncome);
+
+    const speech = `يسعد لي قلبك يا بو سعود! التقرير المالي لليوم: إجمالي الدخل وصل ${totalWords} ريال، منها كاش ${cashWords} ريال، وسداد إلكتروني ${electronicWords} ريال.. عساها مداخيل الخير والبركة يا رب!`;
+    
+    const display = `💰 **يسعد لي هاليوم يا بو سعود! التقرير المالي الحظي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **الكاش المستلم:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني (مدى/فيزا):** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
     return { speechText: speech, displayText: display };
   }
 
-  // 📦 2. Available Containers / Stock Query
-  if (
-    intent.includes('شاغر') || 
-    intent.includes('متاح') || 
-    intent.includes('مخزن') || 
-    intent.includes('فاضي') || 
-    intent.includes('حاوية') || 
-    intent.includes('حاويات') || 
-    intent.includes('مستودع') || 
-    intent.includes('أسطول') || 
-    intent.includes('اسطول')
-  ) {
-    const speech = `يا هلا والله يا بو سعود! ما شاء الله يتوفر الحين بالمخزن ${availableCount} حاوية جاهزة للإيجار على طول، ربي يزيد ويبارك بحلالك!`;
+  // 📦 2. Containers / Stock / Fleet Availability
+  if (hasToken(containerTokens)) {
+    const availWords = numberToArabicWords(availableCount);
+    const speech = `يا هلا والله يا بو سعود! ما شاء الله يتوفر الحين بالمخزن ${availWords} حاوية جاهزة للإيجار على طول، ربي يزيد ويبارك بحلالك!`;
     const display = `✨ **يا هلا والله ومسهلا يا بو سعود!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
     return { speechText: speech, displayText: display };
   }
 
-  // ⚠️ 3. Expiring Contracts / Municipality Warning Query
-  if (
-    intent.includes('منتهي') || 
-    intent.includes('سحب') || 
-    intent.includes('غدا') || 
-    intent.includes('بكرة') || 
-    intent.includes('بلدية') || 
-    intent.includes('غرامة') || 
-    intent.includes('مخالفة') || 
-    intent.includes('أمانة') || 
-    intent.includes('امانة')
-  ) {
+  // ⚠️ 3. Expiring Contracts & Municipality Fines Warning
+  if (hasToken(expiringTokens)) {
+    const expWords = numberToArabicWords(expiringCount);
     const speech = expiringCount > 0 
-      ? `هلا بك يا غالي، انتبه ترى فيه ${expiringCount} عقود تنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`
+      ? `هلا بك يا غالي، انتبه ترى فيه ${expWords} عقود تنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`
       : `يا هلا والله، تطمن الأمور كلها في السليم وما فيه أي عقود منتهية أو متأخرة بكرة يا بو سعود!`;
     const display = expiringCount > 0
       ? `⚠️ **يا هلا يا بو سعود، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`
@@ -77,35 +161,32 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     return { speechText: speech, displayText: display };
   }
 
-  // 🚛 4. Drivers & Fleet Crew Query
-  if (
-    intent.includes('سائق') || 
-    intent.includes('سواق') || 
-    intent.includes('سواقين') || 
-    intent.includes('عمال') || 
-    intent.includes('ميدان') || 
-    intent.includes('سيارات') || 
-    intent.includes('رافعات')
-  ) {
+  // 🚛 4. Drivers & Field Operations
+  if (hasToken(driverTokens)) {
     const speech = `أبشر يا بو سعود، طاقم السائقين والميدان شغالين وكل المهام مسندة لهم عبر الواتساب بمواقع العقود مباشرة!`;
     const display = `🚛 **أبشر يا بو سعود:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
     return { speechText: speech, displayText: display };
   }
 
-  // 📊 5. General Report / Daily Summary Query
-  if (intent.includes('تقرير') || intent.includes('ملخص') || intent.includes('أوضاع') || intent.includes('اوضاع') || intent.includes('شغل')) {
-    const speech = `يا هلا والله يا بو سعود! تقرير اليوم: عندك ${activeCount} عقد نشط، والدخل ${totalIncome.toLocaleString('ar-SA')} ريال، وبالمخزن ${availableCount} حاوية شاغرة.`;
-    const display = `📊 **الموجز التنفيذي لليوم يا بو سعود:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب وتحت السيطرة ✨!`;
+  // 📊 5. General Report & Daily Briefing ("عطني العلوم", "وش الأخبار")
+  if (hasToken(generalBriefTokens) || normalized.includes('تقرير')) {
+    const activeWords = numberToArabicWords(activeCount);
+    const incomeWords = numberToArabicWords(totalIncome);
+    const availWords = numberToArabicWords(availableCount);
+
+    const speech = `يا هلا والله ومسهلا يا بو سعود! العلوم تسرك: عندك ${activeWords} عقد نشط في الميدان، وإجمالي الدخل اليوم ${incomeWords} ريال، وبالمخزن ${availWords} حاوية جاهزة.`;
+    const display = `📊 **الموجز التنفيذي لليوم يا بو سعود:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
     return { speechText: speech, displayText: display };
   }
 
-  // Default Warm Saudi Greeting
-  const speech = `أبشر من عيوني يا بو سعود! كل العمليات وسجلات الواتساب مراقبة ومحفوظة تمام، وتراك مأجر حالياً ${activeCount} عقد بالمدينة. تامرني بشي ثاني أسويه لك؟`;
+  // Default Warm Saudi Copilot Greeting with Instant Metrics
+  const activeWords = numberToArabicWords(activeCount);
+  const speech = `أبشر من عيوني يا بو سعود! كل العمليات وسجلات الواتساب مراقبة ومحفوظة تمام، وتراك مأجر حالياً ${activeWords} عقد بالمدينة. تامرني بشي ثاني أسويه لك؟`;
   const display = `👑 **أبشر من عيوني يا بو سعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
   return { speechText: speech, displayText: display };
 }
 
-// ─── 2. Dual-Engine Audio & Speech Synthesizer ─────────────────────────────────
+// ─── 4. Dual-Engine Audio & Speech Synthesizer ─────────────────────────────────
 let activeAudio: HTMLAudioElement | null = null;
 
 export function unlockAudio() {
@@ -119,7 +200,7 @@ export function unlockAudio() {
   }
 }
 
-// High-Definition Server-Piped Arabic Audio Engine (100% Guaranteed on ALL phones & desktops)
+// High-Definition Server-Piped Arabic Audio Engine
 export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean {
   if (typeof window === 'undefined') return false;
 
@@ -136,7 +217,7 @@ export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean
       return false;
     }
 
-    // Call our internal Next.js API route that guarantees clear Arabic voice without CORS or English overrides
+    // Call our internal Next.js API route that guarantees pure Arabic voice without English fallback
     const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
     
     const audio = new Audio(audioUrl);
@@ -148,53 +229,23 @@ export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean
     };
 
     audio.onerror = (e) => {
-      console.warn('Server TTS stream failed, trying fallback', e);
+      console.warn('Server TTS stream failed:', e);
       activeAudio = null;
-      fallbackSpeechSynthesis(cleanText, onEnd);
+      if (onEnd) onEnd();
     };
 
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
-        console.warn('Audio stream auto-play prevented, trying fallback:', err);
-        fallbackSpeechSynthesis(cleanText, onEnd);
+        console.warn('Audio stream auto-play prevented (click button to play):', err);
+        if (onEnd) onEnd();
       });
     }
     return true;
   } catch (err) {
     console.warn('Online audio player error:', err);
-    fallbackSpeechSynthesis(text, onEnd);
+    if (onEnd) onEnd();
     return false;
-  }
-}
-
-function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    if (onEnd) onEnd();
-    return;
-  }
-
-  try {
-    window.speechSynthesis.resume();
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'ar-SA';
-    utterance.pitch = 1.18;
-    utterance.rate = 1.02;
-
-    const voices = window.speechSynthesis.getVoices();
-    const arabicVoice = voices.find(v => v.lang.startsWith('ar'));
-    if (arabicVoice) {
-      utterance.voice = arabicVoice;
-      utterance.onend = () => { if (onEnd) onEnd(); };
-      utterance.onerror = () => { if (onEnd) onEnd(); };
-      window.speechSynthesis.speak(utterance);
-    } else {
-      // If no local Arabic voice pack exists in OS, don't play in English!
-      if (onEnd) onEnd();
-    }
-  } catch (e) {
-    console.warn('Fallback SpeechSynthesis error:', e);
-    if (onEnd) onEnd();
   }
 }
 
