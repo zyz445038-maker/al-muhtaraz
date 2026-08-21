@@ -186,3 +186,24 @@ export interface Receipt {
   notes?: string;
   created_at?: string;
 }
+
+// Executive Smart AI Assistant & Operations Hub Settings
+export interface SmartAssistantSettings {
+  id?: string;
+  whatsapp_routing: {
+    notify_customer: boolean;
+    notify_driver: boolean;
+    notify_admin: boolean;
+  };
+  daily_report: {
+    enabled: boolean;
+    send_time: string;
+    admin_phone: string;
+  };
+  approval_policy: {
+    require_admin_approval_for_staff: boolean;
+  };
+  auto_dispatch_enabled: boolean;
+  updated_at?: string;
+}
+

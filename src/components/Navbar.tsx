@@ -8,12 +8,13 @@ import {
   FileText, 
   MessageSquare, 
   Users, 
-  RotateCcw,
-  ShieldCheck,
-  UserCheck,
-  Settings,
-  CreditCard,
-  Package
+  RotateCcw, 
+  ShieldCheck, 
+  UserCheck, 
+  Settings, 
+  CreditCard, 
+  Package,
+  Bot
 } from 'lucide-react';
 import { InAppNotification, Profile, StaffPermissions, UserRole } from '@/types/database';
 import { NotificationBell } from './NotificationBell';
@@ -200,6 +201,38 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Admin only Tabs */}
           {currentRole === 'admin' && (
             <>
+              {/* 🤖 Executive AI Copilot & Automation Hub Tab */}
+              <button
+                id="nav-ai-hub-tab"
+                onClick={() => setCurrentTab('ai-hub')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: currentTab === 'ai-hub' ? '1px solid #f59e0b' : '1px solid rgba(245, 158, 11, 0.25)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
+                  background: currentTab === 'ai-hub' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.15))' : 'rgba(245, 158, 11, 0.08)',
+                  color: '#fbbf24',
+                  boxShadow: currentTab === 'ai-hub' ? '0 0 15px rgba(245, 158, 11, 0.3)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Bot size={18} color="#fbbf24" />
+                <span>المساعد الذكي</span>
+                <span style={{
+                  background: '#fbbf24',
+                  color: '#050811',
+                  borderRadius: '6px',
+                  padding: '1px 5px',
+                  fontSize: '0.65rem',
+                  fontWeight: 900
+                }}>AI</span>
+              </button>
               <button
                 id="nav-inventory-tab"
                 onClick={() => setCurrentTab('inventory')}

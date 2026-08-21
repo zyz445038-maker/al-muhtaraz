@@ -16,6 +16,7 @@ import {
   InAppNotification,
   WhatsAppSettings as IWhatsAppSettings,
   PaymentSettings as IPaymentSettings,
+  SmartAssistantSettings,
   Receipt,
   PaymentMethod,
   PaymentStatus,
@@ -30,6 +31,7 @@ import { WhatsAppHub } from '@/components/WhatsAppHub';
 import { StaffManagement, DEFAULT_DRIVER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS } from '@/components/StaffManagement';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';
+import { SmartAssistantHub } from '@/components/SmartAssistantHub';
 import { NewContractModal } from '@/components/NewContractModal';
 import { ReceiptModal } from '@/components/ReceiptModal';
 import { ExtendContractModal } from '@/components/ExtendContractModal';
@@ -37,6 +39,11 @@ import { InventoryManagement } from '@/components/InventoryManagement';
 import { DriverDispatchModal } from '@/components/DriverDispatchModal';
 import { StaffLoginModal } from '@/components/StaffLoginModal';
 import { formatDriverWhatsAppMessage } from '@/utils/driverDispatch';
+import { 
+  formatCustomerVoucherMessage, 
+  formatDriverMissionMessage, 
+  formatAdminAlertMessage 
+} from '@/utils/voucherFormatter';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -268,6 +275,23 @@ const initialPaymentSettings: IPaymentSettings = {
   company_commercial_reg: '1010889900'
 };
 
+const initialAssistantSettings: SmartAssistantSettings = {
+  whatsapp_routing: {
+    notify_customer: true,
+    notify_driver: true,
+    notify_admin: true,
+  },
+  daily_report: {
+    enabled: true,
+    send_time: '21:00',
+    admin_phone: '+966500000001',
+  },
+  approval_policy: {
+    require_admin_approval_for_staff: false,
+  },
+  auto_dispatch_enabled: true,
+};
+
 function MainDashboard() {
   // App State
   const [showSplash, setShowSplash] = useState(true);
@@ -287,6 +311,7 @@ function MainDashboard() {
   const [isStaffLoginModalOpen, setIsStaffLoginModalOpen] = useState(false);
   const [gatewaySettings, setGatewaySettings] = useState<IWhatsAppSettings>(initialGatewaySettings);
   const [paymentSettings, setPaymentSettings] = useState<IPaymentSettings>(initialPaymentSettings);
+  const [assistantSettings, setAssistantSettings] = useState<SmartAssistantSettings>(initialAssistantSettings);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
   // WhatsApp Alert System – persistent failure notifications
@@ -560,6 +585,16 @@ function MainDashboard() {
       await supabase.from('payment_settings').upsert([updated]);
     } catch (e) {
       console.warn('Saved payment settings locally:', e);
+    }
+    return true;
+  };
+
+  const handleSaveAssistantSettings = async (updated: SmartAssistantSettings): Promise<boolean> => {
+    setAssistantSettings(updated);
+    try {
+      await supabase.from('assistant_settings').upsert([updated]);
+    } catch (e) {
+      console.warn('Saved assistant settings locally:', e);
     }
     return true;
   };
@@ -1102,14 +1137,17 @@ function MainDashboard() {
     // Always display the full official contract & receipt voucher directly on screen
     setSelectedReceiptContract(newContract);
 
-    // Auto-generate notification for WhatsApp
-    let messageContent = `مرحباً ${customerObj.name}، تم توثيق عقدك رقم (${newContract.contract_number}) بنجاح لدى المحترز للحاويات. رقم الحاوية: ${containerObj?.container_number || '-'}. شكراً لثقتكم بنا.`;
-    
-    // If Sadad: Append electronic payment invoice link
-    if (isSadad) {
-      const invoiceLink = `https://checkout.moyasar.com/invoices/inv_${newContract.contract_number}?amount=${totalCost}`;
-      messageContent += `\n\n💳 للسداد الفوري عبر Apple Pay أو مدى:\n${invoiceLink}`;
-    }
+    // 🧾 1. Format Customer Official Receipt Voucher Text (Zero links, pure official formatted document)
+    const customerVoucherMessage = formatCustomerVoucherMessage({
+      contract: newContract,
+      customer: customerObj,
+      container: containerObj,
+      receiptNumber,
+      isCash,
+      paidAmount,
+      remainingAmount,
+      totalCost
+    });
 
     const newNotif: NotificationLog = {
       id: `notif-${Date.now()}`,
@@ -1119,7 +1157,7 @@ function MainDashboard() {
       recipient_phone: customerObj.phone,
       recipient_name: customerObj.name,
       notification_type: 'contract_created',
-      message_body: messageContent,
+      message_body: customerVoucherMessage,
       scheduled_for: new Date().toISOString(),
       status: 'sent',
       sent_at: new Date().toISOString(),
@@ -1139,21 +1177,30 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [newInApp, ...prev]);
 
-    // 🚀 Tracked Silent WhatsApp Dispatch with Persistent Alert Feedback
-    if (customerObj.phone) {
+    // 🚀 1. Check Routing & Dispatch Official Voucher to Customer
+    const shouldNotifyCustomer = assistantSettings.whatsapp_routing?.notify_customer ?? true;
+    if (shouldNotifyCustomer && customerObj.phone) {
       await sendSilentWhatsApp(
         customerObj.phone,
-        messageContent,
+        customerVoucherMessage,
         'customer',
         customerObj.name,
         newContract.contract_number,
         { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
       );
     }
-    // Silent dispatch to assigned driver/employee
-    if (assignedStaff?.phone) {
+
+    // 🚀 2. Check Routing & Dispatch to Driver (Operational Info ONLY - NO financial prices 🛡️)
+    const shouldNotifyDriver = assistantSettings.whatsapp_routing?.notify_driver ?? true;
+    if (shouldNotifyDriver && assignedStaff?.phone) {
       const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
-      const driverMsg = `مهمة تنزيل حاوية جديدة 🚛\nرقم العقد: ${newContract.contract_number}\nرقم الحاوية: ${containerObj?.container_number || '-'}\nالعميل: ${customerObj.name} (${customerObj.phone})\nالموقع: ${mapsUrl}\nموعد التنزيل: ${contractData.expected_pickup_time ? new Date(contractData.expected_pickup_time).toLocaleString('ar-SA') : '-'}`;
+      const driverMsg = formatDriverMissionMessage({
+        contract: newContract,
+        customer: customerObj,
+        container: containerObj,
+        mapsUrl,
+        expectedTime: contractData.expected_pickup_time
+      });
       await sendSilentWhatsApp(
         assignedStaff.phone,
         driverMsg,
@@ -1161,6 +1208,28 @@ function MainDashboard() {
         assignedStaff.full_name,
         newContract.contract_number,
         { contract_id: newContract.id, recipient_role: 'driver', notification_type: 'driver_dispatch' }
+      );
+    }
+
+    // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin
+    const shouldNotifyAdmin = assistantSettings.whatsapp_routing?.notify_admin ?? true;
+    const adminPhone = gatewaySettings.admin_phone || assistantSettings.daily_report?.admin_phone;
+    if (shouldNotifyAdmin && adminPhone) {
+      const adminAlertMsg = formatAdminAlertMessage({
+        contract: newContract,
+        customer: customerObj,
+        container: containerObj,
+        staffName: currentProfile?.full_name || assignedStaff?.full_name,
+        paidAmount,
+        isCash
+      });
+      await sendSilentWhatsApp(
+        adminPhone,
+        adminAlertMsg,
+        'driver',
+        'المدير العام',
+        newContract.contract_number,
+        { contract_id: newContract.id, recipient_role: 'admin', notification_type: 'admin_alert' }
       );
     }
 
@@ -1547,6 +1616,22 @@ function MainDashboard() {
               <PaymentSettings
                 settings={paymentSettings}
                 onSaveSettings={handleSavePaymentSettings}
+              />
+            )}
+
+            {/* 🤖 EXECUTIVE SMART AI & AUTOMATION HUB TAB */}
+            {currentTab === 'ai-hub' && currentRole === 'admin' && (
+              <SmartAssistantHub
+                contracts={contracts}
+                containers={containers}
+                customers={customers}
+                staffList={staffList}
+                receipts={receipts}
+                assistantSettings={assistantSettings}
+                onSaveAssistantSettings={handleSaveAssistantSettings}
+                gatewaySettings={gatewaySettings}
+                onSaveGatewaySettings={handleSaveGatewaySettings}
+                onSendWhatsApp={handleSendWhatsApp}
               />
             )}
 
