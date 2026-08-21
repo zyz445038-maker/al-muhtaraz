@@ -1,4 +1,5 @@
 // Voice Assistant Engine: Ultra-Reliable Unlocked Audio Pipeline for All Browsers
+import { querySystemKnowledge } from './aiCopilotKnowledge';
 
 // ─── 1. Arabic Number to Words Converter ───────────────────────────────────────
 export function numberToArabicWords(num: number): string {
@@ -92,6 +93,15 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
 
   if (customText) {
     return { speechText: customText, displayText: customText };
+  }
+
+  // 🧠 0. Query Comprehensive System Knowledge Base (Creator Signature & Deep Domain Knowledge)
+  const knowledgeMatch = querySystemKnowledge(rawIntent);
+  if (knowledgeMatch) {
+    return {
+      speechText: knowledgeMatch.speechResponse,
+      displayText: knowledgeMatch.displayMarkdown
+    };
   }
 
   const normalized = normalizeArabicText(rawIntent);
