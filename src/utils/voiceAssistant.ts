@@ -129,11 +129,11 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   // Helper matching function
   const hasToken = (tokens: string[]) => tokens.some(t => normalized.includes(normalizeArabicText(t)));
 
-  // 💰 1. Financial Status / Income / Cash / Revenue (طبيعي وعفوي 100%)
+  // 💰 1. Financial Status / Income / Cash / Revenue
   if (hasToken(financialTokens)) {
     if (totalIncome === 0) {
-      const speech = `هلا والله يا أبو سُعود.. اليوم بعدنا ما سجّلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
-      const display = `💰 **هلا والله يا أبو سُعود!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
+      const speech = `هلا والله يا أبو سعود.. اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
+      const display = `💰 **هلا والله يا أبو سعود!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
       return { speechText: speech, displayText: display };
     }
 
@@ -150,43 +150,43 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
       breakdown = `كلها مدفوعة عبر السداد الإلكتروني`;
     }
 
-    const speech = `يا هلا والله يا أبو سُعود! ما شاء الله الدخل اليوم وصل ${totalWords} ريال، ${breakdown}.. عساها مداخيل الخير والعافية يا رب!`;
-    const display = `💰 **يسعد لي هاليوم يا أبو سُعود! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
+    const speech = `يا هلا والله يا أبو سعود! ما شاء الله الدخل اليوم وصل ${totalWords} ريال، ${breakdown}.. عساها مداخيل الخير والعافية يا رب!`;
+    const display = `💰 **يسعد لي هاليوم يا أبو سعود! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
     return { speechText: speech, displayText: display };
   }
 
   // 📦 2. Containers / Stock / Fleet Availability
   if (hasToken(containerTokens)) {
     if (availableCount === 0) {
-      const speech = `هلا يا أبو سُعود، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
-      const display = `📦 **ما شاء الله يا أبو سُعود!**\n\nكافة الحاويات مأجرة ونشطة حالياً في الميدان 🚛. لا توجد حاويات شاغرة بالمستودع حالياً.`;
+      const speech = `هلا يا أبو سعود، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
+      const display = `📦 **ما شاء الله يا أبو سعود!**\n\nكافة الحاويات مأجرة ونشطة حالياً في الميدان 🚛. لا توجد حاويات شاغرة بالمستودع حالياً.`;
       return { speechText: speech, displayText: display };
     }
 
     const availWords = numberToArabicWords(availableCount);
-    const speech = `يا هلا والله يا أبو سُعود! متوفر الحين في الحوش ${availWords} حاويات جاهزة للتأجير والتنزيل على طول، ربي يبارك في حلالك!`;
-    const display = `✨ **يا هلا والله ومسهلا يا أبو سُعود!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
+    const speech = `يا هلا والله يا أبو سعود! متوفر الحين في الحوش ${availWords} حاويات جاهزة للتأجير والتنزيل على طول، ربي يبارك في حلالك!`;
+    const display = `✨ **يا هلا والله ومسهلا يا أبو سعود!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
     return { speechText: speech, displayText: display };
   }
 
   // ⚠️ 3. Expiring Contracts & Municipality Fines Warning
   if (hasToken(expiringTokens)) {
     if (expiringCount === 0) {
-      const speech = `تطمن يا أبو سُعود، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
-      const display = `✅ **تطمن يا أبو سُعود، كل الأمور تحت السيطرة!**\n\nما عندك أي حاويات متأخرة أو تنتهي بكرة. كل الأسطول منضبط وموثق 🌟.`;
+      const speech = `تطمن يا أبو سعود، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
+      const display = `✅ **تطمن يا أبو سعود، كل الأمور تحت السيطرة!**\n\nما عندك أي حاويات متأخرة أو تنتهي بكرة. كل الأسطول منضبط وموثق 🌟.`;
       return { speechText: speech, displayText: display };
     }
 
     const expWords = numberToArabicWords(expiringCount);
-    const speech = `يا أبو سُعود، انتبه ترى فيه ${expWords} عقود بتنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`;
-    const display = `⚠️ **يا هلا يا أبو سُعود، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`;
+    const speech = `يا أبو سعود، انتبه ترى فيه ${expWords} عقود بتنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`;
+    const display = `⚠️ **يا هلا يا أبو سعود، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`;
     return { speechText: speech, displayText: display };
   }
 
   // 🚛 4. Drivers & Field Operations
   if (hasToken(driverTokens)) {
-    const speech = `أبشر يا أبو سُعود، طاقم السائقين شغالين ومرسلين لهم تفاصيل العناوين والخرائط على الواتساب أول بأول!`;
-    const display = `🚛 **أبشر يا أبو سُعود:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
+    const speech = `أبشر يا أبو سعود، طاقم السائقين شغالين ومرسلين لهم تفاصيل العناوين والخرائط على الواتساب أول بأول!`;
+    const display = `🚛 **أبشر يا أبو سعود:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
     return { speechText: speech, displayText: display };
   }
 
@@ -196,19 +196,19 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     const incomeWords = totalIncome > 0 ? numberToArabicWords(totalIncome) : 'صفر';
     const availWords = numberToArabicWords(availableCount);
 
-    const speech = `يا هلا وغلا يا أبو سُعود! العلوم تسرك: عندك ${activeWords} عقد شغال، وإجمالي مبالغ اليوم ${incomeWords} ريال، وبالمستودع ${availWords} حاوية جاهزة.`;
-    const display = `📊 **الموجز التنفيذي لليوم يا أبو سُعود:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
+    const speech = `يا هلا وغلا يا أبو سعود! العلوم تسرك: عندك ${activeWords} عقد شغال، وإجمالي مبالغ اليوم ${incomeWords} ريال، وبالمستودع ${availWords} حاوية جاهزة.`;
+    const display = `📊 **الموجز التنفيذي لليوم يا أبو سعود:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
     return { speechText: speech, displayText: display };
   }
 
   // Default Warm Saudi Copilot Greeting
   const activeWords = numberToArabicWords(activeCount);
-  const speech = `أبشر من عيوني يا أبو سُعود! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
-  const display = `👑 **أبشر من عيوني يا أبو سُعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
+  const speech = `أبشر من عيوني يا أبو سعود! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
+  const display = `👑 **أبشر من عيوني يا أبو سعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
   return { speechText: speech, displayText: display };
 }
 
-// ─── 4. Dual-Engine Audio & Speech Synthesizer ─────────────────────────────────
+// ─── 4. Ultra-Lifelike Native Siri / Google Neural Arabic Engine ───────────────
 let activeAudio: HTMLAudioElement | null = null;
 
 export function unlockAudio() {
@@ -222,25 +222,78 @@ export function unlockAudio() {
   }
 }
 
-// High-Definition Server-Piped Arabic Audio Engine
-export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean {
-  if (typeof window === 'undefined') return false;
+// Speaks using the device's native Siri (Apple) or Google Neural Wavenet (Android/Chrome)
+export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
+  if (typeof window === 'undefined') return;
 
-  try {
-    stopSpeaking();
+  stopSpeaking();
 
-    const cleanText = text
-      .replace(/[#*_`]/g, '')
-      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
-      .trim();
+  const cleanText = text
+    .replace(/[#*_`]/g, '')
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+    .trim();
 
-    if (!cleanText) {
-      if (onEnd) onEnd();
-      return false;
+  if (!cleanText) {
+    if (onEnd) onEnd();
+    return;
+  }
+
+  // Check if browser supports native SpeechSynthesis
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.resume();
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'ar-SA';
+      utterance.pitch = 1.05; // Natural human pitch
+      utterance.rate = 0.98;  // Natural conversational pace
+
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Look for high quality Arabic female voices (Apple Siri Arabic / Google Arabic Wavenet)
+      const bestArabicVoice = voices.find(v => 
+        v.lang.startsWith('ar') && (
+          v.name.includes('Laila') ||
+          v.name.includes('Marium') ||
+          v.name.includes('Fatima') ||
+          v.name.includes('Hoda') ||
+          v.name.includes('Salma') ||
+          v.name.includes('Zari') ||
+          v.name.includes('Zeina') ||
+          v.name.includes('Natural') ||
+          v.name.includes('Wavenet') ||
+          v.name.includes('Neural') ||
+          v.name.toLowerCase().includes('female')
+        )
+      ) || voices.find(v => v.lang.startsWith('ar') || v.lang.includes('SA'));
+
+      if (bestArabicVoice) {
+        utterance.voice = bestArabicVoice;
+      }
+
+      utterance.onend = () => {
+        if (onEnd) onEnd();
+      };
+
+      utterance.onerror = () => {
+        // Fallback to server stream only if native speech fails
+        fallbackServerAudio(cleanText, onEnd);
+      };
+
+      window.speechSynthesis.speak(utterance);
+      return;
+    } catch (e) {
+      console.warn('Native speech error, using fallback:', e);
     }
+  }
 
+  // Fallback to server audio if speech synthesis is completely unavailable
+  fallbackServerAudio(cleanText, onEnd);
+}
+
+function fallbackServerAudio(cleanText: string, onEnd?: () => void) {
+  try {
     const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
-    
     const audio = new Audio(audioUrl);
     activeAudio = audio;
 
@@ -249,31 +302,17 @@ export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean
       if (onEnd) onEnd();
     };
 
-    audio.onerror = (e) => {
-      console.warn('Server TTS stream failed:', e);
+    audio.onerror = () => {
       activeAudio = null;
       if (onEnd) onEnd();
     };
 
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        console.warn('Audio stream auto-play prevented (click button to play):', err);
-        if (onEnd) onEnd();
-      });
-    }
-    return true;
+    audio.play().catch(() => {
+      if (onEnd) onEnd();
+    });
   } catch (err) {
-    console.warn('Online audio player error:', err);
     if (onEnd) onEnd();
-    return false;
   }
-}
-
-// Master Speech Synthesizer Function
-export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
-  if (typeof window === 'undefined') return;
-  playOnlineArabicAudio(text, onEnd);
 }
 
 export function stopSpeaking() {
