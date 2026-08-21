@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Bot, 
   Smartphone, 
@@ -23,7 +23,11 @@ import {
   HelpCircle,
   Copy,
   ChevronRight,
-  Download
+  Download,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -36,6 +40,7 @@ import {
   WhatsAppSettings 
 } from '@/types/database';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
+import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking } from '@/utils/voiceAssistant';
 
 interface SmartAssistantHubProps {
   contracts: Contract[];
@@ -137,7 +142,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setTimeout(() => setSaveSuccess(false), 3500);
   };
 
-  // Quick Prompt / Chat Query Handler
+  // Quick Prompt / Chat Query Handler with Cheerful Saudi Female Persona
   const handleAskCopilot = (query: string) => {
     if (!query.trim()) return;
 
@@ -148,25 +153,21 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
 
     // Process intelligence query against real data
     setTimeout(() => {
-      let reply = '';
-      const q = query.toLowerCase();
-
-      if (q.includes('شاغر') || q.includes('متاح') || q.includes('مخزن')) {
-        reply = `📦 يتوفر حالياً في المخزون (${liveMetrics.availableContainersCount}) حاوية متاحة للإيجار الفوري 🟢 (منها ${containers.filter(c => c.status === 'available' && c.type === 'debris').length} حاوية أنقاض، و ${containers.filter(c => c.status === 'available' && c.type === 'commercial').length} حاوية تجارية).`;
-      } else if (q.includes('كاش') || q.includes('دخل') || q.includes('ايراد') || q.includes('أرباح')) {
-        reply = `💰 إجمالي التحصيل المسجل اليوم هو (${liveMetrics.totalIncomeToday.toLocaleString('ar-SA')} ر.س):\n• مبالغ الكاش الموردة: ${liveMetrics.cashToday.toLocaleString('ar-SA')} ر.س 💵\n• التحصيل الإلكتروني (سداد/مدى): ${liveMetrics.electronicToday.toLocaleString('ar-SA')} ر.س 💳`;
-      } else if (q.includes('منتهي') || q.includes('سحب') || q.includes('غدا') || q.includes('بلدية')) {
-        reply = `⚠️ هناك (${liveMetrics.expiringTomorrowCount}) عقود تنتهي غداً وتتطلب جدولة الرافعات لسحب الحاوية أو التمديد لتفادي غرامات الأمانة.`;
-      } else if (q.includes('سائق') || q.includes('رافع') || q.includes('عمال')) {
-        const drivers = staffList.filter(s => s.role === 'employee' || s.full_name.includes('سائق'));
-        reply = `🚛 عدد طاقم السائقين والميدان المسجلين (${drivers.length}) سائقين نشطين، وآخر مهمة مسندة كانت للسائق (${drivers[0]?.full_name || 'سعد الدوسري'}).`;
-      } else {
-        reply = `✅ تم فحص السجلات: لديك حالياً (${liveMetrics.activeContractsCount}) عقود نشطة في الميدان، و (${liveMetrics.availableContainersCount}) حاوية متاحة. هل تود أن أرسل لك التقرير التنفيذي المفصل على الواتساب؟`;
-      }
+      const { speechText, displayText } = formatSaudiCheerResponse(query, {
+        availableCount: liveMetrics.availableContainersCount,
+        totalIncome: liveMetrics.totalIncomeToday,
+        cashIncome: liveMetrics.cashToday,
+        electronicIncome: liveMetrics.electronicToday,
+        expiringCount: liveMetrics.expiringTomorrowCount,
+        activeCount: liveMetrics.activeContractsCount
+      });
 
       const botTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-      setChatMessages(prev => [...prev, { role: 'assistant', text: reply, time: botTime }]);
-    }, 600);
+      setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
+
+      // Speak back in cheerful sweet Saudi female voice
+      speakSaudiFemaleVoice(speechText);
+    }, 400);
   };
 
   return (

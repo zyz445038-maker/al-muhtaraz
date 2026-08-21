@@ -32,6 +32,7 @@ import { StaffManagement, DEFAULT_DRIVER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS 
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';
 import { SmartAssistantHub } from '@/components/SmartAssistantHub';
+import { FloatingVoiceOrb } from '@/components/FloatingVoiceOrb';
 import { NewContractModal } from '@/components/NewContractModal';
 import { ReceiptModal } from '@/components/ReceiptModal';
 import { ExtendContractModal } from '@/components/ExtendContractModal';
@@ -1730,6 +1731,14 @@ function MainDashboard() {
         currentProfile={currentProfile}
         onSelectProfile={handleSelectProfile}
         isMandatory={!isAuthenticated}
+      />
+
+      {/* 👑 Floating Saudi Female Voice Assistant Orb (Admin Exclusively) */}
+      <FloatingVoiceOrb
+        userRole={currentRole}
+        contracts={contracts}
+        containers={containers}
+        receipts={receipts}
       />
 
       {/* Footer */}
