@@ -8,10 +8,12 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Missing text parameter', { status: 400 });
   }
 
-  // Clean text from markdown and emojis
-  const cleanText = text
+  // Clean text from markdown and emojis and apply phonetic smoothness
+  let cleanText = text
     .replace(/[#*_`]/g, '')
     .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+    .replace(/يا بو سعود/g, 'يا أبو سعود')
+    .replace(/\bكاش\b/g, 'نقداً')
     .trim();
 
   try {
