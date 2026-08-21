@@ -25,9 +25,12 @@ import {
   ChevronRight,
   Download,
   Mic,
-  MicOff,
   Volume2,
-  VolumeX
+  VolumeX,
+  Upload,
+  Play,
+  Square,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -72,6 +75,94 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
   const [localGatewaySettings, setLocalGatewaySettings] = useState<WhatsAppSettings>(gatewaySettings);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
+
+  // Voice Reference Studio State
+  const [hasVoiceSample, setHasVoiceSample] = useState<boolean>(false);
+  const [isUploadingSample, setIsUploadingSample] = useState<boolean>(false);
+  const [isRecordingSample, setIsRecordingSample] = useState<boolean>(false);
+  const [countdown, setCountdown] = useState<number>(6);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    fetch('/api/voice/reference')
+      .then(res => res.json())
+      .then(data => setHasVoiceSample(data.exists))
+      .catch(() => {});
+  }, []);
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingSample(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/voice/reference', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setHasVoiceSample(true);
+        confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
+        alert('تم حفظ بصمة الصوت المرجعية بنجاح! سيتم استخدامها لاستنساخ الصوت 🎙️✨');
+      }
+    } catch (err) {
+      alert('حدث خطأ أثناء رفع الصوت');
+    } finally {
+      setIsUploadingSample(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'recorded_sample.wav');
+        setIsUploadingSample(true);
+        try {
+          const res = await fetch('/api/voice/reference', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.success) {
+            setHasVoiceSample(true);
+            confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
+            alert('تم تسجيل وحفظ بصمة الصوت (6 ثوانٍ) بنجاح تام! 👑🎙️');
+          }
+        } catch (e) {
+          alert('حدث خطأ أثناء حفظ التسجيل');
+        } finally {
+          setIsUploadingSample(false);
+        }
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecordingSample(true);
+      setCountdown(6);
+
+      let timeLeft = 6;
+      const interval = setInterval(() => {
+        timeLeft -= 1;
+        setCountdown(timeLeft);
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          mediaRecorder.stop();
+          setIsRecordingSample(false);
+        }
+      }, 1000);
+    } catch (err) {
+      alert('يرجى السماح بالوصول إلى الميكروفون للتسجيل');
+    }
+  };
 
   // Chat State
   const [chatInput, setChatInput] = useState<string>('');
@@ -517,6 +608,132 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
                   </div>
                 </div>
               </label>
+            </div>
+          </div>
+
+          {/* Card C: Voice Reference Studio (استوديو بصمة الصوت المرجعية) */}
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: '1px solid rgba(236, 72, 153, 0.35)',
+            borderRadius: '20px',
+            padding: '24px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+            gridColumn: '1 / -1'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(245, 158, 11, 0.2))', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Mic size={22} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>استوديو بصمة الصوت المرجعية (XTTS v2 Voice Cloning)</h3>
+                    <span style={{
+                      background: hasVoiceSample ? 'rgba(52, 211, 153, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                      color: hasVoiceSample ? '#34d399' : '#fbbf24',
+                      border: `1px solid ${hasVoiceSample ? 'rgba(52, 211, 153, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                      padding: '2px 10px',
+                      borderRadius: '20px',
+                      fontSize: '0.72rem',
+                      fontWeight: 800
+                    }}>
+                      {hasVoiceSample ? '🟢 بصمة الصوت جاهزة ونشطة' : '⚪ بانتظار عينة 6 ثوانٍ'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
+                    سجل صوتك أو ارفع ملفاً صوتياً (6-10 ثوانٍ) لفتاة أو متحدث سعودي ليتعلم النظام نبرة الصوت واللهجة بدقة 100%!
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleUploadFile}
+                  accept="audio/*"
+                  style={{ display: 'none' }}
+                />
+
+                {/* 1. Upload file button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingSample || isRecordingSample}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <Upload size={16} color="#38bdf8" />
+                  <span>{isUploadingSample ? 'جاري الحفظ...' : '📁 رفع ملف صوتي (MP3/WAV)'}</span>
+                </button>
+
+                {/* 2. Direct recording button */}
+                <button
+                  type="button"
+                  onClick={handleStartRecording}
+                  disabled={isUploadingSample || isRecordingSample}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '12px',
+                    background: isRecordingSample 
+                      ? 'linear-gradient(135deg, #ef4444, #dc2626)' 
+                      : 'linear-gradient(135deg, #ec4899, #f59e0b)',
+                    border: 'none',
+                    color: isRecordingSample ? '#ffffff' : '#050811',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    cursor: isRecordingSample ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: isRecordingSample ? '0 0 20px rgba(239, 68, 68, 0.5)' : '0 4px 15px rgba(236, 72, 153, 0.3)',
+                    animation: isRecordingSample ? 'pulse 1s infinite' : 'none'
+                  }}
+                >
+                  {isRecordingSample ? <Square size={16} /> : <Mic size={16} />}
+                  <span>
+                    {isRecordingSample ? `🎙️ جاري التسجيل (${countdown} ثوانٍ متبقية...)` : '🎙️ سجل الآن من المايك (6 ثوانٍ)'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hint and Suggested text */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.35)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '14px',
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fbbf24' }}>💡 نص مقترح لتقرأه في التسجيل: </span>
+                <span style={{ fontSize: '0.82rem', color: '#e2e8f0', fontStyle: 'italic' }}>
+                  "يا هلا والله ومسهلا، يسعد لي هاليوم! أنا المساعدة الذكية لمؤسسة المحترز، وحاضرة وجاهزة لخدمتكم في أي وقت."
+                </span>
+              </div>
+
+              {hasVoiceSample && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <audio controls src="/audio/saudi_voice_sample.wav" style={{ height: '32px', maxWidth: '240px' }} />
+                </div>
+              )}
             </div>
           </div>
 
