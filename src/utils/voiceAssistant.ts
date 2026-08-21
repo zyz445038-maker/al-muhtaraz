@@ -250,9 +250,7 @@ export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
       globalAudioElement = new Audio();
     }
 
-    const customKey = (typeof window !== 'undefined' ? localStorage.getItem('muhtaraz_voice_api_key') : '') || '';
-    const customProvider = (typeof window !== 'undefined' ? localStorage.getItem('muhtaraz_voice_provider') : '') || 'auto';
-    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}&key=${encodeURIComponent(customKey)}&provider=${encodeURIComponent(customProvider)}`;
+    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
     globalAudioElement.src = audioUrl;
 
     globalAudioElement.onended = () => {
