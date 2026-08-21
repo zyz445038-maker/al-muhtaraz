@@ -1,6 +1,6 @@
-// Voice Assistant Engine: Ultra-Natural Saudi Colloquial Conversational Assistant
+// Voice Assistant Engine: Ultra-Reliable Unlocked Audio Pipeline for All Browsers
 
-// ─── 1. Arabic Number to Words Converter (تَفقيط الأرقام طبيعياً) ───────────────
+// ─── 1. Arabic Number to Words Converter ───────────────────────────────────────
 export function numberToArabicWords(num: number): string {
   if (num === 0) return 'صفر';
   if (isNaN(num)) return '';
@@ -60,11 +60,11 @@ export function numberToArabicWords(num: number): string {
 // ─── 2. Advanced Arabic & Saudi Dialect Semantic Normalizer ─────────────────────
 function normalizeArabicText(text: string): string {
   return text
-    .replace(/[ًٌٍَُِّْ]/g, '') // remove tashkeel
+    .replace(/[ًٌٍَُِّْ]/g, '')
     .replace(/[إأآا]/g, 'ا')
     .replace(/[ة]/g, 'ه')
     .replace(/[ى]/g, 'ي')
-    .replace(/[^ا-ي0-9\s]/g, ' ') // remove special chars
+    .replace(/[^ا-ي0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -96,7 +96,6 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
 
   const normalized = normalizeArabicText(rawIntent);
 
-  // Semantic Clusters
   const financialTokens = [
     'مالي', 'ماليه', 'فلوس', 'دخل', 'ايراد', 'ارباح', 'ربح', 'كاش', 'سداد', 'حساب', 
     'كم جانا', 'كم جبنا', 'كم طلعنا', 'كم كسبنا', 'كم صفينا', 'كم صفى', 'دراهم', 
@@ -126,13 +125,12 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     'بشرني', 'بشري', 'شلون الشغل', 'صباح الخير', 'مساء الخير', 'يا هلا'
   ];
 
-  // Helper matching function
   const hasToken = (tokens: string[]) => tokens.some(t => normalized.includes(normalizeArabicText(t)));
 
-  // 💰 1. Financial Status / Income / Cash / Revenue
+  // 💰 1. Financial Status / Income / Cash
   if (hasToken(financialTokens)) {
     if (totalIncome === 0) {
-      const speech = `هلا والله يا أبو سعود.. اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
+      const speech = `هلا والله يا أبو سعود، اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
       const display = `💰 **هلا والله يا أبو سعود!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
       return { speechText: speech, displayText: display };
     }
@@ -155,7 +153,7 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     return { speechText: speech, displayText: display };
   }
 
-  // 📦 2. Containers / Stock / Fleet Availability
+  // 📦 2. Containers / Stock Availability
   if (hasToken(containerTokens)) {
     if (availableCount === 0) {
       const speech = `هلا يا أبو سعود، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
@@ -169,7 +167,7 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     return { speechText: speech, displayText: display };
   }
 
-  // ⚠️ 3. Expiring Contracts & Municipality Fines Warning
+  // ⚠️ 3. Expiring Contracts & Municipality Warning
   if (hasToken(expiringTokens)) {
     if (expiringCount === 0) {
       const speech = `تطمن يا أبو سعود، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
@@ -190,7 +188,7 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     return { speechText: speech, displayText: display };
   }
 
-  // 📊 5. General Report & Daily Briefing ("عطني العلوم", "وش الأخبار")
+  // 📊 5. General Report & Daily Briefing ("عطني العلوم")
   if (hasToken(generalBriefTokens) || normalized.includes('تقرير')) {
     const activeWords = numberToArabicWords(activeCount);
     const incomeWords = totalIncome > 0 ? numberToArabicWords(totalIncome) : 'صفر';
@@ -201,28 +199,37 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     return { speechText: speech, displayText: display };
   }
 
-  // Default Warm Saudi Copilot Greeting
+  // Default Warm Saudi Greeting
   const activeWords = numberToArabicWords(activeCount);
   const speech = `أبشر من عيوني يا أبو سعود! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
   const display = `👑 **أبشر من عيوني يا أبو سعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
   return { speechText: speech, displayText: display };
 }
 
-// ─── 4. Ultra-Lifelike Native Siri / Google Neural Arabic Engine ───────────────
-let activeAudio: HTMLAudioElement | null = null;
+// ─── 4. Pre-Unlocked Universal Audio Element Engine ───────────────────────────
+let globalAudioElement: HTMLAudioElement | null = null;
 
+// Call this on every user touch/click gesture to permanently unlock audio
 export function unlockAudio() {
   if (typeof window === 'undefined') return;
   try {
+    if (!globalAudioElement) {
+      globalAudioElement = new Audio();
+      globalAudioElement.preload = 'auto';
+    }
+    // Play a 0.05s silent data URI to unlock audio on iOS and Android
+    globalAudioElement.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+    globalAudioElement.play().catch(() => {});
+
     if ('speechSynthesis' in window) {
       window.speechSynthesis.resume();
     }
   } catch (e) {
-    console.warn('SpeechSynthesis resume error:', e);
+    console.warn('Audio unlock error:', e);
   }
 }
 
-// Speaks using the device's native Siri (Apple) or Google Neural Wavenet (Android/Chrome)
+// Master Audio Player that uses the pre-unlocked audio element
 export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
   if (typeof window === 'undefined') return;
 
@@ -238,91 +245,71 @@ export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
     return;
   }
 
-  // Check if browser supports native SpeechSynthesis
-  if ('speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.resume();
-
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = 'ar-SA';
-      utterance.pitch = 1.05; // Natural human pitch
-      utterance.rate = 0.98;  // Natural conversational pace
-
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Look for high quality Arabic female voices (Apple Siri Arabic / Google Arabic Wavenet)
-      const bestArabicVoice = voices.find(v => 
-        v.lang.startsWith('ar') && (
-          v.name.includes('Laila') ||
-          v.name.includes('Marium') ||
-          v.name.includes('Fatima') ||
-          v.name.includes('Hoda') ||
-          v.name.includes('Salma') ||
-          v.name.includes('Zari') ||
-          v.name.includes('Zeina') ||
-          v.name.includes('Natural') ||
-          v.name.includes('Wavenet') ||
-          v.name.includes('Neural') ||
-          v.name.toLowerCase().includes('female')
-        )
-      ) || voices.find(v => v.lang.startsWith('ar') || v.lang.includes('SA'));
-
-      if (bestArabicVoice) {
-        utterance.voice = bestArabicVoice;
-      }
-
-      utterance.onend = () => {
-        if (onEnd) onEnd();
-      };
-
-      utterance.onerror = () => {
-        // Fallback to server stream only if native speech fails
-        fallbackServerAudio(cleanText, onEnd);
-      };
-
-      window.speechSynthesis.speak(utterance);
-      return;
-    } catch (e) {
-      console.warn('Native speech error, using fallback:', e);
+  try {
+    if (!globalAudioElement) {
+      globalAudioElement = new Audio();
     }
-  }
 
-  // Fallback to server audio if speech synthesis is completely unavailable
-  fallbackServerAudio(cleanText, onEnd);
+    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
+    globalAudioElement.src = audioUrl;
+
+    globalAudioElement.onended = () => {
+      if (onEnd) onEnd();
+    };
+
+    globalAudioElement.onerror = () => {
+      console.warn('Audio stream playback failed, attempting SpeechSynthesis...');
+      fallbackSpeechSynthesis(cleanText, onEnd);
+    };
+
+    const playPromise = globalAudioElement.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('Audio play error, using fallback:', err);
+        fallbackSpeechSynthesis(cleanText, onEnd);
+      });
+    }
+  } catch (err) {
+    console.warn('Audio engine error:', err);
+    fallbackSpeechSynthesis(cleanText, onEnd);
+  }
 }
 
-function fallbackServerAudio(cleanText: string, onEnd?: () => void) {
+function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (onEnd) onEnd();
+    return;
+  }
+
   try {
-    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
-    const audio = new Audio(audioUrl);
-    activeAudio = audio;
+    window.speechSynthesis.resume();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'ar-SA';
+    utterance.pitch = 1.08;
+    utterance.rate = 1.0;
 
-    audio.onended = () => {
-      activeAudio = null;
-      if (onEnd) onEnd();
-    };
+    const voices = window.speechSynthesis.getVoices();
+    const arabicVoice = voices.find(v => v.lang.startsWith('ar'));
+    if (arabicVoice) {
+      utterance.voice = arabicVoice;
+    }
 
-    audio.onerror = () => {
-      activeAudio = null;
-      if (onEnd) onEnd();
-    };
+    utterance.onend = () => { if (onEnd) onEnd(); };
+    utterance.onerror = () => { if (onEnd) onEnd(); };
 
-    audio.play().catch(() => {
-      if (onEnd) onEnd();
-    });
-  } catch (err) {
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
     if (onEnd) onEnd();
   }
 }
 
 export function stopSpeaking() {
   if (typeof window !== 'undefined') {
-    if (activeAudio) {
+    if (globalAudioElement) {
       try {
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
+        globalAudioElement.pause();
+        globalAudioElement.currentTime = 0;
       } catch (e) {}
-      activeAudio = null;
     }
     if ('speechSynthesis' in window) {
       try {

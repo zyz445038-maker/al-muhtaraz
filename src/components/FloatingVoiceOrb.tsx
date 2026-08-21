@@ -195,11 +195,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         {!isOpen && (
           <button
             onClick={() => {
+              unlockAudio();
               setIsOpen(true);
-              if (!voiceMuted && !isSpeaking) {
-                setIsSpeaking(true);
-                speakSaudiFemaleVoice('يا هلا والله يا بو سعود، أنا معك وجاهزة لأي استفسار!', () => setIsSpeaking(false));
-              }
             }}
             style={{
               width: '62px',
