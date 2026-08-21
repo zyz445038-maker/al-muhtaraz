@@ -53,7 +53,7 @@ function toArabicWords(amount: number): string {
   return table[Math.floor(amount)] ?? `${amount.toLocaleString('ar-SA')} ريالاً سعودياً فقط لا غير`;
 }
 
-export default function ReceiptPage({ params }: { params: { number: string } }) {
+export default function ReceiptPage({ params }: { params: Promise<{ number: string }> }) {
   const [data, setData] = useState<ReceiptData | null>(null);
   const [error, setError] = useState(false);
   const [selfUrl, setSelfUrl] = useState('');

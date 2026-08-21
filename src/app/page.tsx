@@ -1501,7 +1501,17 @@ function MainDashboard() {
             {currentTab === 'containers' && (
               <ContainersView
                 containers={containers}
+                contracts={contracts}
+                userRole={currentRole}
+                permissions={activePermissions}
                 onUpdateStatus={handleUpdateContainerStatus}
+                onAddContainer={handleAddContainer}
+                onDeleteContainer={handleDeleteContainer}
+                onOpenRentModal={(containerId: string) => {
+                  setPreSelectedContainerId(containerId);
+                  setIsContractModalOpen(true);
+                }}
+                onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
               />
             )}
 
@@ -1509,17 +1519,15 @@ function MainDashboard() {
               <InventoryManagement
                 containers={containers}
                 contracts={contracts}
+                onBatchAddContainers={handleBatchAddContainers}
                 onUpdateContainerStatus={handleUpdateContainerStatus}
-                onOpenNewContractWithContainer={(cId) => {
-                  setPreSelectedContainerId(cId);
+                onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
+                onDeleteContainer={handleDeleteContainer}
+                onOpenNewContract={(containerId: string) => {
+                  setPreSelectedContainerId(containerId);
                   setIsContractModalOpen(true);
                 }}
-                onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
-                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
-                onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
-                onSendWhatsApp={handleSendWhatsApp}
-                userRole={currentRole}
-                permissions={activePermissions}
+                onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
               />
             )}
 

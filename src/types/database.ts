@@ -184,4 +184,5 @@ export interface Receipt {
   container_type?: ContainerType;
   issued_at: string;
   notes?: string;
+  created_at?: string;
 }

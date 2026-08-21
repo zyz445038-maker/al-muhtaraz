@@ -538,7 +538,7 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({
             <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>المستلم:</span>
             {([['all', 'الكل'], ['customer', 'العملاء'], ['employee', 'الموظفون']] as const).map(([id, lbl]) => (
               <button key={id} onClick={() => setFilterRole(id as any)} style={{
-                padding: '4px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600,
+                padding: '4px 12px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600,
                 background: filterRole === id ? 'rgba(52,211,153,0.2)' : 'rgba(255,255,255,0.05)',
                 color: filterRole === id ? '#34d399' : '#64748b',
                 border: filterRole === id ? '1px solid rgba(52,211,153,0.4)' : '1px solid transparent'
@@ -549,7 +549,7 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({
             <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>الحالة:</span>
             {([['all', 'الكل'], ['pending', 'انتظار'], ['sent', 'مُرسَل']] as const).map(([id, lbl]) => (
               <button key={id} onClick={() => setFilterStatus(id as any)} style={{
-                padding: '4px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600,
+                padding: '4px 12px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', fontWeight: 600,
                 background: filterStatus === id ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)',
                 color: filterStatus === id ? '#fbbf24' : '#64748b',
                 border: filterStatus === id ? '1px solid rgba(245,158,11,0.4)' : '1px solid transparent'
