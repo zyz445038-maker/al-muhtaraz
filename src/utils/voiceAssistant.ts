@@ -41,63 +41,127 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   }
 
   // Default warm greeting
-  const speech = `أبشر من عيوني يا بو سعود! كل العمليات والعقود مراقبة ومحفوظة تمام، وتراك مأجر حالياً ${activeCount} عقد بالمدينة. تامرني بشي ثاني أسويه لك؟`;
+  const speech = `أبشر من عيوني يا بو سعود! كل العمليات وسجلات الواتساب مراقبة ومحفوظة تمام، وتراك مأجر حالياً ${activeCount} عقد بالمدينة. تامرني بشي ثاني أسويه لك؟`;
   const display = `👑 **أبشر من عيوني يا بو سعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
   return { speechText: speech, displayText: display };
 }
 
-// ─── 2. Cheerful Saudi Female Text-to-Speech Engine ───────────────────────────
-export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
+// ─── 2. Dual-Engine Audio & Speech Synthesizer ─────────────────────────────────
+let activeAudio: HTMLAudioElement | null = null;
+
+export function unlockAudio() {
+  if (typeof window === 'undefined') return;
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+    }
+  } catch (e) {
+    console.warn('SpeechSynthesis resume error:', e);
+  }
+}
+
+// Audio Stream Engine (Universal fallback for all mobile & desktop browsers)
+export function playOnlineArabicAudio(text: string, onEnd?: () => void): boolean {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    stopSpeaking();
+
+    const cleanText = text
+      .replace(/[#*_`]/g, '')
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+      .trim();
+
+    if (!cleanText) {
+      if (onEnd) onEnd();
+      return false;
+    }
+
+    const encoded = encodeURIComponent(cleanText);
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ar&client=tw-ob&q=${encoded}`;
+    
+    const audio = new Audio(url);
+    activeAudio = audio;
+
+    audio.onended = () => {
+      activeAudio = null;
+      if (onEnd) onEnd();
+    };
+
+    audio.onerror = () => {
+      activeAudio = null;
+      if (onEnd) onEnd();
+    };
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('Audio stream auto-play prevented:', err);
+        // Fallback to speech synthesis
+        fallbackSpeechSynthesis(cleanText, onEnd);
+      });
+    }
+    return true;
+  } catch (err) {
+    console.warn('Online audio player error:', err);
+    return false;
+  }
+}
+
+function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    console.warn('Text to speech not supported in this browser');
+    if (onEnd) onEnd();
     return;
   }
 
-  // Cancel any ongoing speech
-  window.speechSynthesis.cancel();
+  try {
+    window.speechSynthesis.resume();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'ar-SA';
+    utterance.pitch = 1.18;
+    utterance.rate = 1.02;
 
-  const cleanText = text
-    .replace(/[#*_`]/g, '') // remove markdown symbols
-    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // remove emojis for natural speech
-    .trim();
+    const voices = window.speechSynthesis.getVoices();
+    const arabicVoice = voices.find(v => v.lang.startsWith('ar'));
+    if (arabicVoice) {
+      utterance.voice = arabicVoice;
+    }
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = 'ar-SA';
-  
-  // Tuned for a sweet, cheerful, feminine, warm young pitch
-  utterance.pitch = 1.18; // feminine bright pitch
-  utterance.rate = 1.02;  // natural conversational rhythm
+    utterance.onend = () => { if (onEnd) onEnd(); };
+    utterance.onerror = () => { if (onEnd) onEnd(); };
 
-  // Try to find natural Arabic female voice available in the browser/OS
-  const voices = window.speechSynthesis.getVoices();
-  const arabicFemaleVoice = voices.find(v => 
-    v.lang.startsWith('ar') && (
-      v.name.toLowerCase().includes('female') ||
-      v.name.toLowerCase().includes('zari') ||
-      v.name.toLowerCase().includes('hoda') ||
-      v.name.toLowerCase().includes('fatima') ||
-      v.name.toLowerCase().includes('marium') ||
-      v.name.toLowerCase().includes('leila') ||
-      v.name.toLowerCase().includes('sana') ||
-      v.name.toLowerCase().includes('salma') ||
-      v.name.toLowerCase().includes('zeina')
-    )
-  ) || voices.find(v => v.lang.startsWith('ar'));
-
-  if (arabicFemaleVoice) {
-    utterance.voice = arabicFemaleVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn('Fallback SpeechSynthesis error:', e);
+    if (onEnd) onEnd();
   }
+}
 
-  if (onEnd) {
-    utterance.onend = onEnd;
-    utterance.onerror = onEnd;
+// Master Speech Synthesizer Function
+export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
+  if (typeof window === 'undefined') return;
+
+  // 1. First try online clear audio stream
+  const started = playOnlineArabicAudio(text, onEnd);
+  if (!started) {
+    // 2. If online audio not ready, use native SpeechSynthesis
+    fallbackSpeechSynthesis(text, onEnd);
   }
-
-  window.speechSynthesis.speak(utterance);
 }
 
 export function stopSpeaking() {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+  if (typeof window !== 'undefined') {
+    if (activeAudio) {
+      try {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+      } catch (e) {}
+      activeAudio = null;
+    }
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
   }
 }

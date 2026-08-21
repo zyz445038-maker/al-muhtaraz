@@ -15,8 +15,18 @@ import {
   Package, 
   ShieldCheck 
 } from 'lucide-react';
-import { Contract, Container, Receipt, UserRole } from '@/types/database';
-import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking } from '@/utils/voiceAssistant';
+import { 
+  Contract, 
+  Container, 
+  Receipt, 
+  UserRole 
+} from '@/types/database';
+import { 
+  formatSaudiCheerResponse, 
+  speakSaudiFemaleVoice, 
+  stopSpeaking,
+  unlockAudio 
+} from '@/utils/voiceAssistant';
 
 interface FloatingVoiceOrbProps {
   userRole: UserRole;
@@ -41,6 +51,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [voiceMuted, setVoiceMuted] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
+  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا بو سعود، أنا معك وجاهزة لأي استفسار!');
   const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اضغط على المايك وتكلم، أنا أسمعك وجاهزة لأي سؤال عن الحاويات والأرباح والعقود!');
   const recognitionRef = useRef<any>(null);
 
@@ -111,6 +122,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       activeCount
     });
 
+    setLastSpeechText(speechText);
     setLastResponse(displayText);
 
     // Speak back in cheerful sweet Saudi female voice if not muted
@@ -122,6 +134,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
   // Toggle Voice Listening
   const toggleListening = () => {
+    unlockAudio();
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -135,6 +148,13 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         console.warn('Recognition start error:', err);
       }
     }
+  };
+
+  const handleManualPlayVoice = (textToSpeak?: string) => {
+    unlockAudio();
+    stopSpeaking();
+    setIsSpeaking(true);
+    speakSaudiFemaleVoice(textToSpeak || lastSpeechText, () => setIsSpeaking(false));
   };
 
   return (
@@ -325,6 +345,31 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 {lastResponse}
               </div>
             </div>
+
+            {/* 🔊 Direct Voice Replay / Listen button */}
+            <button
+              onClick={() => handleManualPlayVoice()}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '12px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                color: '#fbbf24',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                marginBottom: '12px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Volume2 size={16} />
+              <span>{isSpeaking ? '🌸 جاري التحدث الآن...' : '🔊 استمع للرد بصوتها الرقيق'}</span>
+            </button>
 
             {/* Live Waveform when speaking or listening */}
             {(isListening || isSpeaking) && (
