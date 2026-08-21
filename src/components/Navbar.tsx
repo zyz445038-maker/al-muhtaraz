@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { InAppNotification, Profile, StaffPermissions, UserRole } from '@/types/database';
 import { NotificationBell } from './NotificationBell';
+import { InstallAppButton } from './InstallAppButton';
 
 interface NavbarProps {
   currentTab: string;
@@ -294,9 +295,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </nav>
 
-        {/* Right Actions: In-App Bell, New Contract, Role Switcher, Replay Intro */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Right Actions: Install App, In-App Bell, New Contract, Role Switcher, Replay Intro */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           
+          {/* 📱 Executive PWA Install Button with Periodic Ambient Pulse */}
+          <InstallAppButton />
+
           {/* 🔔 In-App Notification Bell Component */}
           <NotificationBell
             notifications={inAppNotifications}
