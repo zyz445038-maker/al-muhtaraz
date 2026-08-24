@@ -347,7 +347,6 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         paddingBottom: '6px'
       }}>
         {[
-          { id: 'routing', label: '📲 توجيه رسائل العقود والخصوصية', icon: MessageSquare },
           { id: 'reports', label: '📊 التقارير اليومية والتنفيذية', icon: FileText },
           { id: 'chat', label: '💬 استفسارات المساعد الفورية', icon: Bot },
           { id: 'shortcut', label: '⚡ إضافة اختصار لشاشة الهاتف', icon: Smartphone },
@@ -381,243 +380,15 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         })}
       </div>
 
-      {/* ── Section 1: Message Routing & Privacy Matrix ──────────────────────── */}
-      {activeSection === 'routing' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
-          
-          {/* Card A: Gateway & Linking Status */}
-          <div style={{
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '20px',
-            padding: '24px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <QrCode size={20} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>حالة ربط الواتساب</h3>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>مسح الرمز لمرة واحدة فقط</div>
-                </div>
-              </div>
-
-              <span style={{
-                background: localGatewaySettings.is_connected ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: localGatewaySettings.is_connected ? '#34d399' : '#f87171',
-                border: `1px solid ${localGatewaySettings.is_connected ? 'rgba(52, 211, 153, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                padding: '4px 12px',
-                borderRadius: '20px',
-                fontSize: '0.78rem',
-                fontWeight: 800
-              }}>
-                {localGatewaySettings.is_connected ? '🟢 متصل ونشط' : '🔴 بانتظار المسح'}
-              </span>
-            </div>
-
-            {/* Inputs */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 700, marginBottom: '6px' }}>
-                  رقم جوال واتساب المؤسسة الأساسي (Sender):
-                </label>
-                <input
-                  type="text"
-                  value={localGatewaySettings.sender_phone || ''}
-                  onChange={e => setLocalGatewaySettings({ ...localGatewaySettings, sender_phone: e.target.value })}
-                  placeholder="مثال: 0500000001"
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    background: 'rgba(0, 0, 0, 0.4)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#ffffff',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 700, marginBottom: '6px' }}>
-                  رقم جوال المدير التنفيذي (لاستلام التنبيهات والتقارير):
-                </label>
-                <input
-                  type="text"
-                  value={localGatewaySettings.admin_phone || ''}
-                  onChange={e => setLocalGatewaySettings({ ...localGatewaySettings, admin_phone: e.target.value })}
-                  placeholder="مثال: 0550000001"
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    background: 'rgba(0, 0, 0, 0.4)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: '#ffffff',
-                    fontFamily: 'inherit',
-                    fontSize: '0.9rem'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* QR Scanner Trigger */}
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              style={{
-                width: '100%',
-                padding: '11px',
-                borderRadius: '12px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#f8fafc',
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <QrCode size={18} color="#fbbf24" />
-              <span>فتح شاشة مسح QR كود للربط</span>
-            </button>
-          </div>
-
-          {/* Card B: Granular Routing Matrix */}
-          <div style={{
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '20px',
-            padding: '24px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sliders size={20} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>مصفوفة توجيه رسائل العقود</h3>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>حدد من يستلم الإشعار وتفاصيل الخصوصية</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              {/* Checkbox 1: Customer */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '14px',
-                borderRadius: '12px',
-                background: localAssistantSettings.whatsapp_routing?.notify_customer ? 'rgba(52, 211, 153, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                border: `1px solid ${localAssistantSettings.whatsapp_routing?.notify_customer ? 'rgba(52, 211, 153, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={localAssistantSettings.whatsapp_routing?.notify_customer ?? true}
-                  onChange={e => setLocalAssistantSettings({
-                    ...localAssistantSettings,
-                    whatsapp_routing: {
-                      ...localAssistantSettings.whatsapp_routing,
-                      notify_customer: e.target.checked
-                    }
-                  })}
-                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#34d399' }}
-                />
-                <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>
-                    👤 إشعار العميل (سند القبض وتوثيق العقد المباشر)
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
-                    يستلم نص السند المعتمد كاملاً، رقم الحاوية، والتفقيط بالريال دون روابط مجهولة.
-                  </div>
-                </div>
-              </label>
-
-              {/* Checkbox 2: Driver (Strict Privacy - No prices) */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '14px',
-                borderRadius: '12px',
-                background: localAssistantSettings.whatsapp_routing?.notify_driver ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                border: `1px solid ${localAssistantSettings.whatsapp_routing?.notify_driver ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={localAssistantSettings.whatsapp_routing?.notify_driver ?? true}
-                  onChange={e => setLocalAssistantSettings({
-                    ...localAssistantSettings,
-                    whatsapp_routing: {
-                      ...localAssistantSettings.whatsapp_routing,
-                      notify_driver: e.target.checked
-                    }
-                  })}
-                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#38bdf8' }}
-                />
-                <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>
-                    🚛 إشعار السائق الميداني (بيانات المهمة والموقع فقط 🛡️)
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
-                    يصله اسم العميل، جواله، رابط الموقع (Google Maps)، رقم الحاوية، وموعد التنزيل <strong>(بدون أسعار أو أرباح لحماية خصوصية المؤسسة)</strong>.
-                  </div>
-                </div>
-              </label>
-
-              {/* Checkbox 3: Admin */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '14px',
-                borderRadius: '12px',
-                background: localAssistantSettings.whatsapp_routing?.notify_admin ? 'rgba(245, 158, 11, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                border: `1px solid ${localAssistantSettings.whatsapp_routing?.notify_admin ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={localAssistantSettings.whatsapp_routing?.notify_admin ?? true}
-                  onChange={e => setLocalAssistantSettings({
-                    ...localAssistantSettings,
-                    whatsapp_routing: {
-                      ...localAssistantSettings.whatsapp_routing,
-                      notify_admin: e.target.checked
-                    }
-                  })}
-                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#fbbf24' }}
-                />
-                <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>
-                    👑 إشعار فوري للمدير العام (ملخص مالي وتشغيلي)
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
-                    تصلك رسالة فورية عند توثيق كل عقد بمبلغ الدفعة وطريقة السداد والموظف المنفذ.
-                  </div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Card C: Voice Reference Studio (استوديو بصمة الصوت المرجعية) */}
-          <div style={{
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(236, 72, 153, 0.35)',
-            borderRadius: '20px',
-            padding: '24px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-            gridColumn: '1 / -1'
-          }}>
+      {/* ── Voice Reference Studio (استوديو بصمة الصوت المرجعية) ── */}
+      <div style={{
+        background: 'rgba(15, 23, 42, 0.75)',
+        border: '1px solid rgba(236, 72, 153, 0.35)',
+        borderRadius: '20px',
+        padding: '24px',
+        marginBottom: '24px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+      }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(245, 158, 11, 0.2))', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -734,9 +505,6 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
               )}
             </div>
           </div>
-
-        </div>
-      )}
 
       {/* ── Section 2: AI Executive Daily Briefing ───────────────────────────── */}
       {activeSection === 'reports' && (
@@ -1056,91 +824,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         </div>
       )}
 
-      {/* ── QR Scanner Modal ─────────────────────────────────────────────────── */}
-      {isQrModalOpen && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9999,
-          background: 'rgba(5, 8, 17, 0.85)',
-          backdropFilter: 'blur(16px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px'
-        }}>
-          <div style={{
-            maxWidth: '440px',
-            width: '100%',
-            background: 'linear-gradient(165deg, rgba(15, 23, 42, 0.98) 0%, rgba(5, 8, 17, 0.98) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
-            borderRadius: '24px',
-            padding: '30px 24px',
-            textAlign: 'center',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.6)'
-          }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ffffff', marginBottom: '8px' }}>
-              ربط واتساب المؤسسة (QR Code)
-            </h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '20px' }}>
-              افتح الواتساب في جوال المؤسسة 👈 الأجهزة المرتبطة 👈 امسح الرمز أدناه:
-            </p>
-
-            {/* QR Simulation Frame */}
-            <div style={{
-              background: '#ffffff',
-              padding: '20px',
-              borderRadius: '16px',
-              display: 'inline-block',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
-              marginBottom: '20px'
-            }}>
-              <div style={{ width: '180px', height: '180px', background: '#0f172a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24', flexDirection: 'column', gap: '8px' }}>
-                <QrCode size={90} />
-                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ffffff' }}>AL-MUHTARAZ QR</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  setLocalGatewaySettings({ ...localGatewaySettings, is_connected: true });
-                  setIsQrModalOpen(false);
-                  alert('تم تأكيد ربط واتساب المؤسسة بنجاح! 🟢');
-                }}
-                style={{
-                  flex: 1,
-                  padding: '11px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #34d399, #059669)',
-                  border: 'none',
-                  color: '#050811',
-                  fontWeight: 800,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
-              >
-                تأكيد الاتصال ✅
-              </button>
-              <button
-                onClick={() => setIsQrModalOpen(false)}
-                style={{
-                  padding: '11px 20px',
-                  borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: 'none',
-                  color: '#94a3b8',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+

@@ -66,20 +66,66 @@ export async function POST(request: Request) {
     let apiResponse: any = null;
 
     // 2. Dispatch based on Gateway Mode
-    if (mode === 'embedded') {
-      // Direct Native WhatsApp Socket (Baileys)
-      const res = await sendWhatsAppMessage(cleanPhone, {
-        text: message,
-        mediaUrl,
-        mediaBase64,
-        mediaType,
-        fileName,
-        mimetype,
-        caption: caption || message,
-        location
-      });
-      sendSuccess = res.success;
-      apiResponse = res;
+    if (mode === 'embedded' || mode === 'addon' || !mode) {
+      // Try sending through standalone Add-on server first
+      const addonServerUrl = evolutionServerUrl || process.env.WHATSAPP_ADDON_URL || 'http://localhost:5050';
+      const addonApiKey = evolutionApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
+      const cleanServer = addonServerUrl.replace(/\/+$/, '');
+
+      try {
+        const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
+        const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
+
+        const addonPayload = isMedia ? {
+          phone: cleanPhone,
+          message,
+          mediaUrl,
+          mediaBase64,
+          mediaType: mediaType || (location ? 'location' : 'document'),
+          fileName,
+          mimetype,
+          caption: caption || message,
+          location
+        } : {
+          phone: cleanPhone,
+          message
+        };
+
+        const addonRes = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${addonApiKey}`
+          },
+          body: JSON.stringify(addonPayload)
+        });
+
+        if (addonRes.ok) {
+          const addonJson = await addonRes.json();
+          if (addonJson.success) {
+            sendSuccess = true;
+            apiResponse = addonJson;
+          }
+        }
+      } catch (addonErr) {
+        console.warn('Addon send failed, falling back to embedded:', addonErr);
+      }
+
+      // If addon didn't succeed, fallback to embedded engine
+      if (!sendSuccess) {
+        const res = await sendWhatsAppMessage(cleanPhone, {
+          text: message,
+          mediaUrl,
+          mediaBase64,
+          mediaType,
+          fileName,
+          mimetype,
+          caption: caption || message,
+          location
+        });
+        sendSuccess = res.success;
+        apiResponse = res;
+      }
     } else if (mode === 'evolution' && autoSendEnabled) {
       // External Evolution API
       try {

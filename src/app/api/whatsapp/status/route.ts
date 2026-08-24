@@ -21,147 +21,124 @@ export async function GET(request: Request) {
     }
 
     // 1. Fetch saved WhatsApp Settings
-    let selectedMode = reqMode || 'embedded';
-    let evolutionServerUrl = customUrl || 'http://localhost:8080';
-    let evolutionInstance = customInstance || 'muhtaraz-instance';
-    let evolutionApiKey = customApiKey || '123456';
+    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || 'http://localhost:5050';
+    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
 
     try {
       const { data: settings } = await supabase
         .from('whatsapp_settings')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (settings) {
-        selectedMode = reqMode || settings.mode || selectedMode;
-        evolutionServerUrl = customUrl || settings.evolution_server_url || evolutionServerUrl;
-        evolutionInstance = customInstance || settings.evolution_instance || settings.evolution_instance_name || evolutionInstance;
-        evolutionApiKey = customApiKey || settings.evolution_api_key || evolutionApiKey;
+        addonServerUrl = customUrl || settings.evolution_server_url || addonServerUrl;
+        addonApiKey = customApiKey || settings.evolution_api_key || addonApiKey;
       }
     } catch (err) {
       console.warn('Could not read settings from db, using defaults:', err);
     }
 
-    // ─── CASE A: Embedded Engine (Default & Native) ───────────────────────────
-    if (selectedMode === 'embedded' || !selectedMode) {
-      // Trigger engine initialization
-      initWhatsAppEngine().catch((err) => console.error('Error in initWhatsAppEngine:', err));
+    const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
-      const status = getWhatsAppStatus();
-
-      if (status.isConnected) {
-        return NextResponse.json({
-          success: true,
-          status: 'connected',
-          mode: 'embedded',
-          state: 'open',
-          message: 'الواتساب متصل ويعمل بنجاح 🟢 (المحرك المدمج داخل التطبيق)'
+    // Handle logout action
+    if (action === 'logout') {
+      try {
+        await fetch(`${cleanServer}/api/session/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${addonApiKey}`
+          }
         });
+      } catch (e) {
+        console.warn('Error calling addon logout:', e);
       }
-
-      if (status.qrCodeBase64 || status.qrCodeRaw) {
-        return NextResponse.json({
-          success: true,
-          status: 'qr_ready',
-          mode: 'embedded',
-          state: 'connecting',
-          qrCodeBase64: status.qrCodeBase64 || null,
-          qrCodeRaw: status.qrCodeRaw || null,
-          message: 'كود QR المدمج جاهز للمسح من الواتساب 📱'
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        status: 'connecting',
-        mode: 'embedded',
-        state: 'connecting',
-        message: 'جارِ تهيئة محرك الواتساب المدمج وتوليد الكود...'
-      });
+      await logoutWhatsApp();
+      return NextResponse.json({ success: true, message: 'تم قطع اتصال الواتساب بنجاح' });
     }
 
-    // ─── CASE B: Evolution API (External Proxy) ──────────────────────────────
-    const cleanServer = evolutionServerUrl.replace(/\/+$/, '');
-
+    // ─── Query Standalone WhatsApp Add-on Server ───────────────────────────
     try {
-      const stateUrl = `${cleanServer}/instance/connectionState/${evolutionInstance}`;
-      const stateRes = await fetch(stateUrl, {
+      const addonRes = await fetch(`${cleanServer}/api/session/status`, {
         method: 'GET',
         headers: {
-          'apikey': evolutionApiKey
+          'Authorization': `Bearer ${addonApiKey}`
         },
-        signal: AbortSignal.timeout(5000)
+        cache: 'no-store'
       });
 
-      if (stateRes.ok) {
-        const stateData = await stateRes.json();
-        const isConnected = stateData?.instance?.state === 'open' || stateData?.state === 'open';
+      if (addonRes.ok) {
+        const addonData = await addonRes.json();
+        const info = addonData.data || {};
 
-        if (isConnected) {
+        if (info.status === 'connected' || info.isConnected) {
           return NextResponse.json({
             success: true,
             status: 'connected',
-            mode: 'evolution',
+            mode: 'addon',
             state: 'open',
-            serverUrl: cleanServer,
-            instance: evolutionInstance,
-            message: 'الواتساب متصل ويعمل بنجاح 🟢 (Evolution API)'
+            phoneNumber: info.phoneNumber || null,
+            userJid: info.userJid || null,
+            message: 'الواتساب متصل ويعمل بنجاح 🟢 (محرك مؤسسة المخترز المستقل)'
           });
         }
-      }
 
-      let connectUrl = `${cleanServer}/instance/connect/${evolutionInstance}`;
-      let connectRes = await fetch(connectUrl, {
-        method: 'GET',
-        headers: {
-          'apikey': evolutionApiKey
-        },
-        signal: AbortSignal.timeout(5000)
-      });
-
-      if (connectRes.ok) {
-        const qrData = await connectRes.json();
-        const qrBase64 = qrData?.base64 || qrData?.qrcode?.base64;
-        const qrRaw = qrData?.code || qrData?.qrcode?.code;
-        const pairingCode = qrData?.pairingCode;
-
-        if (qrBase64 || qrRaw) {
+        if (info.status === 'qr_ready' || info.qrCodeBase64) {
           return NextResponse.json({
             success: true,
             status: 'qr_ready',
-            mode: 'evolution',
+            mode: 'addon',
             state: 'connecting',
-            qrCodeBase64: qrBase64 || null,
-            qrCodeRaw: qrRaw || null,
-            pairingCode: pairingCode || null,
-            serverUrl: cleanServer,
-            instance: evolutionInstance,
-            message: 'كود QR جاهز للمسح من الواتساب 📱'
+            qrCodeBase64: info.qrCodeBase64 || null,
+            qrCodeRaw: info.qrCodeRaw || null,
+            message: 'كود QR المدمج جاهز للمسح من الواتساب 📱'
           });
         }
+
+        return NextResponse.json({
+          success: true,
+          status: info.status || 'connecting',
+          mode: 'addon',
+          state: 'connecting',
+          message: 'جارِ تهيئة محرك الواتساب وتوليد الكود...'
+        });
       }
+    } catch (addonErr: any) {
+      console.warn('Could not connect to Addon Server, falling back to embedded status:', addonErr?.message);
+    }
 
+    // Fallback: Check local embedded status
+    const status = getWhatsAppStatus();
+    if (status.isConnected) {
       return NextResponse.json({
-        success: false,
-        status: 'disconnected',
-        mode: 'evolution',
-        serverUrl: cleanServer,
-        instance: evolutionInstance,
-        message: 'السيرفر متصل ولكن الجلسة غير مقترنة'
-      });
-
-    } catch (networkErr: any) {
-      return NextResponse.json({
-        success: false,
-        status: 'offline',
-        mode: 'evolution',
-        serverUrl: cleanServer,
-        instance: evolutionInstance,
-        error: networkErr?.message || 'تعذر الوصول إلى خادم Evolution API',
-        message: `خادم Evolution API غير مشغل حالياً على (${cleanServer}).`
+        success: true,
+        status: 'connected',
+        mode: 'embedded',
+        state: 'open',
+        message: 'الواتساب متصل ويعمل بنجاح 🟢'
       });
     }
+
+    if (status.qrCodeBase64 || status.qrCodeRaw) {
+      return NextResponse.json({
+        success: true,
+        status: 'qr_ready',
+        mode: 'embedded',
+        state: 'connecting',
+        qrCodeBase64: status.qrCodeBase64 || null,
+        qrCodeRaw: status.qrCodeRaw || null,
+        message: 'كود QR جاهز للمسح من الواتساب 📱'
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      status: 'connecting',
+      mode: 'embedded',
+      state: 'connecting',
+      message: 'جارِ تهيئة المحرك...'
+    });
 
   } catch (error: any) {
     return NextResponse.json({
@@ -171,3 +148,4 @@ export async function GET(request: Request) {
     }, { status: 500 });
   }
 }
+
