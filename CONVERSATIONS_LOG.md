@@ -63,22 +63,23 @@
   4. استبدال الأيقونة الثابتة ببطاقة إرشادية واضحة ودقيقة في حال كان السيرفر غير مشغل، مع أمر Docker المباشر وزر التبديل الفوري إلى وضع `wa.me`.
 
 #### 6. الدمج الكلي لمحرك الواتساب المدمج والربط مع المساعد الذكي (Native Embedded Baileys Integration)
-* **المشكلة:** الحاجة إلى تشغيل واتساب تلقائي وصامت بدون الاعتماد على أي برامج خارجية وسيطة مثل Docker أو خوادم منفصلة (0 برامج وسيطة)، وربطه بالمساعد الذكي للقيام بالمهام اليومية.
+* **المشكلة:** الحاجة إلى تشغيل واتساب تلقائي وصامت بدون الاعتماد على أي برامج خارجية وسيطة مثل Docker أو خوادم منفصلة، مع ضمان التوافق التام مع بيئة Vercel Serverless السحابية وحل مشكلات قراءة رمز الـ QR عبر الهواتف.
 * **ما تم إنجازه:**
   1. بناء المحرك المدمج الأصلي [src/lib/whatsappEngine.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/lib/whatsappEngine.ts) عبر مكتبة `@whiskeysockets/baileys` داخل Node.js backend.
-  2. حفظ الجلسة والمفاتيح مشفرة ومؤمنة في المجلد `.baileys_auth/` (مستبعد في `.gitignore`).
-  3. تحديث مسارات الـ API ([/api/whatsapp/status](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/app/api/whatsapp/status/route.ts) و [/api/whatsapp/send](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/app/api/whatsapp/send/route.ts)) للتعامل مع المحرك المدمج فورياً.
-  4. ربط المساعد الذكي [src/utils/aiCopilotBrain.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotBrain.ts) لإرسال التقارير التنفيذية اليومية وسندات العقود للواتساب مباشرة عند الطلب.
-  5. تحديث واجهة [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx) لتوفير 3 خيارات واضحة مع إبراز المحرك المدمج كخيار أساسي وموصى به.
+  2. دعم مسار تخزين الجلسات السحابي عبر `os.tmpdir()` (`/tmp/baileys_auth_muhtaraz`) لمنع أخطاء Read-only filesystem (`ENOENT`) على Vercel.
+  3. إضافة مسار API جديد للاقتران برقم الجوال [/api/whatsapp/pair-code](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/app/api/whatsapp/pair-code/route.ts) لتوليد كود من 8 خانات (Pairing Code) للربط المباشر بدون كاميرا.
+  4. تحديث شاشة [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx) لتضمين واجهة الربط المباشر بالصفحة الأساسية مع خياري (الربط برقم الجوال + مسح كود QR عالي الدقة).
+  5. معالجة استعلامات Supabase وتحويلها إلى `.maybeSingle()` لتفادي أخطاء 404/406 عند عدم توفر بيانات مسبقة.
 
 ---
 
 ### 🗂️ هيكل الملفات المرتبطة بنظام المساعد والواتساب:
-* [src/lib/whatsappEngine.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/lib/whatsappEngine.ts): المحرك المدمج الأصلي لإدارة جلسة الواتساب والإرسال التلقائي الصامت.
+* [src/lib/whatsappEngine.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/lib/whatsappEngine.ts): المحرك المدمج الأصلي لإدارة جلسة الواتساب والإرسال التلقائي الصامت ودعم الاقتران برقم الجوال.
+* [src/app/api/whatsapp/pair-code/route.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/app/api/whatsapp/pair-code/route.ts): مسار استخراج كود الاقتران السريع برقم الجوال.
 * [src/utils/aiCopilotBrain.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotBrain.ts): العقل التحليلي الشامل وإجراءات تنفيذ رسائل وتقارير الواتساب.
 * [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts): وحدة التنسيق العربي الموحد للتواريخ والأوقات وفترات العقود.
 * [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts): مولد قوالب رسائل الواتساب وسندات القبض والتقارير اليومية.
-* [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx): لوحة إدارة الواتساب وتوليد كود QR المدمج والتفاعل مع الجلسات.
+* [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx): لوحة إدارة الواتساب المدمجة (توليد كود الاقتران السريع + كود QR التفاعلي).
 * [src/components/SmartAssistantHub.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/SmartAssistantHub.tsx): لوحة إدارة المساعد، مصفوفة توجيه الواتساب، والتقارير التنفيذية.
 * [src/components/FloatingVoiceOrb.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/FloatingVoiceOrb.tsx): الزر العائم التفاعلي للمدير العام (إجابات كتابية ذكية وفورية).
 
