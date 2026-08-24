@@ -280,13 +280,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               </div>
             </div>
 
-                <div className="voice-wave-bar" style={{ animationDelay: '0s' }} />
-                <div className="voice-wave-bar" style={{ animationDelay: '0.2s' }} />
-                <div className="voice-wave-bar" style={{ animationDelay: '0.4s' }} />
-                <div className="voice-wave-bar" style={{ animationDelay: '0.1s' }} />
-                <div className="voice-wave-bar" style={{ animationDelay: '0.3s' }} />
-              </div>
-            )}
 
             {/* Main Microphone Button */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
