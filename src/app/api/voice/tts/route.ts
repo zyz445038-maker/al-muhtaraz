@@ -87,11 +87,11 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({
           text: enrichedText,
-          model_id: 'eleven_multilingual_v2',
+          model_id: 'eleven_turbo_v2_5', // 3x faster response & pristine Arabic fluency
           voice_settings: {
-            stability: 0.55,
-            similarity_boost: 0.8,
-            style: 0.15,
+            stability: 0.50,
+            similarity_boost: 0.85,
+            style: 0.10,
             use_speaker_boost: true
           }
         })
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
           headers: {
             'Content-Type': 'audio/mpeg',
             'Cache-Control': 'public, max-age=86400',
-            'X-TTS-Engine': 'ElevenLabs-Multilingual-v2'
+            'X-TTS-Engine': 'ElevenLabs-Turbo-v2.5'
           }
         });
       } else {

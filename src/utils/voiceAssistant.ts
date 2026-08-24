@@ -239,8 +239,12 @@ export function unlockAudio() {
   }
 }
 
-// Master Audio Player that uses the pre-unlocked audio element
-export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
+// Pre-cached audio blob URLs for instant playback
+const ttsAudioCache = new Map<string, string>();
+let activeAudioRequestController: AbortController | null = null;
+
+// Master Audio Player with Async Blob Streaming & Instant Cache
+export async function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
   if (typeof window === 'undefined') return;
 
   stopSpeaking();
@@ -255,35 +259,72 @@ export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
     return;
   }
 
+  // 1. Check instant audio cache
+  if (ttsAudioCache.has(cleanText)) {
+    const cachedUrl = ttsAudioCache.get(cleanText)!;
+    playBlobUrl(cachedUrl, onEnd, cleanText);
+    return;
+  }
+
+  // 2. Fetch ElevenLabs Neural Audio Stream
+  try {
+    if (activeAudioRequestController) {
+      activeAudioRequestController.abort();
+    }
+    activeAudioRequestController = new AbortController();
+
+    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
+    const response = await fetch(audioUrl, {
+      signal: activeAudioRequestController.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`TTS server responded with ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Cache for replay
+    if (ttsAudioCache.size < 50) {
+      ttsAudioCache.set(cleanText, blobUrl);
+    }
+
+    playBlobUrl(blobUrl, onEnd, cleanText);
+  } catch (err: any) {
+    if (err.name === 'AbortError') return;
+    console.warn('ElevenLabs/TTS stream fetch error, using local fallback:', err);
+    fallbackSpeechSynthesis(cleanText, onEnd);
+  }
+}
+
+function playBlobUrl(blobUrl: string, onEnd?: () => void, fallbackText?: string) {
   try {
     if (!globalAudioElement) {
       globalAudioElement = new Audio();
     }
 
-    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
-    globalAudioElement.src = audioUrl;
-
+    globalAudioElement.src = blobUrl;
     globalAudioElement.onended = () => {
       if (onEnd) onEnd();
     };
 
     globalAudioElement.onerror = () => {
-      console.warn('Audio stream playback failed, attempting SpeechSynthesis...');
-      fallbackSpeechSynthesis(cleanText, onEnd);
+      if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
     };
 
     const playPromise = globalAudioElement.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
-        console.warn('Audio play error, using fallback:', err);
-        fallbackSpeechSynthesis(cleanText, onEnd);
+        console.warn('Playback error:', err);
+        if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
       });
     }
-  } catch (err) {
-    console.warn('Audio engine error:', err);
-    fallbackSpeechSynthesis(cleanText, onEnd);
+  } catch (e) {
+    if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
   }
 }
+
 
 function selectBestArabicVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (!voices || voices.length === 0) return null;
