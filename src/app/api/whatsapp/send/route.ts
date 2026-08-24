@@ -8,10 +8,25 @@ import { sendWhatsAppMessage } from '@/lib/whatsappEngine';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { phone, message, contract_id, customer_id, recipient_role, notification_type, mode: requestedMode } = body;
+    const { 
+      phone, 
+      message, 
+      mediaUrl, 
+      mediaBase64, 
+      mediaType, 
+      fileName, 
+      mimetype, 
+      caption, 
+      location,
+      contract_id, 
+      customer_id, 
+      recipient_role, 
+      notification_type, 
+      mode: requestedMode 
+    } = body;
 
-    if (!phone || !message) {
-      return NextResponse.json({ success: false, error: 'Phone and message are required' }, { status: 400 });
+    if (!phone || (!message && !mediaUrl && !mediaBase64 && !location)) {
+      return NextResponse.json({ success: false, error: 'Phone and message or media are required' }, { status: 400 });
     }
 
     // 1. Fetch WhatsApp Gateway Settings
@@ -26,7 +41,7 @@ export async function POST(request: Request) {
         .from('whatsapp_settings')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (settings) {
         mode = requestedMode || settings.mode || settings.gateway_mode || mode;
@@ -53,14 +68,43 @@ export async function POST(request: Request) {
     // 2. Dispatch based on Gateway Mode
     if (mode === 'embedded') {
       // Direct Native WhatsApp Socket (Baileys)
-      const res = await sendWhatsAppMessage(cleanPhone, message);
+      const res = await sendWhatsAppMessage(cleanPhone, {
+        text: message,
+        mediaUrl,
+        mediaBase64,
+        mediaType,
+        fileName,
+        mimetype,
+        caption: caption || message,
+        location
+      });
       sendSuccess = res.success;
       apiResponse = res;
     } else if (mode === 'evolution' && autoSendEnabled) {
       // External Evolution API
       try {
         const cleanServer = evolutionServerUrl.replace(/\/+$/, '');
-        const targetUrl = `${cleanServer}/message/sendText/${evolutionInstance}`;
+        const isMedia = mediaUrl || mediaBase64;
+        const targetUrl = isMedia
+          ? `${cleanServer}/message/sendMedia/${evolutionInstance}`
+          : `${cleanServer}/message/sendText/${evolutionInstance}`;
+
+        const evolutionPayload = isMedia ? {
+          number: cleanPhone,
+          mediatype: mediaType || 'document',
+          mimetype: mimetype || 'application/pdf',
+          caption: caption || message,
+          media: mediaUrl || mediaBase64,
+          fileName: fileName || 'document.pdf'
+        } : {
+          number: cleanPhone,
+          text: message,
+          options: {
+            delay: 1200,
+            presence: 'composing',
+            linkPreview: true
+          }
+        };
 
         const res = await fetch(targetUrl, {
           method: 'POST',
@@ -68,15 +112,7 @@ export async function POST(request: Request) {
             'Content-Type': 'application/json',
             'apikey': evolutionApiKey
           },
-          body: JSON.stringify({
-            number: cleanPhone,
-            text: message,
-            options: {
-              delay: 1200,
-              presence: 'composing',
-              linkPreview: true
-            }
-          })
+          body: JSON.stringify(evolutionPayload)
         });
 
         apiResponse = await res.json();
@@ -91,7 +127,7 @@ export async function POST(request: Request) {
       sendSuccess = true;
       apiResponse = { 
         mode: 'wame', 
-        direct_url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}` 
+        direct_url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message || caption || '')}` 
       };
     }
 

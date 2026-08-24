@@ -188,10 +188,29 @@ export async function requestWhatsAppPairingCode(phone: string): Promise<{ succe
   }
 }
 
+export interface SendWhatsAppOptions {
+  text?: string;
+  mediaUrl?: string;
+  mediaBase64?: string;
+  mediaType?: 'document' | 'image' | 'video' | 'audio' | 'location';
+  fileName?: string;
+  mimetype?: string;
+  caption?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+    name?: string;
+    address?: string;
+  };
+}
+
 /**
- * Send a WhatsApp text message directly via the embedded engine
+ * Send a WhatsApp message (Text, PDF Document, Image, Video, Location) via the embedded engine
  */
-export async function sendWhatsAppMessage(phone: string, text: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export async function sendWhatsAppMessage(
+  phone: string, 
+  content: string | SendWhatsAppOptions
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const status = getWhatsAppStatus();
     if (!status.isConnected) {
@@ -199,7 +218,7 @@ export async function sendWhatsAppMessage(phone: string, text: string): Promise<
       if (!globalThis.__baileys_is_connected) {
         return {
           success: false,
-          error: 'الواتساب غير متصل. يرجى مسح كود QR من إعدادات الواتساب أولاً.'
+          error: 'الواتساب غير متصل. يرجى إتمام الاقتران برقم الجوال أولاً.'
         };
       }
     }
@@ -213,17 +232,59 @@ export async function sendWhatsAppMessage(phone: string, text: string): Promise<
     }
 
     const jid = formatToWhatsAppJid(phone);
-    const sent = await sock.sendMessage(jid, { text });
+    let payload: any = {};
+
+    if (typeof content === 'string') {
+      payload = { text: content };
+    } else {
+      const { text, mediaUrl, mediaBase64, mediaType, fileName, mimetype, caption, location } = content;
+
+      if (mediaType === 'location' && location) {
+        payload = {
+          location: {
+            degreesLatitude: location.latitude,
+            degreesLongitude: location.longitude,
+            name: location.name || 'موقع الحاوية',
+            address: location.address || ''
+          }
+        };
+      } else if (mediaType === 'document' || fileName?.endsWith('.pdf')) {
+        const docBuffer = mediaBase64 ? Buffer.from(mediaBase64.replace(/^data:application\/pdf;base64,/, ''), 'base64') : undefined;
+        payload = {
+          document: docBuffer || { url: mediaUrl },
+          mimetype: mimetype || 'application/pdf',
+          fileName: fileName || 'مستند_مؤسسة_المخترز.pdf',
+          caption: caption || text || ''
+        };
+      } else if (mediaType === 'image') {
+        const imgBuffer = mediaBase64 ? Buffer.from(mediaBase64.replace(/^data:image\/[a-z]+;base64,/, ''), 'base64') : undefined;
+        payload = {
+          image: imgBuffer || { url: mediaUrl },
+          caption: caption || text || ''
+        };
+      } else if (mediaType === 'audio') {
+        const audioBuffer = mediaBase64 ? Buffer.from(mediaBase64.replace(/^data:audio\/[a-z]+;base64,/, ''), 'base64') : undefined;
+        payload = {
+          audio: audioBuffer || { url: mediaUrl },
+          mimetype: mimetype || 'audio/mp4',
+          ptt: true
+        };
+      } else {
+        payload = { text: text || caption || '' };
+      }
+    }
+
+    const sent = await sock.sendMessage(jid, payload);
 
     return {
       success: true,
       messageId: sent?.key?.id || undefined
     };
   } catch (error: any) {
-    console.error('❌ [WhatsApp Engine] Failed to send message:', error);
+    console.error('❌ [WhatsApp Engine] Failed to send message/media:', error);
     return {
       success: false,
-      error: error?.message || 'فشل إرسال الرسالة عبر الواتساب'
+      error: error?.message || 'فشل إرسال الرسالة أو المستند عبر الواتساب'
     };
   }
 }
