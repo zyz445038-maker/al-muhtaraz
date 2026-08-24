@@ -40,6 +40,79 @@ export function processDeepAssistantQuery(
 
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // 0. صورة العقد / سند القبض / طباعة العقد / عرض الوثيقة الرسمية (Contract Image / Voucher / PDF)
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (
+    normQuery.includes('صوره') || 
+    normQuery.includes('صورة') || 
+    normQuery.includes('ورني') || 
+    normQuery.includes('اشوف') || 
+    normQuery.includes('اطبع') || 
+    normQuery.includes('طباعه') || 
+    normQuery.includes('سند') || 
+    normQuery.includes('فاتوره') || 
+    normQuery.includes('فاتورة') || 
+    normQuery.includes('ملف العقد') ||
+    normQuery.includes('ورقة العقد') ||
+    normQuery.includes('وثيقة') ||
+    normQuery.includes('وثيقه')
+  ) {
+    if (contracts.length === 0) {
+      return {
+        displayText: '⚠️ **لا توجد عقود مسجلة حالياً لعرضها أو طباعتها.**\nيمكنك إنشاء أول عقد من قائمة العقود وسأقوم بتوليد السند والباركود فوراً.',
+        category: 'contracts'
+      };
+    }
+
+    // Check if a specific contract number is requested
+    const numMatch = normQuery.match(/[0-9]+/);
+    let targetContract = contracts[0];
+
+    if (numMatch) {
+      const found = contracts.find(c => c.contract_number.includes(numMatch[0]) || (c.container?.container_number || '').includes(numMatch[0]));
+      if (found) targetContract = found;
+    } else {
+      // Default to the latest contract
+      const sorted = [...contracts].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      targetContract = sorted[0];
+    }
+
+    const custName = targetContract.customer?.name || customers.find(c => c.id === targetContract.customer_id)?.name || 'عميل نقدي';
+    const custPhone = targetContract.customer?.phone || customers.find(c => c.id === targetContract.customer_id)?.phone || 'غير مسجل';
+    const contNum = targetContract.container?.container_number || containers.find(c => c.id === targetContract.container_id)?.container_number || 'غير محدد';
+    const contType = targetContract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض/ترميم';
+    const receiptNum = targetContract.receipt_number || `RCP-${targetContract.contract_number}`;
+    const totalCost = Number(targetContract.total_cost || 0).toLocaleString('ar-SA');
+    const paidAmount = Number(targetContract.paid_amount || 0).toLocaleString('ar-SA');
+    const remaining = Number(targetContract.remaining_amount || 0).toLocaleString('ar-SA');
+    const paymentMethodLabel = targetContract.payment_method === 'cash' ? 'نقدي (كاش)' : 'سداد إلكتروني (شبكة/تحويل)';
+    const receiptUrl = `/receipt/${receiptNum}`;
+
+    return {
+      displayText: `📄 **وثيقة وسند العقد الرسمي المعتمد:** ✨\n\n` +
+        `\`\`\`text\n` +
+        `════════════════════════════════════════════════\n` +
+        `             مؤسسة المخترز للحاويات             \n` +
+        `        سند توثيق عقد إيجار حاوية رسمي         \n` +
+        `════════════════════════════════════════════════\n` +
+        `🔖 رقم العقد: ${targetContract.contract_number}\n` +
+        `🧾 رقم السند: ${receiptNum}\n` +
+        `👤 المستأجر: ${custName} (📞 ${custPhone})\n` +
+        `📦 الحاوية: #${contNum} (${contType})\n` +
+        `📅 الفترة: من ${targetContract.start_date} إلى ${targetContract.end_date} (${targetContract.duration_days || 1} يوم)\n` +
+        `💰 المبلغ الإجمالي: ${totalCost} ريال سعودي\n` +
+        `💵 المدفوع: ${paidAmount} ر.س | طريقة السداد: ${paymentMethodLabel}\n` +
+        `⚠️ المتبقي: ${remaining} ر.س\n` +
+        `🛡️ التوثيق: معتمد ومحفوظ بالسحابة ومشفر بـ QR باركود\n` +
+        `════════════════════════════════════════════════\n` +
+        `\`\`\`\n\n` +
+        `🔗 **[اضغط هنا لفتح وطباعة وثيقة العقد الأصلية بصيغة الفاتورة الرسمية والباركود](${receiptUrl})**\n\n` +
+        `💡 *يمكنك فتح الرابط وطباعته كـ PDF أو إرساله للعميل عبر الواتساب فوراً.*`,
+      category: 'contracts'
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // 1. آخر عقد تم إبرامه / أحدث العقود (Latest Contracts)
   // ─────────────────────────────────────────────────────────────────────────────
   if (
@@ -50,6 +123,7 @@ export function processDeepAssistantQuery(
     normQuery.includes('من اخر واحد') ||
     normQuery.includes('اخر عمليه')
   ) {
+
     if (contracts.length === 0) {
       return {
         displayText: '⚠️ **لا توجد عقود مسجلة في النظام حتى الآن.**\nيمكنك إنشاء عقد جديد من صفحة العقود وسأقوم بتتبعه فوراً.',
