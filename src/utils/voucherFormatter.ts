@@ -1,4 +1,10 @@
 import { Contract, Customer, Container, Profile, Receipt } from '@/types/database';
+import { 
+  formatCleanArabicDate, 
+  formatCleanArabicDateTime, 
+  formatCleanArabicTime,
+  formatContractPeriod 
+} from './dateFormatter';
 
 // ─── Arabic Amount Words ──────────────────────────────────────────────────────
 export function toArabicWords(amount: number): string {
@@ -45,6 +51,8 @@ export function formatCustomerVoucherMessage(params: {
   const paymentMethodLabel = isCash ? 'نقدي كاش (في الموقع) 💵' : (contract.payment_method === 'apple_pay' ? 'Apple Pay 🍎' : 'بطاقة مدى / سداد إلكتروني 💳');
   const durationText = `${contract.duration_days} ${contract.period_type === 'monthly' ? 'شهر' : 'يوم'}`;
   const amountWords = toArabicWords(paidAmount > 0 ? paidAmount : totalCost);
+  const startDateClean = formatCleanArabicDate(contract.start_date);
+  const endDateClean = formatCleanArabicDate(contract.end_date);
 
   return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
 ━━━━━━━━━━━━━━━━━━
@@ -55,8 +63,8 @@ export function formatCustomerVoucherMessage(params: {
 🔖 *رقم السند:* ${receiptNumber}
 🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
-📅 *تاريخ البدء:* ${new Date(contract.start_date).toLocaleDateString('ar-SA')}
-🏁 *تاريخ الانتهاء:* ${new Date(contract.end_date).toLocaleDateString('ar-SA')}
+📅 *تاريخ البدء:* ${startDateClean}
+🏁 *تاريخ الانتهاء:* ${endDateClean}
 📍 *الموقع:* ${contract.location_address || 'الموقع المحدد بالعقد'}
 ──────────────────
 💰 *إجمالي قيمة العقد:* ${totalCost.toLocaleString('ar-SA')} ر.س
@@ -79,6 +87,7 @@ export function formatDriverMissionMessage(params: {
 }): string {
   const { contract, customer, container, mapsUrl, expectedTime } = params;
   const typeLabel = contract.contract_type === 'commercial' ? 'حاوية تجارية' : 'حاوية أنقاض';
+  const deliveryTimeClean = expectedTime ? formatCleanArabicDateTime(expectedTime) : 'فوري خلال اليوم';
 
   return `🚛 *مهمة توصيل وتنزيل حاوية جديدة*
 ━━━━━━━━━━━━━━━━━━
@@ -89,7 +98,7 @@ export function formatDriverMissionMessage(params: {
 📍 *الموقع على الخريطة:*
 ${mapsUrl}
 📌 *العنوان الوصفي:* ${contract.location_address || 'حسب الرابط أعلاه'}
-⏱️ *موعد التنزيل المطلوب:* ${expectedTime ? new Date(expectedTime).toLocaleString('ar-SA') : 'فوري خلال اليوم'}
+⏱️ *موعد التنزيل المطلوب:* ${deliveryTimeClean}
 ━━━━━━━━━━━━━━━━━━
 ⚠️ *يرجى التأكد من وقوف الحاوية في مكان آمن وعدم إعاقة حركة السير.*`;
 }
@@ -112,9 +121,10 @@ export function formatAdminAlertMessage(params: {
 🚚 *الحاوية:* ${container?.container_number || '-'} (${contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})
 💰 *المبلغ المحصل:* ${paidAmount.toLocaleString('ar-SA')} ر.س (${isCash ? 'كاش 💵' : 'إلكتروني 💳'})
 👷 *الموظف المسجل:* ${staffName || 'المدير العام'}
-⏱️ *الوقت:* ${new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+⏱️ *الوقت:* ${formatCleanArabicTime(new Date())}
 ━━━━━━━━━━━━━━━━━━`;
 }
+
 
 // ─── 4. Format Executive Daily Briefing Report ────────────────────────────────
 export function formatDailyExecutiveReport(params: {

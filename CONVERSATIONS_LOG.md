@@ -48,14 +48,23 @@
      * **عقود اليوم والأسطول والبلديات:** إحصاءات حية 100% بدون أي قوالب ثابتة خادعة.
   3. ربط كل من [FloatingVoiceOrb.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/FloatingVoiceOrb.tsx) و [SmartAssistantHub.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/SmartAssistantHub.tsx) بالعقل التحليلي الجديد.
 
+#### 4. توحيد وتنسيق التواريخ والأوقات العربية (Clean Arabic Date/Time Formatter)
+* **المشكلة:** احتمالية حدوث تشوه أو عدم تناسق في أرقام وتواريخ رسائل الواتساب وسندات القبض بين المتصفحات وأنظمة التشغيل.
+* **ما تم إنجازه:**
+  1. إنشاء وحدة المعالجة المركزية للتواريخ [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts) لتوليد صيغ عربية نقية (`DD/MM/YYYY م` و `HH:MM صباحاً/مساءً`).
+  2. ربط التنسيق بجميع قوالب رسائل الواتساب وسندات القبض في [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts).
+
 ---
 
 ### 🗂️ هيكل الملفات المرتبطة بنظام المساعد:
 * [src/utils/aiCopilotBrain.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotBrain.ts): العقل التحليلي الشامل والبحث الدلالي في بيانات المؤسسة.
+* [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts): وحدة التنسيق العربي الموحد للتواريخ والأوقات وفترات العقود.
+* [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts): مولد قوالب رسائل الواتساب وسندات القبض والتنبيهات الإدارية.
 * [src/utils/aiCopilotKnowledge.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotKnowledge.ts): قاعدة المعرفة الشاملة للنظام (العقود، السندات، البلديات، المستودع، المطور).
 * [src/components/SmartAssistantHub.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/SmartAssistantHub.tsx): لوحة إدارة المساعد، مصفوفة توجيه الواتساب، والتقارير التنفيذية.
 * [src/components/FloatingVoiceOrb.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/FloatingVoiceOrb.tsx): الزر العائم التفاعلي للمدير العام (إجابات كتابية ذكية وفورية).
 
 ---
 *تم إنشاء وتحديث هذا الملف ومزامنته مع مستودع GitHub بنجاح.*
+
 
