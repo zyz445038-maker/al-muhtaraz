@@ -126,7 +126,7 @@
 </div>
 
 <script>
-  const API_URL = 'http://localhost:5050';
+  const API_URL = window.location.origin.includes('5050') ? window.location.origin : 'http://localhost:5050';
   const API_KEY = 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
 
   async function checkStatus() {
@@ -164,8 +164,12 @@
   }
 
   async function requestPairCode() {
-    const phone = document.getElementById('phoneNumber').value.trim();
-    if (!phone) return alert('يرجى كتابة رقم الهاتف');
+    let phone = document.getElementById('phoneNumber').value.trim();
+    if (!phone) return alert('يرجى كتابة رقم الهاتف (مثال: 0536971105 أو 966536971105)');
+
+    const display = document.getElementById('pairCodeDisplay');
+    display.innerText = '⏳ جارِ طلب الكود...';
+    display.style.display = 'block';
 
     try {
       const res = await fetch(`${API_URL}/api/session/pair-code`, {
@@ -178,18 +182,18 @@
       });
       const json = await res.json();
       if (json.success && json.data?.code) {
-        const display = document.getElementById('pairCodeDisplay');
         display.innerText = json.data.code;
-        display.style.display = 'block';
       } else {
+        display.style.display = 'none';
         alert(json.error || 'فشل استخراج الكود');
       }
     } catch (err) {
-      alert('خطأ في الاتصال بالخادم');
+      display.style.display = 'none';
+      alert('خطأ في الاتصال بالخادم: ' + (err.message || ''));
     }
   }
 
-  setInterval(checkStatus, 2500);
+  setInterval(checkStatus, 2000);
   checkStatus();
 </script>
 
