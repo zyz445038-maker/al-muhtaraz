@@ -233,7 +233,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setTimeout(() => setSaveSuccess(false), 3500);
   };
 
-  // Quick Prompt / Chat Query Handler with Cheerful Saudi Female Persona
+  // Deep-Reasoning AI Copilot Query Handler
   const handleAskCopilot = (query: string) => {
     if (!query.trim()) return;
 
@@ -242,21 +242,21 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setChatMessages(newMessages);
     setChatInput('');
 
-    // Process intelligence query against real data
+    // Process intelligence query against real data dynamically
     setTimeout(() => {
-      const { speechText, displayText } = formatSaudiCheerResponse(query, {
-        availableCount: liveMetrics.availableContainersCount,
-        totalIncome: liveMetrics.totalIncomeToday,
-        cashIncome: liveMetrics.cashToday,
-        electronicIncome: liveMetrics.electronicToday,
-        expiringCount: liveMetrics.expiringTomorrowCount,
-        activeCount: liveMetrics.activeContractsCount
+      const { displayText } = processDeepAssistantQuery(query, {
+        contracts,
+        containers,
+        customers,
+        staffList,
+        receipts
       });
 
       const botTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
-    }, 400);
+    }, 200);
   };
+
 
 
   return (

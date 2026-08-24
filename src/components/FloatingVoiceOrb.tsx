@@ -16,17 +16,21 @@ import {
 import { 
   Contract, 
   Container, 
+  Customer,
+  Profile,
   Receipt, 
   UserRole 
 } from '@/types/database';
 import { 
-  formatSaudiCheerResponse 
-} from '@/utils/voiceAssistant';
+  processDeepAssistantQuery 
+} from '@/utils/aiCopilotBrain';
 
 interface FloatingVoiceOrbProps {
   userRole: UserRole;
   contracts: Contract[];
   containers: Container[];
+  customers?: Customer[];
+  staffList?: Profile[];
   receipts: Receipt[];
 }
 
@@ -34,6 +38,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   userRole,
   contracts,
   containers,
+  customers = [],
+  staffList = [],
   receipts
 }) => {
   // STRICT ADMIN ONLY: If not admin, hide completely from UI
@@ -45,9 +51,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isListening, setIsListening] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا بو سعود، أنا معك وجاهز لأي استفسار!');
-  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اختر من الأسئلة السريعة أو اسألني عن الحاويات والأرباح والعقود!');
+  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
   const recognitionRef = useRef<any>(null);
-
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -86,39 +91,26 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     }
 
     return () => {};
-  }, [contracts, containers, receipts]);
+  }, [contracts, containers, customers, staffList, receipts]);
 
-
-  // Process Voice Query and Respond Cheerfully
+  // Process Real-time Deep Reasoning Query
   const handleProcessVoiceInput = (inputText: string) => {
     if (!inputText.trim()) return;
 
-    // Calculate live numbers
-    const todayStr = new Date().toISOString().split('T')[0];
-    const availableCount = containers.filter(c => c.status === 'available').length;
-    const activeCount = contracts.filter(c => c.status === 'active').length;
-    const todayReceipts = receipts.filter(r => r.issued_at?.startsWith(todayStr) || r.created_at?.startsWith(todayStr));
-    const cashIncome = todayReceipts.filter(r => r.payment_method === 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-    const electronicIncome = todayReceipts.filter(r => r.payment_method !== 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-    const totalIncome = cashIncome + electronicIncome;
-
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const expiringCount = contracts.filter(c => c.status === 'active' && c.end_date?.startsWith(tomorrow)).length;
-
-    // Generate cheerful Saudi response
-    const { speechText, displayText } = formatSaudiCheerResponse(inputText, {
-      availableCount,
-      totalIncome,
-      cashIncome,
-      electronicIncome,
-      expiringCount,
-      activeCount
+    // Process through Deep Intelligence Brain
+    const { displayText } = processDeepAssistantQuery(inputText, {
+      contracts,
+      containers,
+      customers,
+      staffList,
+      receipts
     });
 
-    // Update text responses (No audio output)
-    setLastSpeechText(speechText);
+    // Update text response instantly
+    setLastSpeechText(displayText);
     setLastResponse(displayText);
   };
+
 
   // Toggle Voice Dictation Listening
   const toggleListening = () => {

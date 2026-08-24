@@ -1738,8 +1738,11 @@ function MainDashboard() {
         userRole={currentRole}
         contracts={contracts}
         containers={containers}
+        customers={customers}
+        staffList={staffList}
         receipts={receipts}
       />
+
 
       {/* Footer */}
       <footer style={{
