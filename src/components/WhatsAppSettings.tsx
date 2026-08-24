@@ -410,14 +410,25 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               </div>
 
               {liveStatus === 'connected' && (
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>{isLoggingOut ? 'جارِ الفصل...' : 'فصل هذا الرقم وربط رقم جديد'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition shadow"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoggingOut ? 'animate-spin' : ''}`} />
+                    <span>{isLoggingOut ? 'جارِ تهيئة الرمز الجديد...' : '🔄 تغيير جهاز WhatsApp'}</span>
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition"
+                    title="فصل الرقم الحالي وتعليق الإرسال التلقائي"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>فصل</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -433,15 +444,26 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     الرقم المرتبط حالياً: <span className="font-bold text-emerald-400 font-mono tracking-wider text-base">+{livePhone || senderPhone}</span>
                   </p>
                 </div>
-                <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-xl max-w-md mx-auto text-xs text-slate-400 text-right space-y-1.5">
+                <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-xl max-w-md mx-auto text-xs text-slate-400 text-right space-y-2">
                   <div className="flex items-center gap-2 text-emerald-300 font-semibold">
                     <Check className="w-4 h-4" />
-                    <span>الجلسة محفوظة ومؤمنة في المجلد الدائم <code>sessions/</code></span>
+                    <span>الجلسة محفوظة ومؤمنة في السيرفر بشكل دائم</span>
                   </div>
                   <div className="flex items-center gap-2 text-emerald-300 font-semibold">
                     <Check className="w-4 h-4" />
                     <span>المساعد الذكي ونظام العقود ينفذان الإرسال الصامت التلقائي</span>
                   </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-bold transition shadow-lg"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isLoggingOut ? 'animate-spin' : ''}`} />
+                    <span>{isLoggingOut ? 'جارِ تهيئة الرمز الجديد...' : '🔄 تغيير جهاز WhatsApp (ربط رقم جديد)'}</span>
+                  </button>
                 </div>
               </div>
             ) : (
