@@ -285,6 +285,41 @@ export function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
   }
 }
 
+function selectBestArabicVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices || voices.length === 0) return null;
+
+  // Score candidate voices based on natural quality and region
+  const scored = voices
+    .filter(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'))
+    .map(v => {
+      let score = 0;
+      const name = (v.name || '').toLowerCase();
+      const lang = (v.lang || '').toLowerCase();
+
+      // Highest priority: Saudi Arabia natural / neural voices
+      if (lang === 'ar-sa') score += 50;
+      if (lang.startsWith('ar-xa') || lang.startsWith('ar-ae')) score += 35;
+      if (lang.startsWith('ar')) score += 20;
+
+      // Quality indicator keywords in voice name
+      if (name.includes('natural') || name.includes('online') || name.includes('neural')) score += 40;
+      if (name.includes('zari') || name.includes('hamed') || name.includes('fatima') || name.includes('layla') || name.includes('salma')) score += 30;
+      if (name.includes('google')) score += 25;
+      if (name.includes('microsoft')) score += 20;
+      if (name.includes('desktop')) score -= 10; // Penalize legacy flat robotic desktop voices
+
+      return { voice: v, score };
+    });
+
+  if (scored.length === 0) {
+    // Fallback to any Arabic voice
+    return voices.find(v => v.lang.startsWith('ar')) || null;
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].voice;
+}
+
 function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     if (onEnd) onEnd();
@@ -295,13 +330,13 @@ function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
     window.speechSynthesis.resume();
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'ar-SA';
-    utterance.pitch = 1.08;
-    utterance.rate = 1.0;
+    utterance.pitch = 1.04;
+    utterance.rate = 0.95; // Slightly calmer, more articulate speed for Arabic natural flow
 
     const voices = window.speechSynthesis.getVoices();
-    const arabicVoice = voices.find(v => v.lang.startsWith('ar'));
-    if (arabicVoice) {
-      utterance.voice = arabicVoice;
+    const bestVoice = selectBestArabicVoice(voices);
+    if (bestVoice) {
+      utterance.voice = bestVoice;
     }
 
     utterance.onend = () => { if (onEnd) onEnd(); };
@@ -328,3 +363,4 @@ export function stopSpeaking() {
     }
   }
 }
+
