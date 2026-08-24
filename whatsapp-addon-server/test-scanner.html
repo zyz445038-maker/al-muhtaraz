@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة اختبار ربط خادم الواتساب المستقل</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 450px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .status-qr_ready { background: #fef08a; color: #854d0e; }
+    .status-connected { background: #bbf7d0; color: #166534; }
+    .status-connecting { background: #bae6fd; color: #075985; }
+    .status-disconnected { background: #fecaca; color: #991b1b; }
+    .qr-container {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 12px;
+      display: inline-block;
+      margin: 15px 0;
+    }
+    .qr-container img {
+      width: 250px;
+      height: 250px;
+      display: block;
+    }
+    .phone-input-box {
+      margin-top: 15px;
+      display: flex;
+      gap: 8px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      text-align: left;
+      direction: ltr;
+    }
+    button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      background: #22c55e;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { background: #16a34a; }
+    .pair-code {
+      font-size: 28px;
+      letter-spacing: 4px;
+      font-weight: 900;
+      color: #38bdf8;
+      background: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      border: 1px dashed #38bdf8;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>🟢 خادم الواتساب المستقل (Add-on Server)</h2>
+  <p style="color: #94a3b8; font-size: 13px;">اختبار دورة الربط والمصادقة المباشرة</p>
+
+  <div id="statusBadge" class="status-badge status-connecting">جارِ الفحص...</div>
+
+  <div id="qrArea">
+    <div class="qr-container">
+      <img id="qrImage" src="" alt="كود QR" style="display: none;" />
+      <div id="qrPlaceholder" style="width: 250px; height: 250px; display: flex; align-items: center; justify-content: center; color: #475569;">
+        انتظار الكود...
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #cbd5e1;">افتح واتساب في هاتفك ← الأجهزة المرتبطة ← ربط جهاز</p>
+  </div>
+
+  <div id="connectedArea" style="display: none; padding: 20px 0;">
+    <div style="font-size: 48px;">🎉</div>
+    <h3 style="color: #4ade80; margin: 10px 0;">متصل بنجاح 🟢</h3>
+    <p id="phoneInfo" style="color: #cbd5e1; direction: ltr; font-weight: bold;"></p>
+    <p style="font-size: 12px; color: #94a3b8;">تم حفظ الجلسة محلياً في مجلد <code>sessions/</code></p>
+  </div>
+
+  <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
+
+  <div>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">أو الاقتران برقم الجوال بدون كاميرا:</p>
+    <div class="phone-input-box">
+      <input type="text" id="phoneNumber" placeholder="96650xxxxxxx" />
+      <button onclick="requestPairCode()">طلب كود</button>
+    </div>
+    <div id="pairCodeDisplay" class="pair-code" style="display: none;"></div>
+  </div>
+</div>
+
+<script>
+  const API_URL = 'http://localhost:5050';
+  const API_KEY = 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
+
+  async function checkStatus() {
+    try {
+      const res = await fetch(`${API_URL}/api/session/status`, {
+        headers: { 'Authorization': `Bearer ${API_KEY}` }
+      });
+      const json = await res.json();
+      if (!json.success) return;
+
+      const data = json.data;
+      const badge = document.getElementById('statusBadge');
+      badge.className = `status-badge status-${data.status}`;
+
+      if (data.status === 'connected') {
+        badge.innerText = '🟢 متصل (CONNECTED)';
+        document.getElementById('qrArea').style.display = 'none';
+        document.getElementById('connectedArea').style.display = 'block';
+        document.getElementById('phoneInfo').innerText = data.phoneNumber ? `+${data.phoneNumber}` : (data.userJid || 'Connected');
+      } else if (data.status === 'qr_ready') {
+        badge.innerText = '📱 كود QR جاهز للمسح';
+        document.getElementById('connectedArea').style.display = 'none';
+        document.getElementById('qrArea').style.display = 'block';
+        if (data.qrCodeBase64) {
+          document.getElementById('qrImage').src = data.qrCodeBase64;
+          document.getElementById('qrImage').style.display = 'block';
+          document.getElementById('qrPlaceholder').style.display = 'none';
+        }
+      } else {
+        badge.innerText = '🔄 جارِ التهيئة...';
+      }
+    } catch (e) {
+      document.getElementById('statusBadge').innerText = '❌ الخادم غير متاح';
+    }
+  }
+
+  async function requestPairCode() {
+    const phone = document.getElementById('phoneNumber').value.trim();
+    if (!phone) return alert('يرجى كتابة رقم الهاتف');
+
+    try {
+      const res = await fetch(`${API_URL}/api/session/pair-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({ phone })
+      });
+      const json = await res.json();
+      if (json.success && json.data?.code) {
+        const display = document.getElementById('pairCodeDisplay');
+        display.innerText = json.data.code;
+        display.style.display = 'block';
+      } else {
+        alert(json.error || 'فشل استخراج الكود');
+      }
+    } catch (err) {
+      alert('خطأ في الاتصال بالخادم');
+    }
+  }
+
+  setInterval(checkStatus, 2500);
+  checkStatus();
+</script>
+
+</body>
+</html>

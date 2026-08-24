@@ -42,4 +42,6 @@ next-env.d.ts
 .baileys_auth
 .baileys_auth/
 baileys_store.json
-
+sessions/
+whatsapp-addon-server/sessions/
+whatsapp-addon-server/.env
