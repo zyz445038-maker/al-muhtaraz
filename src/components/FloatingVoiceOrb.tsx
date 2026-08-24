@@ -50,9 +50,10 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
-  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا بو سعود، أنا معك وجاهز لأي استفسار!');
-  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
+  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا أبو ماجد، أنا معك وجاهز لأي استفسار!');
+  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا أبو ماجد 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
   const recognitionRef = useRef<any>(null);
+
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -223,8 +224,9 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                     <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>👑</span>
                   </div>
                   <div style={{ fontSize: '0.72rem', color: '#34d399', fontWeight: 700 }}>
-                    {isListening ? '🎙️ يستمع لصوتك الآن...' : '✨ جاهز لخدمتك يا بو سعود'}
+                    {isListening ? '🎙️ يستمع لصوتك الآن...' : '✨ جاهز لخدمتك يا أبو ماجد'}
                   </div>
+
                 </div>
               </div>
 

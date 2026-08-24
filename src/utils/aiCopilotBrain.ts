@@ -33,10 +33,11 @@ export function processDeepAssistantQuery(
 
   if (!normQuery) {
     return {
-      displayText: 'يا هلا يا أبو سعود، تفضل اسألني عن أي عقد، حاوية، مبالغ مالية، أو حالة الأسطول وسأجيبك فوراً 🌿.',
+      displayText: 'يا هلا يا أبو ماجد، تفضل اسألني عن أي عقد، حاوية، مبالغ مالية، أو حالة الأسطول وسأجيبك فوراً 🌿.',
       category: 'greeting'
     };
   }
+
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 1. آخر عقد تم إبرامه / أحدث العقود (Latest Contracts)
@@ -134,10 +135,11 @@ export function processDeepAssistantQuery(
 
     if (unpaidContracts.length === 0) {
       return {
-        displayText: `✅ **ما شاء الله يا أبو سعود، لا توجد أي مبالغ معلقة أو ديون متأخرة!**\nكافة العقود النشطة مسددة بنسبة 100% 🎉.`,
+        displayText: `✅ **ما شاء الله يا أبو ماجد، لا توجد أي مبالغ معلقة أو ديون متأخرة!**\nكافة العقود النشطة مسددة بنسبة 100% 🎉.`,
         category: 'finance'
       };
     }
+
 
     const debtorList = unpaidContracts.slice(0, 5).map((c, i) => {
       const cust = c.customer?.name || customers.find(cust => cust.id === c.customer_id)?.name || 'عميل';
@@ -310,7 +312,7 @@ export function processDeepAssistantQuery(
 
     if (expiring.length === 0) {
       return {
-        displayText: `✅ **تطمن يا أبو سعود، كل العقود في السليم!**\nلا توجد أي حاويات تنتهي غداً أو متأخرة، والأمور الرقابية مع البلدية تحت السيطرة 100% 🛡️.`,
+        displayText: `✅ **تطمن يا أبو ماجد، كل العقود في السليم!**\nلا توجد أي حاويات تنتهي غداً أو متأخرة، والأمور الرقابية مع البلدية تحت السيطرة 100% 🛡️.`,
         category: 'compliance'
       };
     }
@@ -370,7 +372,7 @@ export function processDeepAssistantQuery(
   const todayTotal = receipts.filter(r => (r.issued_at || r.created_at || '').startsWith(todayStr)).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   return {
-    displayText: `👑 **أبشر يا أبو سعود! أنا معك وفاهم كل تفاصيل المؤسسة:**\n\n` +
+    displayText: `👑 **أبشر يا أبو ماجد! أنا معك وفاهم كل تفاصيل المؤسسة:**\n\n` +
       `سألت عن: *"${rawQuery}"*\n\n` +
       `📊 **الموقف العام للنظام الآن:**\n` +
       `• **العقود النشطة في الميدان:** (${activeCount}) عقد 📋\n` +
@@ -379,4 +381,5 @@ export function processDeepAssistantQuery(
       `💡 *تقدر تسألني عن أي تفصيل محدد مثل: "آخر عقد"، "الحاوية رقم 5"، "أكثر عميل دفع"، أو "عقود تنتهي غداً". آمرني وش ودك تعرف بالتحديد؟* ✨`,
     category: 'general'
   };
+
 }
