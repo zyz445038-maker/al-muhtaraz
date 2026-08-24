@@ -600,37 +600,37 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
           {/* Embedded Native WhatsApp Panel */}
           {mode === 'embedded' && (
-            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <div className="glass-panel" style={{ padding: '26px', display: 'flex', flexDirection: 'column', gap: '22px', border: '2px solid rgba(16, 185, 129, 0.4)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(15, 23, 42, 0.8))' }}>
+              
+              {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h4 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#34d399', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Sparkles size={20} color="#34d399" />
-                    <span>محرك الواتساب المدمج داخل النظام (Native Baileys Engine)</span>
+                  <h4 style={{ fontSize: '1.25rem', fontWeight: '900', color: '#34d399', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={22} color="#34d399" />
+                    <span>محرك الواتساب المدمج بالتطبيق (Native Baileys Hub) 🚀</span>
                   </h4>
-                  <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
-                    يعمل تلقائياً داخل تطبيق المحترز بدون الحاجة لتثبيت أي برامج وسيطة أو تشغيل سيرفرات خارجية.
+                  <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '6px 0 0 0' }}>
+                    يعمل تلقائياً داخل النظام ويرسل رسائل العقود وسندات القبض في الخلفية بصمت تام.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowQrModal(true);
-                      checkLiveStatus();
-                    }}
-                    className="btn-emerald"
-                    style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+                    onClick={checkLiveStatus}
+                    disabled={isCheckingLiveStatus}
+                    className="btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <QrCode size={16} />
-                    <span>📱 فتح كود QR للاقتران بالجوال</span>
+                    <RefreshCw size={14} style={{ animation: isCheckingLiveStatus ? 'spin 1s linear infinite' : 'none' }} />
+                    <span>تحديث حالة الاتصال</span>
                   </button>
 
                   {isConnected && (
                     <button
                       type="button"
                       onClick={async () => {
-                        if (confirm('هل أنت متأكد من رغبتك في قطع الاتصال وتسجيل الخروج من جلسة الواتساب المدمجة؟')) {
+                        if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج من جلسة الواتساب؟')) {
                           await fetch('/api/whatsapp/status?action=logout');
                           setIsConnected(false);
                           alert('تم تسجيل الخروج بنجاح.');
@@ -645,34 +645,245 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </div>
               </div>
 
-              <div style={{
-                background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                borderRadius: '12px',
-                padding: '14px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '10px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* DIRECT PAIRING PANEL (Embedded on Page) */}
+              {!isConnected && (
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '18px',
+                  padding: '22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '18px'
+                }}>
+                  
+                  {/* Tabs Switcher */}
                   <div style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    background: isConnected ? '#10b981' : '#f59e0b',
-                    boxShadow: `0 0 10px ${isConnected ? '#10b981' : '#f59e0b'}`
-                  }} />
-                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: isConnected ? '#34d399' : '#fbbf24' }}>
-                    {isConnected ? 'الجلسة متصلة ونشطة 🟢 — الإرسال التلقائي الصامت جاهز 100%' : 'بانتظار الاقتران — اضغط على زر فتح كود QR لمسحه بالواتساب'}
-                  </span>
-                </div>
+                    display: 'flex',
+                    background: 'rgba(2, 6, 23, 0.7)',
+                    padding: '4px',
+                    borderRadius: '12px',
+                    gap: '6px'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setPairingMethod('pairCode')}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        fontSize: '0.92rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: pairingMethod === 'pairCode' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent',
+                        color: pairingMethod === 'pairCode' ? '#ffffff' : '#94a3b8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <Key size={18} />
+                      <span>🔑 الطريقة 1: الربط برقم الجوال (بدون كاميرا) ⭐ [الأسرع والمضمونة]</span>
+                    </button>
 
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  المحرك: @whiskeysockets/baileys (Native Embedded)
-                </span>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPairingMethod('qr');
+                        checkLiveStatus();
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        fontSize: '0.92rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: pairingMethod === 'qr' ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'transparent',
+                        color: pairingMethod === 'qr' ? '#ffffff' : '#94a3b8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <QrCode size={18} />
+                      <span>📱 الطريقة 2: مسح كود QR</span>
+                    </button>
+                  </div>
+
+                  {/* METHOD 1: PAIRING CODE */}
+                  {pairingMethod === 'pairCode' && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 1fr',
+                      gap: '20px',
+                      alignItems: 'center'
+                    }}>
+                      {/* Left: Input and Code Display */}
+                      <div>
+                        <div style={{
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          borderRadius: '14px',
+                          padding: '16px',
+                          marginBottom: '16px'
+                        }}>
+                          <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 800, color: '#34d399', marginBottom: '8px' }}>
+                            أدخل رقم جوال الواتساب للمنشأة للحصول على كود الربط:
+                          </label>
+                          
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              dir="ltr"
+                              placeholder="0501234567"
+                              value={pairPhoneInput}
+                              onChange={(e) => setPairPhoneInput(e.target.value)}
+                              className="form-input"
+                              style={{ flex: 1, fontSize: '1.05rem', fontWeight: 800, background: '#090d16', border: '1px solid #10b981' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleRequestPairCode}
+                              disabled={isRequestingPairCode}
+                              className="btn-primary"
+                              style={{ padding: '0 20px', whiteSpace: 'nowrap', fontSize: '0.9rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                            >
+                              {isRequestingPairCode ? (
+                                <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                              ) : (
+                                <Key size={18} />
+                              )}
+                              <span>{isRequestingPairCode ? 'جارِ التوليد...' : '🔑 استخراج كود الربط'}</span>
+                            </button>
+                          </div>
+
+                          {pairCodeError && (
+                            <div style={{ marginTop: '10px', color: '#fca5a5', fontSize: '0.82rem', fontWeight: 700 }}>
+                              ⚠️ {pairCodeError}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Generated Code Box */}
+                        {livePairingCode && (
+                          <div style={{
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 78, 59, 0.4))',
+                            border: '2px solid #10b981',
+                            borderRadius: '16px',
+                            padding: '18px',
+                            textAlign: 'center',
+                            boxShadow: '0 0 35px rgba(16, 185, 129, 0.3)'
+                          }}>
+                            <div style={{ fontSize: '0.85rem', color: '#a7f3d0', fontWeight: 700, marginBottom: '6px' }}>
+                              كود الاقتران الخاص بك (أدخله في واتساب جوالك الآن):
+                            </div>
+                            <div style={{
+                              fontSize: '2.5rem',
+                              fontWeight: '900',
+                              letterSpacing: '6px',
+                              color: '#ffffff',
+                              fontFamily: 'monospace',
+                              margin: '8px 0 14px 0'
+                            }}>
+                              {livePairingCode}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopyPairCode}
+                              className="btn-secondary"
+                              style={{ margin: '0 auto', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', padding: '8px 18px' }}
+                            >
+                              {isCopiedPairCode ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                              <span>{isCopiedPairCode ? '✓ تم نسخ الكود بنجاح' : 'نسخ الكود'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Step by step instructions with visual cards */}
+                      <div style={{
+                        background: 'rgba(2, 6, 23, 0.6)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '14px',
+                        padding: '18px',
+                        fontSize: '0.85rem',
+                        lineHeight: '1.8',
+                        color: '#cbd5e1'
+                      }}>
+                        <strong style={{ color: '#fbbf24', display: 'block', fontSize: '0.95rem', marginBottom: '8px' }}>
+                          📱 خطوات الربط في جوالك (خلال 10 ثوانٍ):
+                        </strong>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div><strong>1.</strong> افتح تطبيق واتساب على هاتفك.</div>
+                          <div><strong>2.</strong> اذهب إلى <strong>الإعدادات (أو ⋮)</strong> ← <strong>الأجهزة المرتبطة</strong> ← <strong>ربط جهاز</strong>.</div>
+                          <div><strong>3.</strong> اضغط من أسفل الشاشة: <span style={{ color: '#38bdf8', fontWeight: 800 }}>"الربط باستخدام رقم الهاتف بدلاً من ذلك"</span>.</div>
+                          <div><strong>4.</strong> اكتب الكود الظاهر على اليمين ← <span style={{ color: '#34d399', fontWeight: 800 }}>سيتم الربط فوراً وبشكل تلقائي!</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* METHOD 2: QR CODE */}
+                  {pairingMethod === 'qr' && (
+                    <div style={{ textAlign: 'center', padding: '16px' }}>
+                      <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
+                        افتح تطبيق واتساب على جوالك ← <strong>الأجهزة المرتبطة</strong> ← <strong>ربط جهاز</strong> ووجه الكاميرا:
+                      </p>
+
+                      <div style={{
+                        width: '260px',
+                        height: '260px',
+                        margin: '0 auto 16px auto',
+                        background: '#FFFFFF',
+                        borderRadius: '20px',
+                        padding: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 0 45px rgba(16, 185, 129, 0.4)'
+                      }}>
+                        {liveQrCode ? (
+                          <img 
+                            src={liveQrCode.startsWith('data:') ? liveQrCode : `data:image/png;base64,${liveQrCode}`} 
+                            alt="WhatsApp QR Code" 
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} 
+                          />
+                        ) : liveQrRaw ? (
+                          <QRCodeSVG value={liveQrRaw} size={228} level="M" includeMargin={true} />
+                        ) : (
+                          <div style={{ color: '#000000', fontSize: '0.85rem', fontWeight: 700 }}>
+                            {isCheckingLiveStatus ? 'جارِ توليد الكود...' : 'اضغط تحديث لتوليد الكود'}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.82rem', 
+                        color: '#34d399', 
+                        fontWeight: 700, 
+                        padding: '4px 14px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        borderRadius: '999px'
+                      }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'spin 2s linear infinite' }} />
+                        <span>{liveStatusText || 'الكود نشط — التحديث التلقائي مفعل'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
             </div>
           )}
 
