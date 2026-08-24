@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ─── Arabic Phonetic & Diacritics Tuning Engine ──────────────────────────────
-// Converts colloquial & business keywords into properly vocalized Arabic for crystal-clear TTS pronunciation
+// ─── Pure Arabic Phonetic Helper (Non-Destructive) ───────────────────────────
+// Only corrects specific brand/system phonetics without altering dialect, vocabulary, or informal tone
 export function enrichArabicPhonetics(input: string): string {
   if (!input) return '';
 
@@ -10,58 +10,19 @@ export function enrichArabicPhonetics(input: string): string {
     .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
     .trim();
 
-  const phoneticReplacements: Array<[RegExp, string]> = [
+  // ONLY fix brand vocalization without touching any dialectal or casual vocabulary
+  const purePhoneticFixes: Array<[RegExp, string]> = [
     [/المخترز/g, 'الْمُخْتَرِز'],
-    [/للحاويات/g, 'لِلْحَاوِيَات'],
-    [/حاويات/g, 'حَاوِيَات'],
-    [/حاوية/g, 'حَاوِيَة'],
-    [/يا هلا والله/g, 'يَا هَلَا وَاللهِ'],
-    [/يا بو سعود/g, 'يَا أَبُو سُعُود'],
-    [/يا أبو سعود/g, 'يَا أَبُو سُعُود'],
-    [/أبو سعود/g, 'أَبُو سُعُود'],
-    [/بو سعود/g, 'أَبُو سُعُود'],
-    [/مية/g, 'مِئَة'],
-    [/ميتين/g, 'مِئَتَيْن'],
-    [/ثلاثمية/g, 'ثَلَاثُمِئَة'],
-    [/أربعمية/g, 'أَرْبَعُمِئَة'],
-    [/خمسمية/g, 'خَمْسُمِئَة'],
-    [/ستمية/g, 'سِتُّمِئَة'],
-    [/سبعمية/g, 'سَبْعُمِئَة'],
-    [/ثمانمية/g, 'ثَمَانُمِئَة'],
-    [/تسعمية/g, 'تِسْعُمِئَة'],
-    [/ألفين/g, 'أَلْفَيْن'],
-    [/آلاف/g, 'آلَاف'],
-    [/ريال/g, 'رِيَال'],
-    [/كاش/g, 'كَاش نَقْدًا'],
-    [/سداد إلكتروني/g, 'سَدَاد إِلِكْتُرُونِي'],
-    [/الحوش/g, 'الْمُسْتَوْدَع'],
-    [/المستودع/g, 'الْمُسْتَوْدَع'],
-    [/مأجرة/g, 'مُؤَجَّرَة'],
-    [/شاغرة/g, 'شَاغِرَة'],
-    [/شواغر/g, 'شَوَاغِر'],
-    [/العقود/g, 'الْعُقُود'],
-    [/سندات/g, 'سَنَدَات'],
-    [/سند قبض/g, 'سَنَدُ قَبْضٍ'],
-    [/البلدية/g, 'الْبَلَدِيَّة'],
-    [/الأمانة/g, 'الْأَمَانَة'],
-    [/غرامات/g, 'غَرَامَات'],
-    [/مخالفات/g, 'مُخَالَفَات'],
-    [/سحب/g, 'سَحْب'],
-    [/تنتهي بكرة/g, 'تَنْتَهِي غَدًا'],
-    [/بكرة/g, 'غَدًا'],
-    [/باكر/g, 'غَدًا'],
-    [/أبشر/g, 'أَبْشِرْ'],
-    [/عساها/g, 'عَسَاهَا'],
-    [/بالتوفيق/g, 'بِالتَّوْفِيق'],
-    [/ما شاء الله/g, 'مَا شَاءَ الله']
+    [/للمخترز/g, 'لِلْمُخْتَرِز']
   ];
 
-  for (const [pattern, replacement] of phoneticReplacements) {
+  for (const [pattern, replacement] of purePhoneticFixes) {
     text = text.replace(pattern, replacement);
   }
 
   return text;
 }
+
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
