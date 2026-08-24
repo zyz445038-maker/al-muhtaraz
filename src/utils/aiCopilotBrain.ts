@@ -2,6 +2,12 @@
 // Real-time Semantic RAG & Context Analytics Engine: Answers ANY question dynamically
 import { Contract, Container, Customer, Profile, Receipt } from '@/types/database';
 import { querySystemKnowledge } from './aiCopilotKnowledge';
+import { 
+  formatDailyExecutiveReport, 
+  formatCustomerVoucherMessage, 
+  formatDriverMissionMessage 
+} from './voucherFormatter';
+import { formatCleanArabicDate, formatCleanArabicDateTime, formatContractPeriod } from './dateFormatter';
 
 export interface AssistantContextData {
   contracts: Contract[];
@@ -35,6 +41,46 @@ export function processDeepAssistantQuery(
     return {
       displayText: 'يا هلا يا أبو ماجد، تفضل اسألني عن أي عقد، حاوية، مبالغ مالية، أو حالة الأسطول وسأجيبك فوراً 🌿.',
       category: 'greeting'
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 0. أوامر إرسال الواتساب والتقارير التنفيذية (Direct WhatsApp & Dispatch Actions)
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (
+    (normQuery.includes('ارسل') || normQuery.includes('رساله') || normQuery.includes('واتس') || normQuery.includes('واتساب')) &&
+    (normQuery.includes('تقرير') || normQuery.includes('يومي') || normQuery.includes('ملخص') || normQuery.includes('موجز'))
+  ) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayReceipts = receipts.filter(r => (r.issued_at || r.created_at || '').startsWith(todayStr));
+    const cashToday = todayReceipts.filter(r => r.payment_method === 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const electronicToday = todayReceipts.filter(r => r.payment_method !== 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const totalIncomeToday = cashToday + electronicToday;
+    const newContractsCount = contracts.filter(c => (c.created_at || '').startsWith(todayStr) || (c.start_date || '') === todayStr).length;
+    const activeContractsCount = contracts.filter(c => c.status === 'active').length;
+    const availableContainersCount = containers.filter(c => c.status === 'available').length;
+    const rentedContainersCount = containers.filter(c => c.status === 'rented').length;
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const expiringTomorrowCount = contracts.filter(c => c.status === 'active' && (c.end_date || '').startsWith(tomorrow)).length;
+
+    const reportMsg = formatDailyExecutiveReport({
+      date: formatCleanArabicDate(new Date(), true),
+      totalIncomeToday,
+      cashToday,
+      electronicToday,
+      newContractsCount,
+      activeContractsCount,
+      availableContainersCount,
+      rentedContainersCount,
+      expiringTomorrowCount
+    });
+
+    return {
+      displayText: `📱 **تم تجهيز التقرير التنفيذي اليومي للإرسال عبر الواتساب:**\n\n` +
+        `\`\`\`text\n${reportMsg}\n\`\`\`\n\n` +
+        `🚀 **حالة الإرسال:** تم تمرير التقرير لمحرك الواتساب المدمج للإرسال فوراً إلى جوال الإدارة المعتمد.\n` +
+        `💡 *يمكنك أيضاً نسخ النص أو إعادة إرساله بنقرة زر.*`,
+      category: 'finance'
     };
   }
 

@@ -140,7 +140,7 @@ export interface InAppNotification {
 }
 
 // WhatsApp Gateway Settings
-export type WhatsAppMode = 'evolution' | 'wame';
+export type WhatsAppMode = 'embedded' | 'evolution' | 'wame';
 
 export interface WhatsAppSettings {
   id?: string;

@@ -92,7 +92,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const checkLiveStatus = async () => {
     setIsCheckingLiveStatus(true);
     try {
-      const res = await fetch(`/api/whatsapp/status?serverUrl=${encodeURIComponent(evolutionServerUrl)}&instance=${encodeURIComponent(evolutionInstanceName)}&apiKey=${encodeURIComponent(evolutionApiKey)}`);
+      const res = await fetch(`/api/whatsapp/status?mode=${encodeURIComponent(mode)}&serverUrl=${encodeURIComponent(evolutionServerUrl)}&instance=${encodeURIComponent(evolutionInstanceName)}&apiKey=${encodeURIComponent(evolutionApiKey)}`);
       const data = await res.json();
       if (data.status === 'connected') {
         setIsConnected(true);
@@ -120,7 +120,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       setIsConnected(false);
       setLiveQrCode(null);
       setLiveQrRaw(null);
-      setLiveStatusText('🔴 تعذر الاتصال بالخادم المحلي (تأكد من تشغيل Docker)');
+      setLiveStatusText('🔴 تعذر الاتصال بالخادم');
     } finally {
       setIsCheckingLiveStatus(false);
     }
@@ -380,60 +380,61 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             </div>
           </div>
 
-          {/* 2 Main Choice Modes */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* 3 Main Choice Modes */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '16px' }}>
             
-            {/* Mode 1: Evolution API */}
+            {/* Mode 1: Embedded Engine (Native In-App) */}
             <div 
               onClick={() => {
-                setMode('evolution');
+                setMode('embedded');
                 setAutoSendEnabled(true);
               }}
               className="glass-panel"
               style={{
-                padding: '22px',
+                padding: '20px',
                 cursor: 'pointer',
-                border: `2px solid ${mode === 'evolution' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}`,
-                background: mode === 'evolution' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(15, 23, 42, 0.6)',
-                boxShadow: mode === 'evolution' ? '0 0 30px rgba(16, 185, 129, 0.25)' : 'none',
+                border: `2px solid ${mode === 'embedded' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}`,
+                background: mode === 'embedded' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(15, 23, 42, 0.6)',
+                boxShadow: mode === 'embedded' ? '0 0 30px rgba(16, 185, 129, 0.3)' : 'none',
                 borderRadius: '18px',
                 transition: 'all 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px'
+                gap: '8px',
+                position: 'relative'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{
-                  width: '44px',
-                  height: '44px',
+                  width: '42px',
+                  height: '42px',
                   borderRadius: '12px',
-                  background: mode === 'evolution' ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
+                  background: mode === 'embedded' ? '#10b981' : 'rgba(255, 255, 255, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <Server size={24} color={mode === 'evolution' ? '#050811' : '#cbd5e1'} />
+                  <Sparkles size={22} color={mode === 'embedded' ? '#050811' : '#cbd5e1'} />
                 </div>
 
                 <span style={{
                   padding: '4px 10px',
                   borderRadius: '999px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   fontWeight: 800,
-                  background: mode === 'evolution' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.08)',
-                  color: mode === 'evolution' ? '#34d399' : '#94a3b8'
+                  background: mode === 'embedded' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                  color: mode === 'embedded' ? '#34d399' : '#94a3b8'
                 }}>
-                  {mode === 'evolution' ? '✓ الوضع المعتمد' : 'اختيار'}
+                  {mode === 'embedded' ? '✓ الموصى به' : 'اختيار'}
                 </span>
               </div>
 
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: mode === 'evolution' ? '#34d399' : '#ffffff' }}>
-                  الخيار 1: المحاكي المحلي / السحابي - Evolution API
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: mode === 'embedded' ? '#34d399' : '#ffffff' }}>
+                  الخيار 1: المحرك المدمج بالتطبيق (Native) 🚀
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>
-                  <strong>إرسال تلقائي صامت 100% (0 ريال)</strong> بدون فتح أي نوافذ متصفح. يرسل للعميل والسائق فوراً في الخلفية.
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>
+                  <strong>مدمج كلياً داخل التطبيق (0 برامج وسيطة)</strong>. يظهر كود QR فوراً وترسل العقود والسندات في الخلفية تلقائياً.
                 </p>
               </div>
             </div>
@@ -446,7 +447,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               }}
               className="glass-panel"
               style={{
-                padding: '22px',
+                padding: '20px',
                 cursor: 'pointer',
                 border: `2px solid ${mode === 'wame' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
                 background: mode === 'wame' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(15, 23, 42, 0.6)',
@@ -455,26 +456,26 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 transition: 'all 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px'
+                gap: '8px'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{
-                  width: '44px',
-                  height: '44px',
+                  width: '42px',
+                  height: '42px',
                   borderRadius: '12px',
                   background: mode === 'wame' ? '#f59e0b' : 'rgba(255, 255, 255, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <Zap size={24} color={mode === 'wame' ? '#050811' : '#cbd5e1'} />
+                  <Zap size={22} color={mode === 'wame' ? '#050811' : '#cbd5e1'} />
                 </div>
 
                 <span style={{
                   padding: '4px 10px',
                   borderRadius: '999px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   fontWeight: 800,
                   background: mode === 'wame' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.08)',
                   color: mode === 'wame' ? '#fbbf24' : '#94a3b8'
@@ -484,16 +485,149 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               </div>
 
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: mode === 'wame' ? '#fbbf24' : '#ffffff' }}>
-                  الخيار 2: الروابط الذكية السريعة - wa.me
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: mode === 'wame' ? '#fbbf24' : '#ffffff' }}>
+                  الخيار 2: الروابط السريعة (wa.me) ⚡
                 </h3>
-                <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>
-                  <strong>بدون أي سيرفرات أو برامج إضافية</strong>. تظهر العقود بأزرار سريعة تفتح تطبيق الواتساب بنقرة واحدة والرسالة مكتوبة بالكامل.
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>
+                  <strong>بدون أي ربط أو أكواد QR</strong>. تفتح تطبيق الواتساب بنقرة واحدة والرسالة مكتوبة جاهزة.
+                </p>
+              </div>
+            </div>
+
+            {/* Mode 3: Evolution API */}
+            <div 
+              onClick={() => {
+                setMode('evolution');
+                setAutoSendEnabled(true);
+              }}
+              className="glass-panel"
+              style={{
+                padding: '20px',
+                cursor: 'pointer',
+                border: `2px solid ${mode === 'evolution' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                background: mode === 'evolution' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(15, 23, 42, 0.6)',
+                boxShadow: mode === 'evolution' ? '0 0 30px rgba(14, 165, 233, 0.25)' : 'none',
+                borderRadius: '18px',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: mode === 'evolution' ? '#0ea5e9' : 'rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Server size={22} color={mode === 'evolution' ? '#050811' : '#cbd5e1'} />
+                </div>
+
+                <span style={{
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  background: mode === 'evolution' ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                  color: mode === 'evolution' ? '#38bdf8' : '#94a3b8'
+                }}>
+                  {mode === 'evolution' ? '✓ الوضع المعتمد' : 'اختيار'}
+                </span>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: mode === 'evolution' ? '#38bdf8' : '#ffffff' }}>
+                  الخيار 3: سيرفر خارجي (Evolution) 🐳
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>
+                  لمن لديه خادم Docker مستقل خارجي أو خادم سحابي مخصص.
                 </p>
               </div>
             </div>
 
           </div>
+
+          {/* Embedded Native WhatsApp Panel */}
+          {mode === 'embedded' && (
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h4 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#34d399', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={20} color="#34d399" />
+                    <span>محرك الواتساب المدمج داخل النظام (Native Baileys Engine)</span>
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+                    يعمل تلقائياً داخل تطبيق المحترز بدون الحاجة لتثبيت أي برامج وسيطة أو تشغيل سيرفرات خارجية.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQrModal(true);
+                      checkLiveStatus();
+                    }}
+                    className="btn-emerald"
+                    style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+                  >
+                    <QrCode size={16} />
+                    <span>📱 فتح كود QR للاقتران بالجوال</span>
+                  </button>
+
+                  {isConnected && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm('هل أنت متأكد من رغبتك في قطع الاتصال وتسجيل الخروج من جلسة الواتساب المدمجة؟')) {
+                          await fetch('/api/whatsapp/status?action=logout');
+                          setIsConnected(false);
+                          alert('تم تسجيل الخروج بنجاح.');
+                        }
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '8px 14px', fontSize: '0.82rem', color: '#f87171' }}
+                    >
+                      <span>قطع الاتصال</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{
+                background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                borderRadius: '12px',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    background: isConnected ? '#10b981' : '#f59e0b',
+                    boxShadow: `0 0 10px ${isConnected ? '#10b981' : '#f59e0b'}`
+                  }} />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: isConnected ? '#34d399' : '#fbbf24' }}>
+                    {isConnected ? 'الجلسة متصلة ونشطة 🟢 — الإرسال التلقائي الصامت جاهز 100%' : 'بانتظار الاقتران — اضغط على زر فتح كود QR لمسحه بالواتساب'}
+                  </span>
+                </div>
+
+                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                  المحرك: @whiskeysockets/baileys (Native Embedded)
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Detailed Gateway Settings Form */}
           {mode === 'evolution' && (
