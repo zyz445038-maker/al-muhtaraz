@@ -94,15 +94,42 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Fetch Live Status on Mount & Poll
+  // Fetch Live Status on Mount & Poll (Dual: API Proxy + Direct Client-Side Fallback)
   const fetchLiveStatus = async () => {
     setIsCheckingLive(true);
     try {
-      const res = await fetch(`/api/whatsapp/status?serverUrl=${encodeURIComponent(serverUrl)}&apiKey=${encodeURIComponent(apiKey)}`, {
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        const data = await res.json();
+      // 1. Try Next.js API Proxy
+      let data: any = null;
+      try {
+        const res = await fetch(`/api/whatsapp/status?serverUrl=${encodeURIComponent(serverUrl)}&apiKey=${encodeURIComponent(apiKey)}`, {
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (proxyErr) {}
+
+      // 2. If proxy didn't return connected or qr_ready, try direct client-side fetch to Addon server
+      if (!data || (!data.status && !data.qrCodeBase64)) {
+        try {
+          const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/status`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            cache: 'no-store'
+          });
+          if (directRes.ok) {
+            const directJson = await directRes.json();
+            if (directJson.success && directJson.data) {
+              data = {
+                status: directJson.data.status,
+                phoneNumber: directJson.data.phoneNumber,
+                qrCodeBase64: directJson.data.qrCodeBase64
+              };
+            }
+          }
+        } catch (directErr) {}
+      }
+
+      if (data) {
         if (data.status === 'connected') {
           setLiveStatus('connected');
           setLivePhone(data.phoneNumber || senderPhone);
@@ -113,6 +140,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         } else {
           setLiveStatus('connecting');
         }
+      } else {
+        setLiveStatus('disconnected');
       }
     } catch (e) {
       setLiveStatus('disconnected');
@@ -123,29 +152,62 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   useEffect(() => {
     fetchLiveStatus();
-    const interval = setInterval(fetchLiveStatus, 4000);
+    const interval = setInterval(fetchLiveStatus, 3000);
     return () => clearInterval(interval);
   }, [serverUrl, apiKey]);
 
-  // Request 8-digit Pairing Code
+  // Request 8-digit Pairing Code (Dual: API Proxy + Direct Client-Side Fallback)
   const handleRequestPairCode = async () => {
-    if (!pairPhoneInput || pairPhoneInput.length < 9) {
-      setPairError('يرجى إدخال رقم جوال صحيح (مثال: 0501234567)');
+    if (!pairPhoneInput || pairPhoneInput.length < 8) {
+      setPairError('يرجى إدخال رقم جوال صحيح (مثال: 0536971105 أو 966536971105)');
       return;
     }
     setIsRequestingPair(true);
     setPairError(null);
+    setGeneratedPairCode(null);
+
     try {
-      const res = await fetch('/api/whatsapp/pair-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: pairPhoneInput })
-      });
-      const data = await res.json();
-      if (data.success && data.code) {
-        setGeneratedPairCode(data.code);
+      let code: string | null = null;
+
+      // 1. Try Next.js API Proxy
+      try {
+        const res = await fetch('/api/whatsapp/pair-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: pairPhoneInput })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.code) {
+            code = data.code;
+          }
+        }
+      } catch (proxyErr) {}
+
+      // 2. If proxy failed, try direct client-side call to Addon server
+      if (!code) {
+        try {
+          const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/pair-code`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({ phone: pairPhoneInput })
+          });
+          if (directRes.ok) {
+            const directJson = await directRes.json();
+            if (directJson.success && directJson.data?.code) {
+              code = directJson.data.code;
+            }
+          }
+        } catch (directErr) {}
+      }
+
+      if (code) {
+        setGeneratedPairCode(code);
       } else {
-        setPairError(data.error || 'فشل استخراج كود الاقتران');
+        setPairError('تعذر توليد كود الاقتران. تأكد من تشغيل خادم المحرك.');
       }
     } catch (err: any) {
       setPairError(err?.message || 'خطأ في الاتصال بالخادم');
@@ -159,13 +221,16 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     if (!confirm('هل أنت متأكد من رغبتك في فصل الرقم الحالي لإعادة الاقتران برقم المنشأة الرسمي؟')) return;
     setIsLoggingOut(true);
     try {
-      const res = await fetch('/api/whatsapp/status?action=logout', { method: 'GET' });
-      if (res.ok) {
-        setLiveStatus('qr_ready');
-        setLivePhone(null);
-        setGeneratedPairCode(null);
-        fetchLiveStatus();
-      }
+      await fetch('/api/whatsapp/status?action=logout', { method: 'GET' }).catch(() => {});
+      await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      }).catch(() => {});
+
+      setLiveStatus('qr_ready');
+      setLivePhone(null);
+      setGeneratedPairCode(null);
+      fetchLiveStatus();
     } catch (e) {
       alert('حدث خطأ أثناء تسجيل الخروج');
     } finally {
