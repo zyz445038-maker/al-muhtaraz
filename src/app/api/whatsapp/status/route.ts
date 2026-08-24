@@ -60,13 +60,14 @@ export async function GET(request: Request) {
         });
       }
 
-      if (status.qrCodeRaw) {
+      if (status.qrCodeBase64 || status.qrCodeRaw) {
         return NextResponse.json({
           success: true,
           status: 'qr_ready',
           mode: 'embedded',
           state: 'connecting',
-          qrCodeRaw: status.qrCodeRaw,
+          qrCodeBase64: status.qrCodeBase64 || null,
+          qrCodeRaw: status.qrCodeRaw || null,
           message: 'كود QR المدمج جاهز للمسح من الواتساب 📱'
         });
       }

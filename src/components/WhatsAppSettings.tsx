@@ -82,11 +82,19 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   const dockerCommand = `docker run -d --name evolution-api -p 8080:8080 -e AUTHENTICATION_API_KEY=${evolutionApiKey || '123456'} evoapicloud/evolution-api:latest`;
 
-  const handleCopyDocker = () => {
-    navigator.clipboard.writeText(dockerCommand);
-    setIsCopiedDocker(true);
-    setTimeout(() => setIsCopiedDocker(false), 2500);
-  };
+  // Automatic polling while QR modal is open and waiting for scan
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (showQrModal && !isConnected) {
+      checkLiveStatus();
+      interval = setInterval(() => {
+        checkLiveStatus();
+      }, 3500);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showQrModal, isConnected, mode]);
 
   // Check live status on load or on button click
   const checkLiveStatus = async () => {
@@ -967,63 +975,85 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               اقتران الواتساب (Scan QR Code) 📱
             </h3>
             
-            {/* Case 1: Checking status / Loading */}
-            {isCheckingLiveStatus && (
+            {/* Case 1: Initial Loading with no QR code yet */}
+            {isCheckingLiveStatus && !liveQrCode && !liveQrRaw && (
               <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                <RefreshCw size={36} color="#10b981" style={{ animation: 'spin 1s linear infinite' }} />
-                <p style={{ fontSize: '0.9rem', color: '#cbd5e1', fontWeight: 600 }}>
-                  جارِ الاتصال بالخادم واستخراج كود QR الحي...
+                <RefreshCw size={40} color="#10b981" style={{ animation: 'spin 1s linear infinite' }} />
+                <p style={{ fontSize: '0.92rem', color: '#cbd5e1', fontWeight: 700 }}>
+                  جارِ الاتصال بمحرك الواتساب وتوليد كود QR عالي الدقة...
                 </p>
               </div>
             )}
 
-            {/* Case 2: Live QR Ready (Base64 Image or Raw String) */}
-            {!isCheckingLiveStatus && (liveQrCode || liveQrRaw) && (
+            {/* Case 2: Live QR Ready (High Resolution PNG Image or SVG) */}
+            {(liveQrCode || liveQrRaw) && (
               <>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.5 }}>
-                  افتح تطبيق واتساب على جوال المنشأة &larr; الإعدادات &larr; الأجهزة المرتبطة &larr; <strong>ربط جهاز</strong>:
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '14px', lineHeight: 1.5 }}>
+                  افتح تطبيق واتساب على جوالك &larr; <strong>الأجهزة المرتبطة</strong> &larr; <strong>ربط جهاز</strong>:
                 </p>
 
-                {/* QR Frame */}
+                {/* QR Frame - Ultra High Clarity */}
                 <div style={{
-                  width: '240px',
-                  height: '240px',
+                  width: '260px',
+                  height: '260px',
                   margin: '0 auto 16px auto',
-                  background: '#ffffff',
+                  background: '#FFFFFF',
                   borderRadius: '20px',
-                  padding: '14px',
+                  padding: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 40px rgba(16, 185, 129, 0.35)',
+                  boxShadow: '0 0 45px rgba(16, 185, 129, 0.4)',
                   position: 'relative'
                 }}>
                   {liveQrCode ? (
                     <img 
                       src={liveQrCode.startsWith('data:') ? liveQrCode : `data:image/png;base64,${liveQrCode}`} 
                       alt="WhatsApp QR Code" 
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'contain',
+                        imageRendering: 'pixelated'
+                      }} 
                     />
                   ) : liveQrRaw ? (
-                    <QRCodeSVG value={liveQrRaw} size={212} level="M" />
+                    <QRCodeSVG 
+                      value={liveQrRaw} 
+                      size={228} 
+                      level="M" 
+                      includeMargin={true}
+                    />
                   ) : null}
                 </div>
 
                 {livePairingCode && (
                   <div style={{
-                    marginBottom: '14px',
+                    marginBottom: '12px',
                     padding: '8px 14px',
                     background: 'rgba(16, 185, 129, 0.15)',
                     borderRadius: '8px',
                     fontSize: '0.85rem',
                     color: '#34d399'
                   }}>
-                    كود الاقتران السريع: <strong style={{ letterSpacing: '2px', fontSize: '1rem' }}>{livePairingCode}</strong>
+                    كود الاقتران السريع: <strong style={{ letterSpacing: '2px', fontSize: '1.1rem' }}>{livePairingCode}</strong>
                   </div>
                 )}
 
-                <div style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 700, marginBottom: '18px' }}>
-                  {liveStatusText || `🟢 الكود نشط وجاهز للمسح بالجوال`}
+                <div style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.82rem', 
+                  color: '#34d399', 
+                  fontWeight: 700, 
+                  marginBottom: '16px',
+                  padding: '4px 12px',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  borderRadius: '999px'
+                }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'spin 2s linear infinite' }} />
+                  <span>{liveStatusText || `كود QR نشط ومباشر — المزامنة التلقائية مفعلة`}</span>
                 </div>
               </>
             )}

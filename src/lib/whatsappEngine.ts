@@ -1,17 +1,18 @@
 import makeWASocket, { 
   DisconnectReason, 
   useMultiFileAuthState, 
-  fetchLatestBaileysVersion,
-  WASocket
+  fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
+import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
 
 // Global singleton reference in Node.js runtime to persist across hot-reloads
 declare global {
-  var __baileys_socket: WASocket | null | undefined;
+  var __baileys_socket: any;
   var __baileys_qr: string | null | undefined;
+  var __baileys_qr_image: string | null | undefined;
   var __baileys_is_connected: boolean | undefined;
   var __baileys_is_connecting: boolean | undefined;
   var __baileys_error: string | null | undefined;
@@ -49,6 +50,7 @@ export function getWhatsAppStatus() {
   return {
     isConnected: !!globalThis.__baileys_is_connected,
     isConnecting: !!globalThis.__baileys_is_connecting,
+    qrCodeBase64: globalThis.__baileys_qr_image || null,
     qrCodeRaw: globalThis.__baileys_qr || null,
     error: globalThis.__baileys_error || null
   };
@@ -57,7 +59,7 @@ export function getWhatsAppStatus() {
 /**
  * Initialize or get the WhatsApp socket singleton
  */
-export async function initWhatsAppEngine(forceRestart = false): Promise<WASocket> {
+export async function initWhatsAppEngine(forceRestart = false): Promise<any> {
   if (globalThis.__baileys_socket && !forceRestart) {
     return globalThis.__baileys_socket;
   }
@@ -66,7 +68,7 @@ export async function initWhatsAppEngine(forceRestart = false): Promise<WASocket
   globalThis.__baileys_error = null;
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const { version, isLatest } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] as [number, number, number], isLatest: false }));
+  const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] as [number, number, number] }));
 
   const sock = makeWASocket({
     version,
@@ -85,11 +87,24 @@ export async function initWhatsAppEngine(forceRestart = false): Promise<WASocket
   sock.ev.on('creds.update', saveCreds);
 
   // Listen for connection events and QR codes
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
       globalThis.__baileys_qr = qr;
+      try {
+        globalThis.__baileys_qr_image = await QRCode.toDataURL(qr, {
+          margin: 2,
+          scale: 8,
+          errorCorrectionLevel: 'M',
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+      } catch (err) {
+        console.warn('Error generating QR image:', err);
+      }
       globalThis.__baileys_is_connecting = false;
     }
 
@@ -97,6 +112,7 @@ export async function initWhatsAppEngine(forceRestart = false): Promise<WASocket
       globalThis.__baileys_is_connected = true;
       globalThis.__baileys_is_connecting = false;
       globalThis.__baileys_qr = null;
+      globalThis.__baileys_qr_image = null;
       globalThis.__baileys_error = null;
       console.log('✅ [WhatsApp Engine] Embedded WhatsApp connected successfully!');
     } else if (connection === 'close') {
@@ -116,6 +132,7 @@ export async function initWhatsAppEngine(forceRestart = false): Promise<WASocket
         // Logged out
         globalThis.__baileys_socket = null;
         globalThis.__baileys_qr = null;
+        globalThis.__baileys_qr_image = null;
         try {
           fs.rmSync(AUTH_DIR, { recursive: true, force: true });
         } catch (e) {
@@ -135,9 +152,7 @@ export async function sendWhatsAppMessage(phone: string, text: string): Promise<
   try {
     const status = getWhatsAppStatus();
     if (!status.isConnected) {
-      // Try to initialize if socket is not ready
       await initWhatsAppEngine();
-      // If still not connected
       if (!globalThis.__baileys_is_connected) {
         return {
           success: false,
@@ -182,6 +197,7 @@ export async function logoutWhatsApp(): Promise<boolean> {
     globalThis.__baileys_is_connected = false;
     globalThis.__baileys_is_connecting = false;
     globalThis.__baileys_qr = null;
+    globalThis.__baileys_qr_image = null;
 
     if (fs.existsSync(AUTH_DIR)) {
       fs.rmSync(AUTH_DIR, { recursive: true, force: true });
