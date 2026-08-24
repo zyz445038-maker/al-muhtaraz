@@ -54,6 +54,14 @@
   1. إنشاء وحدة المعالجة المركزية للتواريخ [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts) لتوليد صيغ عربية نقية (`DD/MM/YYYY م` و `HH:MM صباحاً/مساءً`).
   2. ربط التنسيق بجميع قوالب رسائل الواتساب وسندات القبض في [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts).
 
+#### 5. إصلاح وتطوير قارئ كود QR في إعدادات الواتساب (WhatsApp QR Code Engine)
+* **المشكلة:** كود QR في نافذة الاقتران كان غير مقروء بالكاميرا (لأنه كان يعرض أيقونة ثابتة كعنصر نائب عند عدم اتصال السيرفر، أو عند إرجاع نصوص خام غير معالجة).
+* **ما تم إنجازه:**
+  1. ربط مكتبة `qrcode.react` (`QRCodeSVG`) لتوليد كود QR حقيقي عالي الدقة من السيرفر مباشرة.
+  2. دعم كافة أنماط الاستجابة من Evolution API (`base64` أو السلاسل النصية الخام `raw string` وكود الاقتران `pairingCode`).
+  3. إنشاء الجلسة تلقائياً عبر API (`/instance/create`) عند الاتصال لأول مرة.
+  4. استبدال الأيقونة الثابتة ببطاقة إرشادية واضحة ودقيقة في حال كان السيرفر غير مشغل، مع أمر Docker المباشر وزر التبديل الفوري إلى وضع `wa.me`.
+
 ---
 
 ### 🗂️ هيكل الملفات المرتبطة بنظام المساعد:
@@ -61,10 +69,12 @@
 * [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts): وحدة التنسيق العربي الموحد للتواريخ والأوقات وفترات العقود.
 * [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts): مولد قوالب رسائل الواتساب وسندات القبض والتنبيهات الإدارية.
 * [src/utils/aiCopilotKnowledge.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotKnowledge.ts): قاعدة المعرفة الشاملة للنظام (العقود، السندات، البلديات، المستودع، المطور).
+* [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx): لوحة إعدادات الواتساب ونافذة الاقتران وتوليد كود QR التفاعلي.
 * [src/components/SmartAssistantHub.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/SmartAssistantHub.tsx): لوحة إدارة المساعد، مصفوفة توجيه الواتساب، والتقارير التنفيذية.
 * [src/components/FloatingVoiceOrb.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/FloatingVoiceOrb.tsx): الزر العائم التفاعلي للمدير العام (إجابات كتابية ذكية وفورية).
 
 ---
 *تم إنشاء وتحديث هذا الملف ومزامنته مع مستودع GitHub بنجاح.*
+
 
 

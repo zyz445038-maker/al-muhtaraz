@@ -31,6 +31,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { WhatsAppSettings as IWhatsAppSettings, WhatsAppMode, NotificationLog } from '@/types/database';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -75,6 +76,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Live status / QR fetching state
   const [isCheckingLiveStatus, setIsCheckingLiveStatus] = useState(false);
   const [liveQrCode, setLiveQrCode] = useState<string | null>(null);
+  const [liveQrRaw, setLiveQrRaw] = useState<string | null>(null);
+  const [livePairingCode, setLivePairingCode] = useState<string | null>(null);
   const [liveStatusText, setLiveStatusText] = useState<string | null>(null);
 
   const dockerCommand = `docker run -d --name evolution-api -p 8080:8080 -e AUTHENTICATION_API_KEY=${evolutionApiKey || '123456'} evoapicloud/evolution-api:latest`;
@@ -93,17 +96,31 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       const data = await res.json();
       if (data.status === 'connected') {
         setIsConnected(true);
+        setLiveQrCode(null);
+        setLiveQrRaw(null);
         setLiveStatusText('🟢 متصل بنجاح وجاهز للإرسال الصامت');
       } else if (data.status === 'qr_ready') {
         setIsConnected(false);
         setLiveQrCode(data.qrCodeBase64 || null);
-        setLiveStatusText('📱 كود QR جاهز للاقتران');
+        setLiveQrRaw(data.qrCodeRaw || null);
+        setLivePairingCode(data.pairingCode || null);
+        setLiveStatusText('📱 كود QR جاهز للاقتران (امسحه الآن عبر واتساب)');
+      } else if (data.status === 'offline') {
+        setIsConnected(false);
+        setLiveQrCode(null);
+        setLiveQrRaw(null);
+        setLiveStatusText(data.message || '⚠️ خادم Evolution API غير متصل أو لم يتم تشغيله');
       } else {
         setIsConnected(false);
+        setLiveQrCode(null);
+        setLiveQrRaw(null);
         setLiveStatusText(data.message || '🔴 السيرفر غير متصل');
       }
     } catch (err: any) {
-      setLiveStatusText('🔴 تعذر الاتصال بالخادم المحلي');
+      setIsConnected(false);
+      setLiveQrCode(null);
+      setLiveQrRaw(null);
+      setLiveStatusText('🔴 تعذر الاتصال بالخادم المحلي (تأكد من تشغيل Docker)');
     } finally {
       setIsCheckingLiveStatus(false);
     }
@@ -811,38 +828,167 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           ========================================================================= */}
       {showQrModal && (
         <div className="modal-backdrop" onClick={() => setShowQrModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '28px', maxWidth: '440px', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: '900', color: '#ffffff', marginBottom: '8px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '28px', maxWidth: '480px', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: '900', color: '#ffffff', marginBottom: '6px' }}>
               اقتران الواتساب (Scan QR Code) 📱
             </h3>
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '18px', lineHeight: 1.5 }}>
-              افتح تطبيق واتساب على جوال المنشأة &larr; الإعدادات &larr; الأجهزة المرتبطة &larr; ربط جهاز:
-            </p>
+            
+            {/* Case 1: Checking status / Loading */}
+            {isCheckingLiveStatus && (
+              <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                <RefreshCw size={36} color="#10b981" style={{ animation: 'spin 1s linear infinite' }} />
+                <p style={{ fontSize: '0.9rem', color: '#cbd5e1', fontWeight: 600 }}>
+                  جارِ الاتصال بالخادم واستخراج كود QR الحي...
+                </p>
+              </div>
+            )}
 
-            {/* QR Frame */}
-            <div style={{
-              width: '240px',
-              height: '240px',
-              margin: '0 auto 18px auto',
-              background: '#ffffff',
-              borderRadius: '20px',
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 40px rgba(16, 185, 129, 0.35)',
-              position: 'relative'
-            }}>
-              {liveQrCode ? (
-                <img src={liveQrCode.startsWith('data:') ? liveQrCode : `data:image/png;base64,${liveQrCode}`} alt="WhatsApp QR Code" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <QrCode size={190} color="#050811" />
-              )}
-            </div>
+            {/* Case 2: Live QR Ready (Base64 Image or Raw String) */}
+            {!isCheckingLiveStatus && (liveQrCode || liveQrRaw) && (
+              <>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.5 }}>
+                  افتح تطبيق واتساب على جوال المنشأة &larr; الإعدادات &larr; الأجهزة المرتبطة &larr; <strong>ربط جهاز</strong>:
+                </p>
 
-            <div style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 700, marginBottom: '18px' }}>
-              {liveStatusText || `🟢 جاهز للاقتران بالجلسة (${evolutionInstanceName})`}
-            </div>
+                {/* QR Frame */}
+                <div style={{
+                  width: '240px',
+                  height: '240px',
+                  margin: '0 auto 16px auto',
+                  background: '#ffffff',
+                  borderRadius: '20px',
+                  padding: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 40px rgba(16, 185, 129, 0.35)',
+                  position: 'relative'
+                }}>
+                  {liveQrCode ? (
+                    <img 
+                      src={liveQrCode.startsWith('data:') ? liveQrCode : `data:image/png;base64,${liveQrCode}`} 
+                      alt="WhatsApp QR Code" 
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                    />
+                  ) : liveQrRaw ? (
+                    <QRCodeSVG value={liveQrRaw} size={212} level="M" />
+                  ) : null}
+                </div>
+
+                {livePairingCode && (
+                  <div style={{
+                    marginBottom: '14px',
+                    padding: '8px 14px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    color: '#34d399'
+                  }}>
+                    كود الاقتران السريع: <strong style={{ letterSpacing: '2px', fontSize: '1rem' }}>{livePairingCode}</strong>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 700, marginBottom: '18px' }}>
+                  {liveStatusText || `🟢 الكود نشط وجاهز للمسح بالجوال`}
+                </div>
+              </>
+            )}
+
+            {/* Case 3: Server Offline / Error (Informative diagnostics instead of fake QR icon) */}
+            {!isCheckingLiveStatus && !liveQrCode && !liveQrRaw && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'right', margin: '14px 0 20px 0' }}>
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#fca5a5',
+                  fontSize: '0.85rem',
+                  lineHeight: '1.6'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '6px', color: '#f87171' }}>
+                    <AlertCircle size={18} />
+                    <span>خادم Evolution API غير متصل على ({evolutionServerUrl})</span>
+                  </div>
+                  <div>
+                    لكي يظهر كود QR الحقيقي القابل للمسح، يجب تشغيل خادم محاكي الواتساب أولاً على جهازك، أو استخدام وضع wa.me المباشر.
+                  </div>
+                </div>
+
+                {/* Solution 1: Run Docker */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '14px'
+                }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+                    🐳 تشغيل خادم الواتساب عبر Docker:
+                  </div>
+                  <div style={{
+                    background: '#090d16',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.74rem',
+                    fontFamily: 'monospace',
+                    color: '#a5f3fc',
+                    direction: 'ltr',
+                    textAlign: 'left',
+                    wordBreak: 'break-all',
+                    marginBottom: '8px'
+                  }}>
+                    {dockerCommand}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyDocker}
+                    className="btn-secondary"
+                    style={{ width: '100%', padding: '6px', fontSize: '0.78rem' }}
+                  >
+                    {isCopiedDocker ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+                    <span>{isCopiedDocker ? 'تم نسخ أمر Docker!' : 'نسخ أمر تشغيل Docker'}</span>
+                  </button>
+                </div>
+
+                {/* Solution 2: Switch to wa.me */}
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24' }}>
+                    ⚡ الحل الفوري البديل (بدون أي سيرفرات أو أكواد):
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+                    يمكنك استخدام وضع <strong>wa.me المباشر</strong> الذي يفتح الواتساب بنقرة واحدة ويرسل العقود فوراً بدون الحاجة لسيرفر.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('wame');
+                      setShowQrModal(false);
+                      alert('تم التبديل إلى وضع wa.me المباشر بنجاح ⚡');
+                    }}
+                    style={{
+                      background: '#f59e0b',
+                      color: '#000',
+                      fontWeight: 800,
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ⚡ التبديل إلى وضع wa.me المباشر الآن
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -853,7 +999,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 disabled={isCheckingLiveStatus}
               >
                 <RefreshCw size={14} style={{ animation: isCheckingLiveStatus ? 'spin 1s linear infinite' : 'none' }} />
-                <span>تحديث الكود</span>
+                <span>إعادة فحص الاتصال</span>
               </button>
 
               <button

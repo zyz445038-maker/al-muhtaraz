@@ -63,9 +63,9 @@ export async function GET(request: Request) {
         }
       }
 
-      // If not connected or need QR, try fetching QR code from /instance/connect/{instance}
-      const connectUrl = `${cleanServer}/instance/connect/${evolutionInstance}`;
-      const connectRes = await fetch(connectUrl, {
+      // 3. If not connected, fetch QR code or create instance
+      let connectUrl = `${cleanServer}/instance/connect/${evolutionInstance}`;
+      let connectRes = await fetch(connectUrl, {
         method: 'GET',
         headers: {
           'apikey': evolutionApiKey
@@ -73,10 +73,52 @@ export async function GET(request: Request) {
         signal: AbortSignal.timeout(5000)
       });
 
+      // If instance does not exist yet (404/400), try creating it automatically
+      if (!connectRes.ok && connectRes.status === 404) {
+        try {
+          const createUrl = `${cleanServer}/instance/create`;
+          const createRes = await fetch(createUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey
+            },
+            body: JSON.stringify({
+              instanceName: evolutionInstance,
+              qrcode: true,
+              integration: 'WHATSAPP-BAILEYS'
+            }),
+            signal: AbortSignal.timeout(5000)
+          });
+
+          if (createRes.ok) {
+            const createData = await createRes.json();
+            const qrBase64 = createData?.base64 || createData?.qrcode?.base64;
+            const qrRaw = createData?.code || createData?.qrcode?.code;
+            const pairingCode = createData?.pairingCode;
+
+            return NextResponse.json({
+              success: true,
+              status: 'qr_ready',
+              state: 'connecting',
+              qrCodeBase64: qrBase64 || null,
+              qrCodeRaw: qrRaw || null,
+              pairingCode: pairingCode || null,
+              serverUrl: cleanServer,
+              instance: evolutionInstance,
+              message: 'كود QR تم توليده وجاهز للمسح من الواتساب 📱'
+            });
+          }
+        } catch (createErr) {
+          console.warn('Instance auto-creation failed:', createErr);
+        }
+      }
+
       if (connectRes.ok) {
         const qrData = await connectRes.json();
         const qrBase64 = qrData?.base64 || qrData?.qrcode?.base64;
-        const pairingCode = qrData?.pairingCode || qrData?.code;
+        const qrRaw = qrData?.code || qrData?.qrcode?.code;
+        const pairingCode = qrData?.pairingCode;
         const isAlreadyOpen = qrData?.instance?.state === 'open' || qrData?.state === 'open';
 
         if (isAlreadyOpen) {
@@ -90,16 +132,19 @@ export async function GET(request: Request) {
           });
         }
 
-        return NextResponse.json({
-          success: true,
-          status: 'qr_ready',
-          state: 'connecting',
-          qrCodeBase64: qrBase64 || null,
-          pairingCode: pairingCode || null,
-          serverUrl: cleanServer,
-          instance: evolutionInstance,
-          message: 'كود QR جاهز للمسح من الواتساب 📱'
-        });
+        if (qrBase64 || qrRaw) {
+          return NextResponse.json({
+            success: true,
+            status: 'qr_ready',
+            state: 'connecting',
+            qrCodeBase64: qrBase64 || null,
+            qrCodeRaw: qrRaw || null,
+            pairingCode: pairingCode || null,
+            serverUrl: cleanServer,
+            instance: evolutionInstance,
+            message: 'كود QR جاهز للمسح من الواتساب 📱'
+          });
+        }
       }
 
       return NextResponse.json({
@@ -107,7 +152,7 @@ export async function GET(request: Request) {
         status: 'disconnected',
         serverUrl: cleanServer,
         instance: evolutionInstance,
-        message: 'السيرفر متصل ولكن الجلسة غير مقترنة، يرجى مسح كود QR'
+        message: 'السيرفر متصل ولكن الجلسة غير مقترنة بعد'
       });
 
     } catch (networkErr: any) {
@@ -117,7 +162,7 @@ export async function GET(request: Request) {
         serverUrl: cleanServer,
         instance: evolutionInstance,
         error: networkErr?.message || 'تعذر الوصول إلى خادم Evolution API',
-        message: 'خادم Evolution API غير متصل أو لم يتم تشغيله بعد على ' + cleanServer
+        message: `خادم Evolution API غير مشغل حالياً على (${cleanServer}).`
       });
     }
 
