@@ -121,6 +121,12 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   const dockerCommand = `docker run -d --name evolution-api -p 8080:8080 -e AUTHENTICATION_API_KEY=${evolutionApiKey || '123456'} evoapicloud/evolution-api:latest`;
 
+  const handleCopyDocker = () => {
+    navigator.clipboard.writeText(dockerCommand);
+    setIsCopiedDocker(true);
+    setTimeout(() => setIsCopiedDocker(false), 2500);
+  };
+
   // Automatic polling while QR modal is open and waiting for scan
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;

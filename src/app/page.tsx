@@ -448,13 +448,18 @@ function MainDashboard() {
         const { data: dbInApp } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
         if (dbInApp && dbInApp.length > 0) setInAppNotifications(dbInApp);
 
-        const { data: dbProfiles } = await supabase.from('profiles').select('*');
-        if (dbProfiles && dbProfiles.length > 0) setStaffList(dbProfiles);
+        // Restore from localStorage first for instant display
+        try {
+          const localWa = localStorage.getItem('muhtaraz_whatsapp_settings');
+          if (localWa) setGatewaySettings(JSON.parse(localWa));
+          const localPay = localStorage.getItem('muhtaraz_payment_settings');
+          if (localPay) setPaymentSettings(JSON.parse(localPay));
+        } catch (e) {}
 
-        const { data: dbSettings } = await supabase.from('whatsapp_settings').select('*').limit(1).single();
+        const { data: dbSettings } = await supabase.from('whatsapp_settings').select('*').limit(1).maybeSingle();
         if (dbSettings) setGatewaySettings(dbSettings);
 
-        const { data: dbPaySettings } = await supabase.from('payment_settings').select('*').limit(1).single();
+        const { data: dbPaySettings } = await supabase.from('payment_settings').select('*').limit(1).maybeSingle();
         if (dbPaySettings) setPaymentSettings(dbPaySettings);
 
         const { data: dbReceipts } = await supabase.from('receipts').select('*');
