@@ -239,64 +239,12 @@ export function unlockAudio() {
   }
 }
 
-// Pre-cached audio blob URLs for instant playback
-const ttsAudioCache = new Map<string, string>();
-let activeAudioRequestController: AbortController | null = null;
-
-// Master Audio Player with Async Blob Streaming & Instant Cache
+// Audio playback disabled - Responses are purely written/text-only
 export async function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
-  if (typeof window === 'undefined') return;
-
   stopSpeaking();
-
-  const cleanText = text
-    .replace(/[#*_`]/g, '')
-    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
-    .trim();
-
-  if (!cleanText) {
-    if (onEnd) onEnd();
-    return;
-  }
-
-  // 1. Check instant audio cache
-  if (ttsAudioCache.has(cleanText)) {
-    const cachedUrl = ttsAudioCache.get(cleanText)!;
-    playBlobUrl(cachedUrl, onEnd, cleanText);
-    return;
-  }
-
-  // 2. Fetch ElevenLabs Neural Audio Stream
-  try {
-    if (activeAudioRequestController) {
-      activeAudioRequestController.abort();
-    }
-    activeAudioRequestController = new AbortController();
-
-    const audioUrl = `/api/voice/tts?text=${encodeURIComponent(cleanText)}`;
-    const response = await fetch(audioUrl, {
-      signal: activeAudioRequestController.signal
-    });
-
-    if (!response.ok) {
-      throw new Error(`TTS server responded with ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    // Cache for replay
-    if (ttsAudioCache.size < 50) {
-      ttsAudioCache.set(cleanText, blobUrl);
-    }
-
-    playBlobUrl(blobUrl, onEnd, cleanText);
-  } catch (err: any) {
-    if (err.name === 'AbortError') return;
-    console.warn('ElevenLabs/TTS stream fetch error, using local fallback:', err);
-    fallbackSpeechSynthesis(cleanText, onEnd);
-  }
+  if (onEnd) onEnd();
 }
+
 
 function playBlobUrl(blobUrl: string, onEnd?: () => void, fallbackText?: string) {
   try {

@@ -255,11 +255,9 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
 
       const botTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
-
-      // Speak back in cheerful sweet Saudi female voice
-      speakSaudiFemaleVoice(speechText);
     }, 400);
   };
+
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 16px', direction: 'rtl', fontFamily: 'system-ui, -apple-system, sans-serif' }}>

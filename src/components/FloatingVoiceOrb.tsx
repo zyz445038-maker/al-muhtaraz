@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Mic, 
   MicOff, 
-  Volume2, 
-  VolumeX, 
   X, 
   Sparkles, 
   Bot, 
@@ -22,10 +20,7 @@ import {
   UserRole 
 } from '@/types/database';
 import { 
-  formatSaudiCheerResponse, 
-  speakSaudiFemaleVoice, 
-  stopSpeaking,
-  unlockAudio 
+  formatSaudiCheerResponse 
 } from '@/utils/voiceAssistant';
 
 interface FloatingVoiceOrbProps {
@@ -48,12 +43,11 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [voiceMuted, setVoiceMuted] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
-  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا بو سعود، أنا معك وجاهزة لأي استفسار!');
-  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اضغط على المايك وتكلم، أنا أسمعك وجاهزة لأي سؤال عن الحاويات والأرباح والعقود!');
+  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا بو سعود، أنا معك وجاهز لأي استفسار!');
+  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا بو سعود 🌸 اختر من الأسئلة السريعة أو اسألني عن الحاويات والأرباح والعقود!');
   const recognitionRef = useRef<any>(null);
+
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -91,10 +85,9 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       }
     }
 
-    return () => {
-      stopSpeaking();
-    };
-  }, [contracts, containers, receipts, voiceMuted]);
+    return () => {};
+  }, [contracts, containers, receipts]);
+
 
   // Process Voice Query and Respond Cheerfully
   const handleProcessVoiceInput = (inputText: string) => {
@@ -122,25 +115,17 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       activeCount
     });
 
+    // Update text responses (No audio output)
     setLastSpeechText(speechText);
     setLastResponse(displayText);
-
-    // Speak back in cheerful sweet Saudi female voice if not muted
-    if (!voiceMuted) {
-      setIsSpeaking(true);
-      speakSaudiFemaleVoice(speechText, () => setIsSpeaking(false));
-    }
   };
 
-  // Toggle Voice Listening
+  // Toggle Voice Dictation Listening
   const toggleListening = () => {
-    unlockAudio();
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
     } else {
-      stopSpeaking();
-      setIsSpeaking(false);
       setTranscript('');
       try {
         recognitionRef.current?.start();
@@ -148,13 +133,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         console.warn('Recognition start error:', err);
       }
     }
-  };
-
-  const handleManualPlayVoice = (textToSpeak?: string) => {
-    unlockAudio();
-    stopSpeaking();
-    setIsSpeaking(true);
-    speakSaudiFemaleVoice(textToSpeak || lastSpeechText, () => setIsSpeaking(false));
   };
 
   return (
@@ -170,18 +148,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
             transform: scale(1.06);
           }
         }
-
-        @keyframes waveAnimation {
-          0%, 100% { height: 6px; }
-          50% { height: 26px; }
-        }
-
-        .voice-wave-bar {
-          width: 3px;
-          background: #fbbf24;
-          border-radius: 3px;
-          animation: waveAnimation 1s infinite ease-in-out;
-        }
       `}</style>
 
       {/* 👑 Floating Trigger Orb (Bottom-Left) */}
@@ -194,10 +160,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       }}>
         {!isOpen && (
           <button
-            onClick={() => {
-              unlockAudio();
-              setIsOpen(true);
-            }}
+            onClick={() => setIsOpen(true)}
             style={{
               width: '62px',
               height: '62px',
@@ -212,9 +175,9 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               animation: 'floatOrbPulse 3.5s infinite ease-in-out',
               position: 'relative'
             }}
-            title="مساعد المدير الذكي الصوتي (خاص بالإدارة)"
+            title="مساعد المدير الذكي (خاص بالإدارة)"
           >
-            <Mic size={28} strokeWidth={2.4} />
+            <Bot size={28} strokeWidth={2.4} />
             
             {/* Crown badge */}
             <div style={{
@@ -234,7 +197,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           </button>
         )}
 
-        {/* 🌟 Voice Conversation Pop-up Card */}
+        {/* 🌟 Conversation Pop-up Card */}
         {isOpen && (
           <div style={{
             width: '360px',
@@ -268,57 +231,29 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                     <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>👑</span>
                   </div>
                   <div style={{ fontSize: '0.72rem', color: '#34d399', fontWeight: 700 }}>
-                    {isSpeaking ? '🌸 تتحدث بصوت رقيق مبتسم...' : isListening ? '🎙️ تستمع لصوتك الآن...' : '✨ جاهزة لخدمتك يا بو سعود'}
+                    {isListening ? '🎙️ يستمع لصوتك الآن...' : '✨ جاهز لخدمتك يا بو سعود'}
                   </div>
                 </div>
               </div>
 
-              {/* Action Icons (Mute & Close) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  onClick={() => {
-                    const newMuted = !voiceMuted;
-                    setVoiceMuted(newMuted);
-                    if (newMuted) stopSpeaking();
-                  }}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    width: '30px',
-                    height: '30px',
-                    color: voiceMuted ? '#f87171' : '#34d399',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                  title={voiceMuted ? 'تفعيل الصوت' : 'كتم الصوت'}
-                >
-                  {voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
-
-                <button
-                  onClick={() => {
-                    stopSpeaking();
-                    setIsOpen(false);
-                  }}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    width: '30px',
-                    height: '30px',
-                    color: '#94a3b8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              {/* Close button */}
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  width: '30px',
+                  height: '30px',
+                  color: '#94a3b8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} />
+              </button>
             </div>
 
             {/* Conversation Box */}
@@ -329,13 +264,15 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               padding: '14px',
               marginBottom: '16px',
               minHeight: '110px',
+              maxHeight: '260px',
+              overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center'
             }}>
               {transcript && (
                 <div style={{ fontSize: '0.78rem', color: '#fbbf24', marginBottom: '8px', fontWeight: 700 }}>
-                  🎤 سمعتك تقول: "{transcript}"
+                  🎤 سؤالك: "{transcript}"
                 </div>
               )}
               <div style={{ fontSize: '0.86rem', color: '#f8fafc', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
@@ -343,41 +280,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               </div>
             </div>
 
-            {/* 🔊 Direct Voice Replay / Listen button */}
-            <button
-              onClick={() => handleManualPlayVoice()}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '12px',
-                background: 'rgba(245, 158, 11, 0.15)',
-                border: '1px solid rgba(245, 158, 11, 0.35)',
-                color: '#fbbf24',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                marginBottom: '12px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <Volume2 size={16} />
-              <span>{isSpeaking ? '🌸 جاري التحدث الآن...' : '🔊 استمع للرد بصوتها الرقيق'}</span>
-            </button>
-
-            {/* Live Waveform when speaking or listening */}
-            {(isListening || isSpeaking) && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                height: '30px',
-                marginBottom: '14px'
-              }}>
                 <div className="voice-wave-bar" style={{ animationDelay: '0s' }} />
                 <div className="voice-wave-bar" style={{ animationDelay: '0.2s' }} />
                 <div className="voice-wave-bar" style={{ animationDelay: '0.4s' }} />
