@@ -146,6 +146,47 @@ export async function initWhatsAppEngine(forceRestart = false): Promise<any> {
 }
 
 /**
+ * Request an 8-character Pairing Code for phone-number linking (Link with phone number instead)
+ */
+export async function requestWhatsAppPairingCode(phone: string): Promise<{ success: boolean; code?: string; error?: string }> {
+  try {
+    let sock = globalThis.__baileys_socket;
+    if (!sock) {
+      sock = await initWhatsAppEngine(true);
+    }
+
+    let cleaned = phone.replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('05')) {
+      cleaned = '966' + cleaned.substring(1);
+    } else if (cleaned.startsWith('5') && cleaned.length === 9) {
+      cleaned = '966' + cleaned;
+    }
+
+    // Wait a brief moment for socket registration if just started
+    await new Promise((r) => setTimeout(r, 1000));
+
+    if (!sock.requestPairingCode) {
+      return { success: false, error: 'محرك الواتساب لا يدعم كود الاقتران حالياً' };
+    }
+
+    const rawCode = await sock.requestPairingCode(cleaned);
+    // Format code with dash e.g. ABCD-EFGH
+    const formattedCode = rawCode?.match(/.{1,4}/g)?.join('-') || rawCode;
+
+    return {
+      success: true,
+      code: formattedCode
+    };
+  } catch (error: any) {
+    console.error('Error requesting pairing code:', error);
+    return {
+      success: false,
+      error: error?.message || 'تعذر استخراج كود الاقتران. تأكد من صحة رقم الهاتف.'
+    };
+  }
+}
+
+/**
  * Send a WhatsApp text message directly via the embedded engine
  */
 export async function sendWhatsAppMessage(phone: string, text: string): Promise<{ success: boolean; messageId?: string; error?: string }> {

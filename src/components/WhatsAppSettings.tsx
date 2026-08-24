@@ -73,12 +73,51 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [isCopiedDocker, setIsCopiedDocker] = useState(false);
   const [activeTab, setActiveTab] = useState<'config' | 'templates' | 'logs'>('config');
 
-  // Live status / QR fetching state
+  // Live status / QR / Pairing code state
   const [isCheckingLiveStatus, setIsCheckingLiveStatus] = useState(false);
   const [liveQrCode, setLiveQrCode] = useState<string | null>(null);
   const [liveQrRaw, setLiveQrRaw] = useState<string | null>(null);
   const [livePairingCode, setLivePairingCode] = useState<string | null>(null);
   const [liveStatusText, setLiveStatusText] = useState<string | null>(null);
+  const [pairingMethod, setPairingMethod] = useState<'pairCode' | 'qr'>('pairCode');
+  const [pairPhoneInput, setPairPhoneInput] = useState(senderPhone || adminPhone || '05');
+  const [isRequestingPairCode, setIsRequestingPairCode] = useState(false);
+  const [pairCodeError, setPairCodeError] = useState<string | null>(null);
+  const [isCopiedPairCode, setIsCopiedPairCode] = useState(false);
+
+  const handleRequestPairCode = async () => {
+    if (!pairPhoneInput || pairPhoneInput.length < 9) {
+      setPairCodeError('يرجى إدخال رقم جوال صحيح (مثال: 0501234567)');
+      return;
+    }
+    setIsRequestingPairCode(true);
+    setPairCodeError(null);
+    try {
+      const res = await fetch('/api/whatsapp/pair-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: pairPhoneInput })
+      });
+      const data = await res.json();
+      if (data.success && data.code) {
+        setLivePairingCode(data.code);
+        setLiveStatusText('✅ تم توليد كود الربط! أدخله في جوالك الآن.');
+      } else {
+        setPairCodeError(data.error || 'تعذر الحصول على الكود. تأكد من الرقم وحاول مجدداً.');
+      }
+    } catch (err: any) {
+      setPairCodeError('تعذر الاتصال بالخادم.');
+    } finally {
+      setIsRequestingPairCode(false);
+    }
+  };
+
+  const handleCopyPairCode = () => {
+    if (!livePairingCode) return;
+    navigator.clipboard.writeText(livePairingCode.replace(/-/g, ''));
+    setIsCopiedPairCode(true);
+    setTimeout(() => setIsCopiedPairCode(false), 2500);
+  };
 
   const dockerCommand = `docker run -d --name evolution-api -p 8080:8080 -e AUTHENTICATION_API_KEY=${evolutionApiKey || '123456'} evoapicloud/evolution-api:latest`;
 
@@ -966,107 +1005,87 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       )}
 
       {/* =========================================================================
-          LIVE QR CODE MODAL
+          LIVE PAIRING & QR CODE MODAL
           ========================================================================= */}
       {showQrModal && (
         <div className="modal-backdrop" onClick={() => setShowQrModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '28px', maxWidth: '480px', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: '900', color: '#ffffff', marginBottom: '6px' }}>
-              اقتران الواتساب (Scan QR Code) 📱
-            </h3>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '24px', maxWidth: '520px', textAlign: 'center' }}>
             
-            {/* Case 1: Initial Loading with no QR code yet */}
-            {isCheckingLiveStatus && !liveQrCode && !liveQrRaw && (
-              <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                <RefreshCw size={40} color="#10b981" style={{ animation: 'spin 1s linear infinite' }} />
-                <p style={{ fontSize: '0.92rem', color: '#cbd5e1', fontWeight: 700 }}>
-                  جارِ الاتصال بمحرك الواتساب وتوليد كود QR عالي الدقة...
-                </p>
-              </div>
-            )}
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '900', color: '#ffffff', marginBottom: '4px' }}>
+              ربط واقتران الواتساب 📱
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '16px' }}>
+              اختر الطريقة الأسهل لك لربط رقم جوال المنشأة مع النظام
+            </p>
 
-            {/* Case 2: Live QR Ready (High Resolution PNG Image or SVG) */}
-            {(liveQrCode || liveQrRaw) && (
-              <>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '14px', lineHeight: 1.5 }}>
-                  افتح تطبيق واتساب على جوالك &larr; <strong>الأجهزة المرتبطة</strong> &larr; <strong>ربط جهاز</strong>:
-                </p>
-
-                {/* QR Frame - Ultra High Clarity */}
-                <div style={{
-                  width: '260px',
-                  height: '260px',
-                  margin: '0 auto 16px auto',
-                  background: '#FFFFFF',
-                  borderRadius: '20px',
-                  padding: '16px',
+            {/* Method Tabs */}
+            <div style={{
+              display: 'flex',
+              background: 'rgba(15, 23, 42, 0.6)',
+              padding: '4px',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              marginBottom: '20px',
+              gap: '6px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setPairingMethod('pairCode')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  background: pairingMethod === 'pairCode' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent',
+                  color: pairingMethod === 'pairCode' ? '#ffffff' : '#94a3b8',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 45px rgba(16, 185, 129, 0.4)',
-                  position: 'relative'
-                }}>
-                  {liveQrCode ? (
-                    <img 
-                      src={liveQrCode.startsWith('data:') ? liveQrCode : `data:image/png;base64,${liveQrCode}`} 
-                      alt="WhatsApp QR Code" 
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        objectFit: 'contain',
-                        imageRendering: 'pixelated'
-                      }} 
-                    />
-                  ) : liveQrRaw ? (
-                    <QRCodeSVG 
-                      value={liveQrRaw} 
-                      size={228} 
-                      level="M" 
-                      includeMargin={true}
-                    />
-                  ) : null}
-                </div>
+                  gap: '6px'
+                }}
+              >
+                <Key size={16} />
+                <span>الربط برقم الجوال (بدون كاميرا) ⭐</span>
+              </button>
 
-                {livePairingCode && (
-                  <div style={{
-                    marginBottom: '12px',
-                    padding: '8px 14px',
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    color: '#34d399'
-                  }}>
-                    كود الاقتران السريع: <strong style={{ letterSpacing: '2px', fontSize: '1.1rem' }}>{livePairingCode}</strong>
-                  </div>
-                )}
-
-                <div style={{ 
-                  display: 'inline-flex',
+              <button
+                type="button"
+                onClick={() => setPairingMethod('qr')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  background: pairingMethod === 'qr' ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'transparent',
+                  color: pairingMethod === 'qr' ? '#ffffff' : '#94a3b8',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '0.82rem', 
-                  color: '#34d399', 
-                  fontWeight: 700, 
-                  marginBottom: '16px',
-                  padding: '4px 12px',
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  borderRadius: '999px'
-                }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'spin 2s linear infinite' }} />
-                  <span>{liveStatusText || `كود QR نشط ومباشر — المزامنة التلقائية مفعلة`}</span>
-                </div>
-              </>
-            )}
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <QrCode size={16} />
+                <span>مسح كود QR 📱</span>
+              </button>
+            </div>
 
-            {/* Case 3: Server Offline / Error (Informative diagnostics instead of fake QR icon) */}
-            {!isCheckingLiveStatus && !liveQrCode && !liveQrRaw && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'right', margin: '14px 0 20px 0' }}>
+            {/* ===================== TAB 1: PAIRING CODE ===================== */}
+            {pairingMethod === 'pairCode' && (
+              <div style={{ textAlign: 'right' }}>
                 <div style={{
-                  padding: '16px',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
                   borderRadius: '12px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#fca5a5',
+                  padding: '14px',
+                  marginBottom: '16px',
                   fontSize: '0.85rem',
                   lineHeight: '1.6'
                 }}>
