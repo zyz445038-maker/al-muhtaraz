@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 // Global singleton reference in Node.js runtime to persist across hot-reloads
 declare global {
@@ -18,15 +19,16 @@ declare global {
   var __baileys_error: string | null | undefined;
 }
 
-const AUTH_DIR = path.join(process.cwd(), '.baileys_auth');
+// Path for storing auth credentials - uses writable temporary directory across both local OS and Vercel serverless
+const AUTH_DIR = path.join(os.tmpdir(), 'baileys_auth_muhtaraz');
 
-// Ensure directory exists
-if (!fs.existsSync(AUTH_DIR)) {
-  try {
+// Ensure directory exists safely
+try {
+  if (!fs.existsSync(AUTH_DIR)) {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
-  } catch (e) {
-    console.warn('Could not create auth dir:', e);
   }
+} catch (e) {
+  console.warn('Could not create auth dir:', e);
 }
 
 /**
