@@ -213,16 +213,25 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
           40% { transform: scale(1); opacity: 1; }
         }
+
+        .floating-voice-orb-container {
+          position: fixed;
+          bottom: 24px;
+          left: 24px;
+          z-index: 9990;
+          direction: rtl;
+        }
+
+        @media (max-width: 768px) {
+          .floating-voice-orb-container {
+            bottom: 75px !important;
+            left: 16px !important;
+          }
+        }
       `}</style>
 
-      {/* 👑 Floating Trigger Orb (Bottom-Left) */}
-      <div style={{
-        position: 'fixed',
-        bottom: '24px',
-        left: '24px',
-        zIndex: 9990,
-        direction: 'rtl'
-      }}>
+      {/* 👑 Floating Trigger Orb (Elevated above Mobile Bottom Bar) */}
+      <div className="floating-voice-orb-container">
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
