@@ -41,7 +41,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Discord Bridge States
-  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState('https://discord.com/api/webhooks/1541716427071819858/t30PNmg-72eTI9p5NnwPzDZGz6wm1B4DNWgPvHcQrMuNrnCQQSeb0bT5iyiKYH2ya3W1');
   const [isSendingDiscord, setIsSendingDiscord] = useState(false);
   const [discordStatus, setDiscordStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
