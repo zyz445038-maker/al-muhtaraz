@@ -39,12 +39,9 @@ import { InventoryManagement } from '@/components/InventoryManagement';
 import { DriverDispatchModal } from '@/components/DriverDispatchModal';
 import { StaffLoginModal } from '@/components/StaffLoginModal';
 import { formatDriverWhatsAppMessage } from '@/utils/driverDispatch';
-import { 
-  formatCustomerVoucherMessage, 
-  formatDriverMissionMessage, 
-  formatAdminAlertMessage 
-} from '@/utils/voucherFormatter';
+import { formatCustomerVoucherMessage, formatDriverMissionMessage, formatAdminAlertMessage } from '@/utils/voucherFormatter';
 import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
+import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -1211,16 +1208,70 @@ function MainDashboard() {
     setInAppNotifications(prev => [newInApp, ...prev]);
 
     // 🚀 1. Check Routing & Dispatch Official Voucher to Customer
+    // (Primary Plan: Luxury Digital Image Voucher 🖼️ | Safe Fallback: Formatted Text Document 📄)
     const shouldNotifyCustomer = assistantSettings.whatsapp_routing?.notify_customer ?? true;
     if (shouldNotifyCustomer && isRealCallablePhone(customerObj.phone)) {
-      await sendSilentWhatsApp(
-        customerObj.phone,
-        customerVoucherMessage,
-        'customer',
-        customerObj.name,
-        newContract.contract_number,
-        { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
-      );
+      let imageSent = false;
+      const receiptUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/receipt/${receiptNumber}?d=${encodeURIComponent(customerVoucherMessage)}` 
+        : `https://al-muhtaraz.vercel.app/receipt/${receiptNumber}`;
+
+      try {
+        // Generate High-Definition Digital Card Image
+        const imageBase64 = await generateContractVoucherImage({
+          contractNumber: newContract.contract_number,
+          receiptNumber: (isCash || paidAmount > 0) ? receiptNumber : undefined,
+          customerName: customerObj.name,
+          customerPhone: customerObj.phone,
+          containerNumber: containerObj?.container_number || '-',
+          contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
+          totalCost,
+          paidAmount,
+          remainingAmount,
+          paymentMethod: isCash ? 'نقدي كاش' : (isSadad ? 'بطاقة مدى / Apple Pay' : 'آجل'),
+          startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
+          endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
+          locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',
+          verificationUrl: receiptUrl
+        });
+
+        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وسند عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\n🧾 رابط السند الإلكتروني والطباعة:\n${receiptUrl}`;
+
+        const imgResult = await sendSilentWhatsApp(
+          customerObj.phone,
+          imageCaption,
+          'customer',
+          customerObj.name,
+          newContract.contract_number,
+          {
+            contract_id: newContract.id,
+            customer_id: customerObj.id,
+            recipient_role: 'customer',
+            notification_type: 'contract_created',
+            mediaBase64: imageBase64,
+            mediaType: 'image',
+            caption: imageCaption
+          }
+        );
+
+        if (imgResult?.success) {
+          imageSent = true;
+        }
+      } catch (err) {
+        console.warn('Primary Image dispatch failed, triggering safe text fallback:', err);
+      }
+
+      // 🛡️ Safe Fallback: If image dispatch failed for any reason, send the reliable text voucher!
+      if (!imageSent) {
+        await sendSilentWhatsApp(
+          customerObj.phone,
+          customerVoucherMessage,
+          'customer',
+          customerObj.name,
+          newContract.contract_number,
+          { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
+        );
+      }
     } else if (shouldNotifyCustomer) {
       // Customer phone was invalid/missing
       const warnAlertId = `wa-alert-cust-${Date.now()}`;
