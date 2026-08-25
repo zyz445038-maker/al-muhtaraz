@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { supabase } from '@/lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReceiptData {
@@ -89,33 +90,128 @@ function decodeUtf8Base64(encodedStr: string): ReceiptData | null {
   }
 }
 
-export default function ReceiptPage({ params }: { params: Promise<{ number: string }> }) {
+export default function ReceiptPage({ params }: { params: Promise<{ number: string }> | { number: string } }) {
   const [data, setData] = useState<ReceiptData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selfUrl, setSelfUrl] = useState('');
 
   useEffect(() => {
-    setSelfUrl(window.location.href);
-    try {
-      const search = new URLSearchParams(window.location.search);
-      const encoded = search.get('d');
-      if (!encoded) {
+    async function loadReceipt() {
+      setIsLoading(true);
+      if (typeof window !== 'undefined') {
+        setSelfUrl(window.location.href);
+      }
+
+      // 1. Check if encoded payload 'd' exists in query string
+      try {
+        const search = new URLSearchParams(window.location.search);
+        const encoded = search.get('d');
+        if (encoded) {
+          const parsed = decodeUtf8Base64(encoded);
+          if (parsed && parsed.receiptNumber) {
+            setData(parsed);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('URLSearchParams decode error:', e);
+      }
+
+      // 2. Resolve param number
+      let rawNumber = '';
+      try {
+        const resolved = await Promise.resolve(params);
+        rawNumber = decodeURIComponent(resolved?.number || '').trim();
+      } catch (err) {
+        console.warn('Params resolve error:', err);
+      }
+
+      if (!rawNumber) {
         setError(true);
+        setIsLoading(false);
         return;
       }
-      const parsed = decodeUtf8Base64(encoded);
-      if (parsed && parsed.receiptNumber) {
-        setData(parsed);
-      } else {
+
+      // 3. Query Supabase directly
+      try {
+        // A) Query receipts table first
+        const { data: recItem, error: recErr } = await supabase
+          .from('receipts')
+          .select('*, contract:contracts(*, customer:customers(*), container:containers(*)), customer:customers(*)')
+          .eq('receipt_number', rawNumber)
+          .maybeSingle();
+
+        if (recItem && recItem.contract) {
+          const c = recItem.contract;
+          const cust = recItem.customer || c.customer;
+          const cont = c.container;
+          setData({
+            receiptNumber: recItem.receipt_number,
+            contractNumber: c.contract_number,
+            customerName: cust?.name || 'عميل مؤسسة المحترز',
+            customerPhone: cust?.phone || '-',
+            containerNumber: cont?.container_number || '-',
+            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : (c.period_type === 'monthly' ? 'حاوية أنقاض (عقد شهري)' : 'حاوية أنقاض (عقد يومي)'),
+            paidAmount: Number(recItem.amount || c.paid_amount || c.total_cost || 0),
+            totalCost: Number(c.total_cost || 0),
+            paymentMethod: recItem.payment_method || c.payment_method || 'mada',
+            startDate: c.start_date ? new Date(c.start_date).toLocaleDateString('ar-SA') : '-',
+            endDate: c.end_date ? new Date(c.end_date).toLocaleDateString('ar-SA') : '-',
+            locationAddress: c.location_address || 'الموقع المحدد بالعقد',
+            issueDate: recItem.created_at || c.created_at || new Date().toISOString(),
+            notes: recItem.notes || c.notes || ''
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // B) Query contracts table fallback
+        const { data: contractItem, error: ctrErr } = await supabase
+          .from('contracts')
+          .select('*, customer:customers(*), container:containers(*)')
+          .or(`receipt_number.eq.${rawNumber},contract_number.eq.${rawNumber}`)
+          .maybeSingle();
+
+        if (contractItem) {
+          const c = contractItem;
+          const cust = c.customer;
+          const cont = c.container;
+          setData({
+            receiptNumber: c.receipt_number || rawNumber,
+            contractNumber: c.contract_number,
+            customerName: cust?.name || 'عميل مؤسسة المحترز',
+            customerPhone: cust?.phone || '-',
+            containerNumber: cont?.container_number || '-',
+            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : (c.period_type === 'monthly' ? 'حاوية أنقاض (عقد شهري)' : 'حاوية أنقاض (عقد يومي)'),
+            paidAmount: Number(c.paid_amount || c.total_cost || 0),
+            totalCost: Number(c.total_cost || 0),
+            paymentMethod: c.payment_method || 'mada',
+            startDate: c.start_date ? new Date(c.start_date).toLocaleDateString('ar-SA') : '-',
+            endDate: c.end_date ? new Date(c.end_date).toLocaleDateString('ar-SA') : '-',
+            locationAddress: c.location_address || 'الموقع المحدد بالعقد',
+            issueDate: c.created_at || new Date().toISOString(),
+            notes: c.notes || ''
+          });
+          setIsLoading(false);
+          return;
+        }
+
         setError(true);
+      } catch (err) {
+        console.error('Supabase receipt fetch error:', err);
+        setError(true);
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      setError(true);
     }
-  }, []);
+
+    loadReceipt();
+  }, [params]);
 
   /* ── Loading ── */
-  if (!data && !error) {
+  if (isLoading || (!data && !error)) {
     return (
       <div style={{
         minHeight: '100vh',
@@ -537,14 +633,14 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
               {/* QR Verification */}
               <div className="qr-box">
                 <div className="qr-img">
-                  {selfUrl && (
-                    <QRCodeSVG
-                      value={selfUrl}
-                      size={80}
-                      level="M"
-                      includeMargin={false}
-                    />
-                  )}
+                  <QRCodeSVG
+                    value={selfUrl || `https://almuhtaraz.com/receipt/${data.receiptNumber}`}
+                    size={90}
+                    level="M"
+                    includeMargin={true}
+                    fgColor="#000000"
+                    bgColor="#ffffff"
+                  />
                 </div>
                 <div>
                   <div className="verified-badge">

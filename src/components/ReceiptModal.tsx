@@ -128,8 +128,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       notes: receipt?.notes || ''
     };
     try {
-      const encoded = encodeUtf8Base64(receiptData);
-      setReceiptUrl(`${window.location.origin}/receipt/${receiptNumber}?d=${encoded}`);
+      const cleanUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/receipt/${receiptNumber}`
+        : `https://almuhtaraz.com/receipt/${receiptNumber}`;
+      setReceiptUrl(cleanUrl);
     } catch {
       setReceiptUrl(window.location.origin);
     }
@@ -559,14 +561,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   {receiptUrl ? (
                     <QRCodeSVG
                       value={receiptUrl}
-                      size={92}
+                      size={98}
                       level="M"
-                      includeMargin={false}
-                      fgColor="#0f172a"
+                      includeMargin={true}
+                      fgColor="#000000"
                       bgColor="#ffffff"
                     />
                   ) : (
-                    <div style={{ width: 92, height: 92, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.65rem' }}>
+                    <div style={{ width: 98, height: 98, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.65rem' }}>
                       جارٍ التوليد...
                     </div>
                   )}
