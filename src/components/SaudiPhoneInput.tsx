@@ -60,6 +60,24 @@ export function normalizeSaudiPhone(input: string): { local10: string; intl966: 
   };
 }
 
+/**
+ * Checks if a phone number is a REAL callable phone number (not a mock/placeholder number)
+ */
+export function isRealCallablePhone(phone?: string | null): boolean {
+  if (!phone) return false;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits || digits.length < 9) return false;
+
+  // Filter out common dummy/placeholder test numbers like 0500000001, 0550000002, 500000001, 966500000001, etc.
+  if (/^(966)?0?5[05]000000\d$/.test(digits)) return false;
+  if (/^(966)?0?5000000\d{2}$/.test(digits)) return false;
+  if (/^0?50000000\d$/.test(digits)) return false;
+  if (/^(966)?0?51234567\d?$/.test(digits)) return false;
+
+  const { isValid } = normalizeSaudiPhone(phone);
+  return isValid;
+}
+
 export const SaudiPhoneInput: React.FC<SaudiPhoneInputProps> = ({
   value,
   onChange,

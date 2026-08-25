@@ -44,6 +44,7 @@ import {
   formatDriverMissionMessage, 
   formatAdminAlertMessage 
 } from '@/utils/voucherFormatter';
+import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -695,7 +696,7 @@ function MainDashboard() {
     }
 
     // 🚀 Tracked Silent WhatsApp Dispatch for Receipt Confirmation
-    if (contract.customer?.phone) {
+    if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       const receiptAmount = remaining > 0 ? remaining : contract.total_cost;
       const receiptUrl = typeof window !== 'undefined' ? `${window.location.origin}/receipt/${receiptNumber}` : `https://almuhtaraz.com/receipt/${receiptNumber}`;
       const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وإصدار سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\n🧾 رابط السند الإلكتروني مع كود QR:\n${receiptUrl}\n\nشكراً لتعاملكم معنا 🏗️`;
@@ -843,7 +844,7 @@ function MainDashboard() {
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
     // 🚀 Tracked Silent WhatsApp Dispatch with Persistent Alert Feedback
-    if (contract.customer?.phone) {
+    if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       await sendSilentWhatsApp(
         contract.customer.phone,
         messageContent,
@@ -853,9 +854,9 @@ function MainDashboard() {
         { contract_id: contract.id, customer_id: contract.customer_id, recipient_role: 'customer', notification_type: 'contract_extended' }
       );
     }
-    // Dispatch to assigned driver if present
+    // Dispatch to assigned driver if present and real
     const extDriver = staffList.find(s => s.id === contract.assigned_employee_id);
-    if (extDriver?.phone) {
+    if (extDriver?.phone && isRealCallablePhone(extDriver.phone)) {
       const driverMsg = `🔄 تمديد عقد حاوية\nرقم العقد: ${contract.contract_number}\nرقم الحاوية: ${contract.container?.container_number || '-'}\nالعميل: ${contract.customer?.name || '-'} (${contract.customer?.phone || '-'})\nموعد السحب الجديد: ${new Date(newEndDate).toLocaleDateString('ar-SA')}\nمدة إضافية: +${additionalDays} يوم`;
       await sendSilentWhatsApp(
         extDriver.phone,
@@ -1182,9 +1183,9 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [newInApp, ...prev]);
 
-    // 🚀 1. Check Routing & Dispatch Official Voucher to Customer
+    // 🚀 1. Check Routing & Dispatch Official Voucher to Customer (ONLY if real phone number)
     const shouldNotifyCustomer = assistantSettings.whatsapp_routing?.notify_customer ?? true;
-    if (shouldNotifyCustomer && customerObj.phone) {
+    if (shouldNotifyCustomer && isRealCallablePhone(customerObj.phone)) {
       await sendSilentWhatsApp(
         customerObj.phone,
         customerVoucherMessage,
@@ -1195,9 +1196,9 @@ function MainDashboard() {
       );
     }
 
-    // 🚀 2. Check Routing & Dispatch to Driver (Operational Info ONLY - NO financial prices 🛡️)
+    // 🚀 2. Check Routing & Dispatch to Driver (ONLY if driver is assigned and has a real phone)
     const shouldNotifyDriver = assistantSettings.whatsapp_routing?.notify_driver ?? true;
-    if (shouldNotifyDriver && assignedStaff?.phone) {
+    if (shouldNotifyDriver && assignedStaff?.phone && isRealCallablePhone(assignedStaff.phone)) {
       const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
       const driverMsg = formatDriverMissionMessage({
         contract: newContract,
@@ -1216,10 +1217,10 @@ function MainDashboard() {
       );
     }
 
-    // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin
+    // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin (ONLY if real admin phone configured)
     const shouldNotifyAdmin = assistantSettings.whatsapp_routing?.notify_admin ?? true;
     const adminPhone = gatewaySettings.admin_phone || assistantSettings.daily_report?.admin_phone;
-    if (shouldNotifyAdmin && adminPhone) {
+    if (shouldNotifyAdmin && adminPhone && isRealCallablePhone(adminPhone)) {
       const adminAlertMsg = formatAdminAlertMessage({
         contract: newContract,
         customer: customerObj,

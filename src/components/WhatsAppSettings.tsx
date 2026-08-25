@@ -715,30 +715,19 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           </div>
 
           {/* Phones Settings */}
+          {/* Phones Settings */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">رقم جوال المؤسسة الرسمي المرسل:</label>
-              <input
-                type="text"
-                value={senderPhone}
-                onChange={(e) => setSenderPhone(e.target.value)}
-                placeholder="+966536971105"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none text-left"
-                dir="ltr"
-              />
-            </div>
+            <SaudiPhoneInput
+              label="رقم جوال المؤسسة الرسمي المرسل:"
+              value={senderPhone}
+              onChange={(val) => setSenderPhone(val)}
+            />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">رقم جوال المدير العام (أبو ماجد) لاستلام التقارير:</label>
-              <input
-                type="text"
-                value={adminPhone}
-                onChange={(e) => setAdminPhone(e.target.value)}
-                placeholder="+966500000001"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none text-left"
-                dir="ltr"
-              />
-            </div>
+            <SaudiPhoneInput
+              label="رقم جوال المدير العام (أبو ماجد) لاستلام التقارير:"
+              value={adminPhone}
+              onChange={(val) => setAdminPhone(val)}
+            />
           </div>
 
           <div className="flex justify-end pt-2">
