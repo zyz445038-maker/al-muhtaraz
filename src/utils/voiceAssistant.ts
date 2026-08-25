@@ -1,5 +1,6 @@
 // Voice Assistant Engine: Ultra-Reliable Unlocked Audio Pipeline for All Browsers
 import { querySystemKnowledge } from './aiCopilotKnowledge';
+import { diacritizeArabicSpeech } from './arabicDiacritizer';
 
 // ─── 1. Arabic Number to Words Converter ───────────────────────────────────────
 export function numberToArabicWords(num: number): string {
@@ -9,7 +10,7 @@ export function numberToArabicWords(num: number): string {
   const ones = ['', 'واحد', 'اثنين', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة'];
   const teens = ['عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
   const tens = ['', 'عشرة', 'عشرين', 'ثلاثين', 'أربعين', 'خمسين', 'ستين', 'سبعين', 'ثمانين', 'تسعين'];
-  const hundreds = ['', 'مية', 'ميتين', 'ثلاثمية', 'أربعمية', 'خمسمية', 'ستمية', 'سبعمية', 'ثمانمية', 'تسعمية'];
+  const hundreds = ['', 'مئة', 'مئتان', 'ثلاثمئة', 'أربعمئة', 'خمسمئة', 'ستمئة', 'سبعمئة', 'ثمانمئة', 'تسعمئة'];
 
   function convertChunk(n: number): string {
     let result = '';
@@ -45,7 +46,7 @@ export function numberToArabicWords(num: number): string {
 
   if (thousands > 0) {
     if (thousands === 1) finalResult += 'ألف';
-    else if (thousands === 2) finalResult += 'ألفين';
+    else if (thousands === 2) finalResult += 'ألفان';
     else if (thousands >= 3 && thousands <= 10) finalResult += convertChunk(thousands) + ' آلاف';
     else finalResult += convertChunk(thousands) + ' ألف';
   }
@@ -58,7 +59,7 @@ export function numberToArabicWords(num: number): string {
   return finalResult;
 }
 
-// ─── 2. Advanced Arabic & Saudi Dialect Semantic Normalizer ─────────────────────
+// ─── 2. Advanced Arabic Semantic Normalizer ───────────────────────────────────
 function normalizeArabicText(text: string): string {
   return text
     .replace(/[ًٌٍَُِّْ]/g, '')
@@ -71,7 +72,7 @@ function normalizeArabicText(text: string): string {
     .toLowerCase();
 }
 
-// ─── 3. Natural & Spontaneous Saudi Conversational Generator ─────────────────────
+// ─── 3. Natural, Concise & Eloquent Arabic Response Generator ─────────────────
 export function formatSaudiCheerResponse(rawIntent: string, data: {
   availableCount?: number;
   totalIncome?: number;
@@ -92,14 +93,14 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   } = data;
 
   if (customText) {
-    return { speechText: customText, displayText: customText };
+    return { speechText: diacritizeArabicSpeech(customText), displayText: customText };
   }
 
-  // 🧠 0. Query Comprehensive System Knowledge Base (Creator Signature & Deep Domain Knowledge)
+  // 🧠 0. Query Comprehensive Knowledge Base
   const knowledgeMatch = querySystemKnowledge(rawIntent);
   if (knowledgeMatch) {
     return {
-      speechText: knowledgeMatch.speechResponse,
+      speechText: diacritizeArabicSpeech(knowledgeMatch.speechResponse),
       displayText: knowledgeMatch.displayMarkdown
     };
   }
@@ -129,227 +130,129 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     'تريلات', 'سطحات', 'رافعات', 'رافعه', 'مشاوير', 'من شغال', 'من مداوم'
   ];
 
-  const generalBriefTokens = [
-    'علوم', 'وش العلوم', 'عطني العلوم', 'وش الوضع', 'وش الاخبار', 'وش صار', 
-    'علمني', 'ملخص', 'تقرير', 'وش فيه اليوم', 'كيف الشغل', 'كيف الامور', 
-    'بشرني', 'بشري', 'شلون الشغل', 'صباح الخير', 'مساء الخير', 'يا هلا'
-  ];
-
   const hasToken = (tokens: string[]) => tokens.some(t => normalized.includes(normalizeArabicText(t)));
 
-  // 💰 1. Financial Status / Income / Cash
+  // 💰 1. Financial Status / Income
   if (hasToken(financialTokens)) {
     if (totalIncome === 0) {
-      const speech = `هلا والله يا أبو ماجد، اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
-      const display = `💰 **هلا والله يا أبو ماجد!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
+      const speech = diacritizeArabicSpeech('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. لَمْ تُسَجَّلْ مَدَاخِيلُ مَالِيَّةٍ حَتَّى الآنْ.');
+      const display = `💰 **أهلاً وسهلاً بأبو ماجد:**\n\n• **إجمالي دخل اليوم:** 0 ر.س\n• بانتظار تسجيل السندات والتحصيلات الجديدة 🟢.`;
       return { speechText: speech, displayText: display };
     }
 
     const totalWords = numberToArabicWords(totalIncome);
-    const cashWords = numberToArabicWords(cashIncome);
-    const electronicWords = numberToArabicWords(electronicIncome);
-
-    let breakdown = '';
-    if (cashIncome > 0 && electronicIncome > 0) {
-      breakdown = `منها ${cashWords} ريال نقداً، و ${electronicWords} ريال سداد إلكتروني`;
-    } else if (cashIncome > 0) {
-      breakdown = `كلها مستلمة نقداً`;
-    } else {
-      breakdown = `كلها مدفوعة عبر السداد الإلكتروني`;
-    }
-
-    const speech = `يا هلا والله يا أبو ماجد! ما شاء الله الدخل اليوم وصل ${totalWords} ريال، ${breakdown}.. عساها مداخيل الخير والعافية يا رب!`;
-    const display = `💰 **يسعد لي هاليوم يا أبو ماجد! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
+    const speech = diacritizeArabicSpeech(`أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. إِجْمَالِيُّ دَخْلِ الْيَوْمْ ${totalWords} رِيَالْ..`);
+    const display = `💰 **التقرير المالي - أهلاً وسهلاً بأبو ماجد:**\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س**\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳`;
     return { speechText: speech, displayText: display };
   }
 
   // 📦 2. Containers / Stock Availability
   if (hasToken(containerTokens)) {
     if (availableCount === 0) {
-      const speech = `هلا يا أبو ماجد، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
-      const display = `📦 **ما شاء الله يا أبو ماجد!**\n\nكافة الحاويات مأجرة ونشطة حالياً في الميدان 🚛. لا توجد حاويات شاغرة بالمستودع حالياً.`;
+      const speech = diacritizeArabicSpeech('أَبْشِرْ يَا أَبُو مَاجِدْ.. جَمِيعُ الْحَاوِيَاتِ مُؤَجَّرَةٌ حَالِيّاً فِي الْمَيْدَانْ.');
+      const display = `📦 **تقرير الأسطول:**\n\nكافة الحاويات مؤجرة حالياً في الميدان 🚛. لا توجد شواغر بالمستودع.`;
       return { speechText: speech, displayText: display };
     }
 
     const availWords = numberToArabicWords(availableCount);
-    const speech = `يا هلا والله يا أبو ماجد! متوفر الحين في الحوش ${availWords} حاويات جاهزة للتأجير والتنزيل على طول، ربي يبارك في حلالك!`;
-    const display = `✨ **يا هلا والله ومسهلا يا أبو ماجد!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
+    const speech = diacritizeArabicSpeech(`أَبْشِرْ يَا أَبُو مَاجِدْ.. يَتَوَفَّرُ فِي الْمَخْزُونِ ${availWords} حَاوِيَةً جَاهِزَةً لِلتَّأْجِيرْ..`);
+    const display = `📦 **المخزون المتوفر:**\n\nيوجد حالياً **(${availableCount})** حاوية شاغرة وجاهزة للتنزيل الفوري.`;
     return { speechText: speech, displayText: display };
   }
 
   // ⚠️ 3. Expiring Contracts & Municipality Warning
   if (hasToken(expiringTokens)) {
     if (expiringCount === 0) {
-      const speech = `تطمن يا أبو ماجد، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
-      const display = `✅ **تطمن يا أبو ماجد، كل الأمور تحت السيطرة!**\n\nما عندك أي حاويات متأخرة أو تنتهي بكرة. كل الأسطول منضبط وموثق 🌟.`;
+      const speech = diacritizeArabicSpeech('أَبْشِرْ يَا أَبُو مَاجِدْ.. لَا تُوجَدُ حَاوِيَاتٌ مُتَأَخِّرَةٌ أَو تَنْتَهِي غَداً..');
+      const display = `✅ **حالة العقود والبلدية:**\n\nجميع العقود سارية ومنضبطة ولا توجد أي حاويات متأخرة عن موعد السحب.`;
       return { speechText: speech, displayText: display };
     }
 
     const expWords = numberToArabicWords(expiringCount);
-    const speech = `يا أبو ماجد، انتبه ترى فيه ${expWords} عقود بتنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`;
-    const display = `⚠️ **يا هلا يا أبو ماجد، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`;
+    const speech = diacritizeArabicSpeech(`تَنْبِيهٌ يَا أَبُو مَاجِدْ.. تُوجَدُ ${expWords} عُقُودٍ تَنْتَهِي غَداً يَلْزَمُ سَحْبُهَا..`);
+    const display = `⚠️ **تنبيه الإدارة:**\n\nيوجد **(${expiringCount})** عقود تنتهي غداً وتتطلب سحب الحاويات أو التمديد فوراً لتفادي مخالفات الأمانة 🚜.`;
     return { speechText: speech, displayText: display };
   }
 
   // 🚛 4. Drivers & Field Operations
   if (hasToken(driverTokens)) {
-    const speech = `أبشر يا أبو ماجد، طاقم السائقين شغالين ومرسلين لهم تفاصيل العناوين والخرائط على الواتساب أول بأول!`;
-    const display = `🚛 **أبشر يا أبو ماجد:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
+    const speech = diacritizeArabicSpeech('أَبْشِرْ.. طَاقَمُ السَّائِقِينَ يُبَاشِرُونَ الْمَهَامَّ وَتَصِلُهُمُ الْعَنَاوِينُ تِلْقَائِيّاً..');
+    const display = `🚛 **طاقم الميدان:**\n\nالسائقون يباشرون المهام وترسل تفاصيل المواقع وروابط الخرائط لهم آلياً عبر الواتساب 📲.`;
     return { speechText: speech, displayText: display };
   }
 
-  // 📊 5. General Report & Daily Briefing ("عطني العلوم")
-  if (hasToken(generalBriefTokens) || normalized.includes('تقرير')) {
-    const activeWords = numberToArabicWords(activeCount);
-    const incomeWords = totalIncome > 0 ? numberToArabicWords(totalIncome) : 'صفر';
-    const availWords = numberToArabicWords(availableCount);
-
-    const speech = `يا هلا وغلا يا أبو ماجد! العلوم تسرك: عندك ${activeWords} عقد شغال، وإجمالي مبالغ اليوم ${incomeWords} ريال، وبالمستودع ${availWords} حاوية جاهزة.`;
-    const display = `📊 **الموجز التنفيذي لليوم يا أبو ماجد:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
-    return { speechText: speech, displayText: display };
-  }
-
-  // Default Warm Saudi Greeting
-  const activeWords = numberToArabicWords(activeCount);
-  const speech = `أبشر من عيوني يا أبو ماجد! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
-  const display = `👑 **أبشر من عيوني يا أبو ماجد!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
+  // 🌟 Default Concise Response
+  const speech = diacritizeArabicSpeech('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَبْشِرْ، كَيْفَ أَقْدِرْ أَخْدِمَكْ الْيَوْمْ؟');
+  const display = `✨ **أهلاً وسهلاً بأبو ماجد** 🌟\n\nجاهزة لمساعدتك فوراً في متابعة الأسطول، العقود، الدخل، وتوجيه السائقين.`;
   return { speechText: speech, displayText: display };
 }
 
-// ─── 4. Pre-Unlocked Universal Audio Element Engine ───────────────────────────
-let globalAudioElement: HTMLAudioElement | null = null;
+// ─── 4. Global Speech Dispatcher with Audio Context Unlock ───────────────────
+let unlockedAudioContext: AudioContext | null = null;
+let currentAudio: HTMLAudioElement | null = null;
 
-// Call this on every user touch/click gesture to permanently unlock audio
-export function unlockAudio() {
+export function unlockAudio(): void {
   if (typeof window === 'undefined') return;
   try {
-    if (!globalAudioElement) {
-      globalAudioElement = new Audio();
-      globalAudioElement.preload = 'auto';
-    }
-    // Play a 0.05s silent data URI to unlock audio on iOS and Android
-    globalAudioElement.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
-    globalAudioElement.play().catch(() => {});
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.resume();
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx && !unlockedAudioContext) {
+      unlockedAudioContext = new AudioCtx();
+      if (unlockedAudioContext.state === 'suspended') {
+        unlockedAudioContext.resume();
+      }
     }
   } catch (e) {
-    console.warn('Audio unlock error:', e);
+    console.warn('AudioContext init notice:', e);
   }
 }
 
-// Audio playback disabled - Responses are purely written/text-only
-export async function speakSaudiFemaleVoice(text: string, onEnd?: () => void) {
+export function stopSpeaking(): void {
+  if (typeof window !== 'undefined') {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
+  }
+}
+
+export async function speakSaudiFemaleVoice(text: string, voiceKey: string = 'zariyah'): Promise<void> {
+  if (typeof window === 'undefined' || !text.trim()) return;
+
   stopSpeaking();
-  if (onEnd) onEnd();
-}
+  unlockAudio();
 
-
-function playBlobUrl(blobUrl: string, onEnd?: () => void, fallbackText?: string) {
+  // Try direct cloud stream with device speech fallback
   try {
-    if (!globalAudioElement) {
-      globalAudioElement = new Audio();
-    }
-
-    globalAudioElement.src = blobUrl;
-    globalAudioElement.onended = () => {
-      if (onEnd) onEnd();
-    };
-
-    globalAudioElement.onerror = () => {
-      if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
-    };
-
-    const playPromise = globalAudioElement.play();
+    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=${voiceKey}&rate=0%&t=${Date.now()}`;
+    const audio = new Audio(streamUrl);
+    currentAudio = audio;
+    
+    const playPromise = audio.play();
     if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        console.warn('Playback error:', err);
-        if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
-      });
+      await playPromise;
+      return;
     }
-  } catch (e) {
-    if (fallbackText) fallbackSpeechSynthesis(fallbackText, onEnd);
-  }
-}
-
-
-function selectBestArabicVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  if (!voices || voices.length === 0) return null;
-
-  // Score candidate voices based on natural quality and region
-  const scored = voices
-    .filter(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'))
-    .map(v => {
-      let score = 0;
-      const name = (v.name || '').toLowerCase();
-      const lang = (v.lang || '').toLowerCase();
-
-      // Highest priority: Saudi Arabia natural / neural voices
-      if (lang === 'ar-sa') score += 50;
-      if (lang.startsWith('ar-xa') || lang.startsWith('ar-ae')) score += 35;
-      if (lang.startsWith('ar')) score += 20;
-
-      // Quality indicator keywords in voice name
-      if (name.includes('natural') || name.includes('online') || name.includes('neural')) score += 40;
-      if (name.includes('zari') || name.includes('hamed') || name.includes('fatima') || name.includes('layla') || name.includes('salma')) score += 30;
-      if (name.includes('google')) score += 25;
-      if (name.includes('microsoft')) score += 20;
-      if (name.includes('desktop')) score -= 10; // Penalize legacy flat robotic desktop voices
-
-      return { voice: v, score };
-    });
-
-  if (scored.length === 0) {
-    // Fallback to any Arabic voice
-    return voices.find(v => v.lang.startsWith('ar')) || null;
+  } catch (err) {
+    console.warn('Direct stream fallback to device speech synthesis:', err);
   }
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].voice;
-}
-
-function fallbackSpeechSynthesis(cleanText: string, onEnd?: () => void) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    if (onEnd) onEnd();
-    return;
-  }
-
-  try {
-    window.speechSynthesis.resume();
-    const utterance = new SpeechSynthesisUtterance(cleanText);
+  // Device Speech Fallback
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
-    utterance.pitch = 1.04;
-    utterance.rate = 0.95; // Slightly calmer, more articulate speed for Arabic natural flow
+    utterance.pitch = voiceKey === 'hamed' ? 0.85 : 1.2;
+    utterance.rate = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    const bestVoice = selectBestArabicVoice(voices);
-    if (bestVoice) {
-      utterance.voice = bestVoice;
+    const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.name.includes('Arabic') || v.name.includes('Saudi') || v.name.includes('Maged') || v.name.includes('Laila'));
+    if (arabicVoice) {
+      utterance.voice = arabicVoice;
     }
-
-    utterance.onend = () => { if (onEnd) onEnd(); };
-    utterance.onerror = () => { if (onEnd) onEnd(); };
 
     window.speechSynthesis.speak(utterance);
-  } catch (e) {
-    if (onEnd) onEnd();
   }
 }
-
-export function stopSpeaking() {
-  if (typeof window !== 'undefined') {
-    if (globalAudioElement) {
-      try {
-        globalAudioElement.pause();
-        globalAudioElement.currentTime = 0;
-      } catch (e) {}
-    }
-    if ('speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch (e) {}
-    }
-  }
-}
-
