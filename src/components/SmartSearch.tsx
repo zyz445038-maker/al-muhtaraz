@@ -358,7 +358,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                         <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff' }}>
                           حاوية {container.container_number}
                         </div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <span className={`badge ${container.type === 'commercial' ? 'badge-commercial' : 'badge-debris'}`}>
                             {container.type === 'commercial' ? 'تجاري' : 'أنقاض'}
                           </span>
@@ -369,6 +369,33 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                             {container.status === 'available' ? 'متاحة للتأجير' :
                              container.status === 'rented' ? 'مؤجرة حالياً' : 'تحت الصيانة'}
                           </span>
+
+                          {/* Small Contract Review Icon for Rented Container in Search */}
+                          {container.status === 'rented' && (() => {
+                            const activeCont = contracts.find(c => c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled');
+                            return activeCont && onOpenReceipt ? (
+                              <button
+                                onClick={() => onOpenReceipt(activeCont)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.3))',
+                                  color: '#fbbf24',
+                                  border: '1px solid rgba(245, 158, 11, 0.5)',
+                                  cursor: 'pointer'
+                                }}
+                                title="عرض ومراجعة العقد والسند"
+                              >
+                                <FileText size={11} />
+                                <span>📜 العقد ({activeCont.contract_number})</span>
+                              </button>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -386,7 +413,9 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     paddingTop: '12px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    flexWrap: 'wrap',
+                    gap: '8px'
                   }}>
                     <div style={{ fontSize: '0.88rem', color: '#e2e8f0' }}>
                       {container.type === 'debris' ? (
@@ -407,26 +436,50 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                       </button>
                     )}
 
-                    {container.status === 'rented' && onOpenExtendModal && (
-                      (() => {
-                        const activeCont = contracts.find(c => c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled');
-                        return activeCont ? (
-                          <button
-                            className="btn-emerald"
-                            style={{
-                              padding: '6px 12px',
-                              fontSize: '0.8rem',
-                              fontWeight: 800,
-                              background: 'linear-gradient(135deg, #0284c7, #0369a1)'
-                            }}
-                            onClick={() => onOpenExtendModal(activeCont)}
-                          >
-                            <RotateCw size={13} />
-                            <span>🔄 تمديد العقد</span>
-                          </button>
-                        ) : null;
-                      })()
-                    )}
+                    {container.status === 'rented' && (() => {
+                      const activeCont = contracts.find(c => c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled');
+                      return activeCont ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {onOpenReceipt && (
+                            <button
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                borderRadius: '8px',
+                                border: '1px solid rgba(245, 158, 11, 0.45)',
+                                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.25))',
+                                color: '#fbbf24',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              onClick={() => onOpenReceipt(activeCont)}
+                              title="عرض ومراجعة العقد والسند"
+                            >
+                              <FileText size={13} />
+                              <span>📜 مراجعة العقد</span>
+                            </button>
+                          )}
+                          {onOpenExtendModal && (
+                            <button
+                              className="btn-emerald"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                background: 'linear-gradient(135deg, #0284c7, #0369a1)'
+                              }}
+                              onClick={() => onOpenExtendModal(activeCont)}
+                            >
+                              <RotateCw size={13} />
+                              <span>🔄 تمديد</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
               ))}

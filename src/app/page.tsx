@@ -1652,6 +1652,7 @@ function MainDashboard() {
                   setIsContractModalOpen(true);
                 }}
                 onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
+                onOpenReceipt={(contract: Contract) => setSelectedReceiptContract(contract)}
               />
             )}
 

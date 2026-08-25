@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   RotateCw,
   FilePlus,
+  FileText,
   User,
   Phone
 } from 'lucide-react';
@@ -27,6 +28,7 @@ interface ContainersViewProps {
   onDeleteContainer: (containerId: string) => Promise<void>;
   onOpenRentModal: (containerId: string) => void;
   onOpenExtendModal?: (contract: Contract) => void;
+  onOpenReceipt?: (contract: Contract) => void;
 }
 
 export const ContainersView: React.FC<ContainersViewProps> = ({
@@ -38,7 +40,8 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
   onAddContainer,
   onDeleteContainer,
   onOpenRentModal,
-  onOpenExtendModal
+  onOpenExtendModal,
+  onOpenReceipt
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | ContainerType>('all');
@@ -253,17 +256,45 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                   </div>
                 </div>
 
-                <span style={{
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  background: badge.bg,
-                  color: badge.text,
-                  border: `1px solid ${badge.border}`
-                }}>
-                  {badge.label}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Small Contract Review Icon / Button if Rented */}
+                  {container.status === 'rented' && activeContract && (
+                    <button
+                      onClick={() => onOpenReceipt && onOpenReceipt(activeContract)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 9px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.3))',
+                        color: '#fbbf24',
+                        border: '1px solid rgba(245, 158, 11, 0.55)',
+                        cursor: 'pointer',
+                        boxShadow: '0 0 12px rgba(245, 158, 11, 0.25)',
+                        transition: 'transform 0.15s'
+                      }}
+                      title="عرض ومراجعة العقد والسند الإلكتروني"
+                    >
+                      <FileText size={13} />
+                      <span>📜 العقد</span>
+                    </button>
+                  )}
+
+                  <span style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: badge.bg,
+                    color: badge.text,
+                    border: `1px solid ${badge.border}`
+                  }}>
+                    {badge.label}
+                  </span>
+                </div>
               </div>
 
               {/* Rented Container Info (إذا كانت مؤجرة) */}
@@ -275,15 +306,32 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                   padding: '10px 12px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '4px'
+                  gap: '5px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
                       👤 {activeContract.customer?.name || 'العميل'}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: '#fbbf24', fontWeight: 700 }}>
-                      {activeContract.contract_number}
-                    </span>
+                    <button
+                      onClick={() => onOpenReceipt && onOpenReceipt(activeContract)}
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#fbbf24',
+                        fontWeight: 800,
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: '6px',
+                        padding: '2px 7px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="انقر لمراجعة العقد والسند"
+                    >
+                      <FileText size={11} />
+                      <span>{activeContract.contract_number}</span>
+                    </button>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#f87171' }}>
                     موعد السحب: {new Date(activeContract.expected_pickup_time || activeContract.end_date).toLocaleDateString('ar-SA')}
@@ -338,24 +386,49 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                     </button>
                   )
                 ) : container.status === 'rented' && activeContract ? (
-                  /* Rented: 🔄 تمديد العقد */
-                  (userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
+                  /* Rented: 📜 مراجعة العقد + 🔄 تمديد العقد */
+                  <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
                     <button
-                      className="btn-emerald"
                       style={{
                         flex: 1,
-                        padding: '8px 12px',
-                        fontSize: '0.82rem',
+                        padding: '8px 10px',
+                        fontSize: '0.8rem',
                         fontWeight: 800,
+                        borderRadius: '8px',
+                        border: '1px solid rgba(245, 158, 11, 0.45)',
+                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.25))',
+                        color: '#fbbf24',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
-                        background: 'linear-gradient(135deg, #0284c7, #0369a1)'
+                        gap: '5px'
                       }}
-                      onClick={() => onOpenExtendModal && onOpenExtendModal(activeContract)}
+                      onClick={() => onOpenReceipt && onOpenReceipt(activeContract)}
+                      title="عرض ومراجعة العقد والسند المالي الرسمي"
                     >
-                      <RotateCw size={15} />
-                      <span>🔄 تمديد العقد وتأجيل السحب</span>
+                      <FileText size={14} />
+                      <span>📜 مراجعة العقد</span>
                     </button>
-                  )
+
+                    {(userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
+                      <button
+                        className="btn-emerald"
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                          justifyContent: 'center',
+                          background: 'linear-gradient(135deg, #0284c7, #0369a1)'
+                        }}
+                        onClick={() => onOpenExtendModal && onOpenExtendModal(activeContract)}
+                        title="تمديد مدة العقد"
+                      >
+                        <RotateCw size={14} />
+                        <span>🔄 تمديد</span>
+                      </button>
+                    )}
+                  </div>
                 ) : null}
 
                 {/* Status Switcher Dropdown (Admin or if has inventory permissions) */}
