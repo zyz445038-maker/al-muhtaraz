@@ -43,6 +43,7 @@ import { formatCustomerVoucherMessage, formatDriverMissionMessage, formatAdminAl
 import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import { DevLab } from '@/components/DevLab';
+import { OfficialContractModal } from '@/components/OfficialContractModal';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -423,6 +424,9 @@ function MainDashboard() {
 
   // Extend Contract Modal State
   const [selectedExtendContract, setSelectedExtendContract] = useState<Contract | null>(null);
+
+  // Official Municipal Contract Modal State
+  const [isOfficialContractModalOpen, setIsOfficialContractModalOpen] = useState(false);
 
   // Driver Mission WhatsApp Dispatch Modal State
   const [selectedDriverDispatchContract, setSelectedDriverDispatchContract] = useState<Contract | null>(null);
@@ -1606,6 +1610,7 @@ function MainDashboard() {
           setPreSelectedContainerId(undefined);
           setIsContractModalOpen(true);
         }}
+        onOpenOfficialContract={() => setIsOfficialContractModalOpen(true)}
         onLogout={handleLogout}
         inAppNotifications={inAppNotifications}
         onMarkInAppAsRead={handleMarkInAppAsRead}
@@ -1812,6 +1817,7 @@ function MainDashboard() {
                 onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
                 onConfirmCashPayment={handleConfirmCashPayment}
                 onSendSadadLink={handleSendSadadLink}
+                onOpenOfficialContract={() => setIsOfficialContractModalOpen(true)}
               />
             )}
 
@@ -1885,6 +1891,13 @@ function MainDashboard() {
         currentProfile={currentProfile}
         onSelectProfile={handleSelectProfile}
         isMandatory={!isAuthenticated}
+      />
+
+      {/* 9. 📜 Official Municipal Container Rental Contract Modal (A4 Print / PDF / Electronic Seal) */}
+      <OfficialContractModal
+        isOpen={isOfficialContractModalOpen}
+        onClose={() => setIsOfficialContractModalOpen(false)}
+        userRole={currentRole}
       />
 
       {/* 👑 Floating Saudi Female Voice Assistant Orb (Admin Exclusively) */}

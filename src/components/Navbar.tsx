@@ -21,7 +21,8 @@ import {
   LogOut,
   ChevronLeft,
   Sparkles,
-  FlaskConical
+  FlaskConical,
+  FileCode2
 } from 'lucide-react';
 import { InAppNotification, Profile, StaffPermissions, UserRole } from '@/types/database';
 import { NotificationBell } from './NotificationBell';
@@ -40,6 +41,7 @@ interface NavbarProps {
   permissions?: StaffPermissions;
   onReplayIntro: () => void;
   onOpenNewContract: () => void;
+  onOpenOfficialContract?: () => void;
   onLogout?: () => void;
   inAppNotifications: InAppNotification[];
   onMarkInAppAsRead: (id: string) => void;
@@ -62,6 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   permissions,
   onReplayIntro,
   onOpenNewContract,
+  onOpenOfficialContract,
   onLogout,
   inAppNotifications,
   onMarkInAppAsRead,
@@ -422,6 +425,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClearAll={onClearAllInApp}
               onSelectContract={onSelectContract}
             />
+
+            {/* Official Municipal A4 Contract Button */}
+            {onOpenOfficialContract && permissions?.can_create_contracts !== false && (
+              <button
+                id="btn-official-contract-header"
+                onClick={onOpenOfficialContract}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                  color: '#ffffff',
+                  boxShadow: '0 0 16px rgba(220, 38, 38, 0.35)',
+                  border: '1px solid rgba(254, 202, 202, 0.3)',
+                  borderRadius: '12px',
+                  cursor: 'pointer'
+                }}
+                title="إنشاء وتوثيق عقد تأجير حاوية رسمي A4"
+              >
+                <FileCode2 size={17} />
+                <span>عقد البلدية الموثق A4</span>
+              </button>
+            )}
 
             {/* Main Action: New Contract Button */}
             {permissions?.can_create_contracts !== false && (
@@ -954,6 +983,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Quick Action in Mobile Drawer: Official Contract A4 */}
+            {onOpenOfficialContract && permissions?.can_create_contracts !== false && (
+              <button
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  onOpenOfficialContract();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(254, 202, 202, 0.3)',
+                  fontSize: '0.9rem',
+                  fontWeight: 800,
+                  boxShadow: '0 4px 15px rgba(220, 38, 38, 0.35)',
+                  cursor: 'pointer'
+                }}
+              >
+                <FileCode2 size={18} />
+                <span>📜 إصدار عقد البلدية الموثق A4</span>
+              </button>
+            )}
 
             {/* Drawer Menu Navigation Links */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

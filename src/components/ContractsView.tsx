@@ -19,7 +19,8 @@ import {
   Receipt as ReceiptIcon,
   Truck,
   UserCheck,
-  RotateCw
+  RotateCw,
+  FileCode2
 } from 'lucide-react';
 import { Contract, ContractStatus, UserRole, PaymentSettings, StaffPermissions } from '@/types/database';
 
@@ -36,6 +37,7 @@ interface ContractsViewProps {
   onOpenDriverDispatch?: (contract: Contract) => void;
   onConfirmCashPayment: (contract: Contract) => Promise<void>;
   onSendSadadLink: (contract: Contract) => Promise<void>;
+  onOpenOfficialContract?: () => void;
 }
 
 export const ContractsView: React.FC<ContractsViewProps> = ({
@@ -50,7 +52,8 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
   onOpenExtendModal,
   onOpenDriverDispatch,
   onConfirmCashPayment,
-  onSendSadadLink
+  onSendSadadLink,
+  onOpenOfficialContract
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'commercial' | 'debris'>('all');
@@ -127,6 +130,29 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
             متابعة العقود، مواعيد السحب، التمديد الفوري [🔄 تمديد]، السداد (كاش أو سداد)، وسندات القبض
           </p>
         </div>
+
+        {onOpenOfficialContract && permissions?.can_create_contracts !== false && (
+          <button
+            onClick={onOpenOfficialContract}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 18px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+              color: '#ffffff',
+              border: '1px solid rgba(254, 202, 202, 0.3)',
+              fontSize: '0.88rem',
+              fontWeight: 800,
+              boxShadow: '0 4px 18px rgba(220, 38, 38, 0.35)',
+              cursor: 'pointer'
+            }}
+          >
+            <FileCode2 size={18} />
+            <span>📜 إنشاء عقد البلدية الموثق A4</span>
+          </button>
+        )}
       </div>
 
       {/* Filter Bar */}
