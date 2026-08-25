@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   FlaskConical, 
   Mic, 
@@ -37,7 +37,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   const [speechRate, setSpeechRate] = useState<string>('+0%');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState<boolean>(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioStreamUrl, setAudioStreamUrl] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Discord Bridge States
@@ -47,59 +47,32 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Generate & Play Voice
-  const handleGenerateVoice = async () => {
+  // Generate & Play Voice via Direct Stream (Mobile & Desktop Autoplay Compliant)
+  const handleGenerateVoice = () => {
     if (!customText.trim()) return;
     setIsLoadingAudio(true);
     setErrorMessage(null);
+
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(customText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
+    setAudioStreamUrl(streamUrl);
+
     if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
-
-    try {
-      const url = `/api/voice/neural-tts?text=${encodeURIComponent(customText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}`;
-      const res = await fetch(url);
+      audioRef.current.src = streamUrl;
+      audioRef.current.load();
       
-      if (!res.ok) {
-        throw new Error('تعذر توليد الصوت من الخادم، يرجى المحاولة ثانية');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setIsLoadingAudio(false);
+          })
+          .catch((err) => {
+            console.warn('Playback notice:', err);
+            setIsLoadingAudio(false);
+            setIsPlaying(false);
+          });
       }
-
-      const blob = await res.blob();
-      const newAudioUrl = URL.createObjectURL(blob);
-      setAudioUrl(newAudioUrl);
-
-      // Auto play
-      const audio = new Audio(newAudioUrl);
-      audioRef.current = audio;
-      audio.onplay = () => setIsPlaying(true);
-      audio.onended = () => setIsPlaying(false);
-      audio.onerror = () => {
-        setIsPlaying(false);
-        setErrorMessage('حدث خطأ أثناء تشغيل الملف الصوتي');
-      };
-      await audio.play();
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'خطأ في معالجة الصوت البشري');
-      setIsPlaying(false);
-    } finally {
-      setIsLoadingAudio(false);
-    }
-  };
-
-  // Toggle Audio Play/Pause
-  const handleTogglePlay = () => {
-    if (!audioRef.current) {
-      handleGenerateVoice();
-      return;
-    }
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play();
-      setIsPlaying(true);
     }
   };
 
@@ -174,6 +147,20 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '70px', direction: 'rtl', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
+      {/* Hidden Audio Player instance */}
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        onError={() => {
+          setIsPlaying(false);
+          setIsLoadingAudio(false);
+          setErrorMessage('تعذر تشغيل الصوت. تأكد من اتصال الإنترنت.');
+        }}
+        preload="auto"
+      />
+
       {/* ─── 🧪 HEADER BANNER ─── */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.4) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(14, 116, 144, 0.4) 100%)',
@@ -407,38 +394,39 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 onClick={handleGenerateVoice}
                 disabled={isLoadingAudio}
                 style={{
-                  padding: '10px 20px',
-                  background: 'linear-gradient(135deg, #ec4899, #be185d)',
+                  padding: '12px 24px',
+                  background: isPlaying ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ec4899, #be185d)',
                   color: '#ffffff',
                   fontWeight: 900,
-                  fontSize: '0.85rem',
-                  borderRadius: '12px',
+                  fontSize: '0.9rem',
+                  borderRadius: '14px',
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 15px rgba(236, 72, 153, 0.4)'
+                  gap: '8px',
+                  boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                {isLoadingAudio ? <RefreshCw size={16} className="animate-spin" /> : isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                <span>{isLoadingAudio ? 'جارِ توليد الصوت البشري...' : isPlaying ? 'إيقاف مؤقت' : 'استماع للصوت الآن 🔊'}</span>
+                {isLoadingAudio ? <RefreshCw size={18} className="animate-spin" /> : isPlaying ? <Volume2 size={18} className="animate-bounce" /> : <Play size={18} />}
+                <span>{isLoadingAudio ? 'جارِ تجهيز الصوت...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع لصوت زاريّة 🔊'}</span>
               </button>
 
-              {audioUrl && (
+              {audioStreamUrl && (
                 <a
-                  href={audioUrl}
+                  href={audioStreamUrl}
                   download="almuhtaraz_voice.mp3"
                   style={{
-                    padding: '10px 14px',
+                    padding: '12px 16px',
                     background: 'rgba(255, 255, 255, 0.08)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '12px',
+                    borderRadius: '14px',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
@@ -448,11 +436,33 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   }}
                   title="تحميل المقطع كملف MP3"
                 >
-                  <Download size={16} />
+                  <Download size={18} />
                 </a>
               )}
             </div>
           </div>
+
+          {/* HTML5 Native Audio Bar fallback for manual touch */}
+          {audioStreamUrl && (
+            <div style={{
+              background: 'rgba(0,0,0,0.5)',
+              padding: '10px 14px',
+              borderRadius: '14px',
+              border: '1px solid rgba(236, 72, 153, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: '0.72rem', color: '#f472b6', fontWeight: 700 }}>
+                📻 مشغل الصوت المباشر:
+              </span>
+              <audio
+                controls
+                src={audioStreamUrl}
+                style={{ width: '100%', height: '36px' }}
+              />
+            </div>
+          )}
 
           {errorMessage && (
             <p style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 700 }}>{errorMessage}</p>
