@@ -21,19 +21,16 @@ export async function POST(request: Request) {
       contract_id, 
       customer_id, 
       recipient_role, 
-      notification_type, 
-      mode: requestedMode 
+      notification_type
     } = body;
 
     if (!phone || (!message && !mediaUrl && !mediaBase64 && !location)) {
       return NextResponse.json({ success: false, error: 'Phone and message or media are required' }, { status: 400 });
     }
 
-    // 1. Fetch WhatsApp Gateway Settings
-    let mode = requestedMode || 'embedded';
+    // 1. Fetch saved WhatsApp Settings
     let dbServerUrl = '';
     let dbApiKey = '';
-    let autoSendEnabled = true;
 
     try {
       const { data: settings } = await supabase
@@ -43,10 +40,8 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (settings) {
-        mode = requestedMode || settings.mode || settings.gateway_mode || mode;
         dbServerUrl = settings.evolution_server_url || '';
         dbApiKey = settings.evolution_api_key || '';
-        autoSendEnabled = settings.auto_send_enabled ?? true;
       }
     } catch (err) {
       console.warn('Using default settings due to db fetch failure:', err);
@@ -63,7 +58,7 @@ export async function POST(request: Request) {
     let sendSuccess = false;
     let apiResponse: any = null;
 
-    // Resolve cloud Addon server URL and API key
+    // Resolve active cloud Add-on server URL & API Key
     let addonServerUrl = process.env.WHATSAPP_ADDON_URL || dbServerUrl || 'https://al-muhtaraz-whatsapp.onrender.com';
     if (addonServerUrl.includes('localhost') || addonServerUrl.includes('8080')) {
       addonServerUrl = 'https://al-muhtaraz-whatsapp.onrender.com';
@@ -75,7 +70,7 @@ export async function POST(request: Request) {
       addonApiKey = 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
     }
 
-    // 2. Dispatch through Cloud Add-on server
+    // 2. Dispatch message through Cloud Add-on server
     try {
       const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
       const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
@@ -114,11 +109,12 @@ export async function POST(request: Request) {
         console.error('Addon server response error:', addonRes.status, errorText);
       }
     } catch (addonErr) {
-      console.warn('Failed sending via Addon server:', addonErr);
+      console.warn('Failed sending via Addon server, attempting local fallback:', addonErr);
     }
 
-      // If addon didn't succeed, fallback to embedded engine
-      if (!sendSuccess) {
+    // If cloud microservice was unreachable, try embedded fallback
+    if (!sendSuccess) {
+      try {
         const res = await sendWhatsAppMessage(cleanPhone, {
           text: message,
           mediaUrl,
@@ -131,56 +127,9 @@ export async function POST(request: Request) {
         });
         sendSuccess = res.success;
         apiResponse = res;
+      } catch (fallbackErr) {
+        console.warn('Embedded fallback error:', fallbackErr);
       }
-    } else if (mode === 'evolution' && autoSendEnabled) {
-      // External Evolution API
-      try {
-        const cleanServer = evolutionServerUrl.replace(/\/+$/, '');
-        const isMedia = mediaUrl || mediaBase64;
-        const targetUrl = isMedia
-          ? `${cleanServer}/message/sendMedia/${evolutionInstance}`
-          : `${cleanServer}/message/sendText/${evolutionInstance}`;
-
-        const evolutionPayload = isMedia ? {
-          number: cleanPhone,
-          mediatype: mediaType || 'document',
-          mimetype: mimetype || 'application/pdf',
-          caption: caption || message,
-          media: mediaUrl || mediaBase64,
-          fileName: fileName || 'document.pdf'
-        } : {
-          number: cleanPhone,
-          text: message,
-          options: {
-            delay: 1200,
-            presence: 'composing',
-            linkPreview: true
-          }
-        };
-
-        const res = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': evolutionApiKey
-          },
-          body: JSON.stringify(evolutionPayload)
-        });
-
-        apiResponse = await res.json();
-        sendSuccess = res.ok;
-      } catch (fetchErr: any) {
-        console.error('Evolution API Fetch Error:', fetchErr);
-        sendSuccess = false;
-        apiResponse = { error: fetchErr.message };
-      }
-    } else {
-      // Direct Web / wa.me Manual Mode
-      sendSuccess = true;
-      apiResponse = { 
-        mode: 'wame', 
-        direct_url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message || caption || '')}` 
-      };
     }
 
     // 3. Log notification to Supabase
@@ -202,7 +151,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: sendSuccess,
-      mode,
+      mode: 'addon',
       data: apiResponse
     });
 
