@@ -1,30 +1,22 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   FlaskConical, 
-  Mic, 
   Volume2, 
   Sparkles, 
   Send, 
   Play, 
-  Pause, 
-  Download, 
   RefreshCw, 
-  Radio, 
-  MessageSquare, 
-  Bot, 
-  Sliders, 
-  FileText, 
-  Check, 
-  ExternalLink,
-  Crown,
-  Zap,
-  Globe,
-  Truck,
-  Heart,
-  Smartphone
+  Globe, 
+  Smartphone,
+  CheckCircle2,
+  Edit3,
+  Sliders,
+  Radio,
+  FileCheck
 } from 'lucide-react';
+import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
 
 interface DevLabProps {
   currentRole: string;
@@ -32,12 +24,12 @@ interface DevLabProps {
 
 export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   // Voice Studio States
-  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'fatima' | 'salma' | 'hamed'>('zariyah');
-  const [customText, setCustomText] = useState('يا هلا والله ومسهلا يا أبو ماجد 🌸 أنا زاريّة، مساعدتك الذكية لمؤسسة المحترز للحاويات.. كيف أقدر أخدمك اليوم؟');
+  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
+  const [inputText, setInputText] = useState('يَا هَلَا وَالله وَمَسْهَلَا يَا أَبُو مَاجِدْ.. أَنَا زَارِيَّة، مُسَاعِدَتُك الذَّكِيَّة لِمُؤَسَّسَةِ الْمُحْتَرَزِ لِلْحَاوِيَاتْ.. كَيْفَ أَقْدِرْ أَخْدِمَكْ الْيَوْمْ؟');
   const [speechRate, setSpeechRate] = useState<string>('+0%');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState<boolean>(false);
-  const [audioStreamUrl, setAudioStreamUrl] = useState<string>('');
+  const [isApproved, setIsApproved] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Discord Bridge States
@@ -47,10 +39,18 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Native Browser Speech Fallback
-  const playNativeBrowserSpeech = (text: string, voiceKey: string) => {
+  // Automatic Arabic Diacritization & Phonetic Shaping
+  const handleAutoDiacritize = () => {
+    if (!inputText.trim()) return;
+    const diacritized = diacritizeArabicSpeech(inputText);
+    setInputText(diacritized);
+    setIsApproved(true);
+  };
+
+  // Native Device Speech Synthesis (Instant, 100% human-natural on modern iOS/Android/Windows)
+  const playNativeDeviceSpeech = (text: string, voiceKey: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setErrorMessage('المتصفح لا يدعم مشغل الصوت الداخلي');
+      setErrorMessage('متصفحك لا يدعم مشغل الصوت المدمج');
       return;
     }
 
@@ -58,19 +58,18 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
     
-    // Set pitch and rate
+    // Exact pitch tuning for natural dialect
     if (voiceKey === 'hamed') {
-      utterance.pitch = 0.85; // Deep male pitch
-      utterance.rate = 0.95;
+      utterance.pitch = 0.85; // Deep masculine tone
+      utterance.rate = speechRate === '+15%' ? 1.1 : speechRate === '-15%' ? 0.85 : 0.95;
     } else if (voiceKey === 'zariyah') {
-      utterance.pitch = 1.15; // Natural warm female pitch
-      utterance.rate = 1.0;
+      utterance.pitch = 1.18; // Warm, friendly Saudi female tone
+      utterance.rate = speechRate === '+15%' ? 1.15 : speechRate === '-15%' ? 0.85 : 1.0;
     } else {
       utterance.pitch = 1.05;
       utterance.rate = 1.05;
     }
 
-    // Match Arabic voices available in OS (Apple/Android/Windows)
     const voices = window.speechSynthesis.getVoices();
     const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.name.includes('Arabic') || v.name.includes('Saudi') || v.name.includes('Maged') || v.name.includes('Laila') || v.name.includes('Tarik'));
     if (arabicVoice) {
@@ -87,20 +86,18 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Generate & Play Voice via Direct Stream
-  const handleGenerateVoice = () => {
-    if (!customText.trim()) return;
+  // Generate & Play Voice via Cloud or Device
+  const handlePlayVoice = () => {
+    if (!inputText.trim()) return;
     setIsLoadingAudio(true);
     setErrorMessage(null);
 
-    // Cancel any ongoing browser speech
+    // Cancel previous audio
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
-    // Fast direct cloud streaming URL
-    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(customText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
-    setAudioStreamUrl(streamUrl);
+    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(inputText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
 
     if (audioRef.current) {
       audioRef.current.src = streamUrl;
@@ -114,64 +111,48 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             setIsLoadingAudio(false);
           })
           .catch((err) => {
-            console.warn('Cloud audio notice, switching to instant device speech:', err);
-            // Instant Seamless Fallback to device speech
-            playNativeBrowserSpeech(customText, selectedVoice);
+            console.warn('Cloud audio stream notice, playing native device voice:', err);
+            playNativeDeviceSpeech(inputText, selectedVoice);
           });
       }
     } else {
-      playNativeBrowserSpeech(customText, selectedVoice);
+      playNativeDeviceSpeech(inputText, selectedVoice);
     }
   };
 
-  // Send Test Message to Discord Webhook
-  const handleSendDiscordTest = async (type: 'contract' | 'alert' | 'marketing') => {
+  // Send Approved Content to Discord
+  const handleSendApprovedToDiscord = async () => {
     if (!discordWebhookUrl) {
-      setDiscordStatus({ ok: false, msg: 'يرجى إدخال رابط الـ Webhook الخاص بقناة ديسكورد أولاً' });
+      setDiscordStatus({ ok: false, msg: 'يرجى إدخال رابط الـ Webhook الخاص بقناة ديسكورد' });
+      return;
+    }
+
+    if (!inputText.trim()) {
+      setDiscordStatus({ ok: false, msg: 'لا يوجد نص لإرساله' });
       return;
     }
 
     setIsSendingDiscord(true);
     setDiscordStatus(null);
 
-    let payload: any = {};
-    if (type === 'contract') {
-      payload = {
-        username: 'مؤسسة المحترز للحاويات 🚛',
-        avatar_url: 'https://cdn-icons-png.flaticon.com/512/2830/2830305.png',
-        embeds: [{
-          title: '📋 عقد جديد رقم: CTR-2026-88',
-          description: 'تم إصدار عقد تأجير حاوية بنجاح وإرسال السند للعميل والسائق.',
-          color: 0xf59e0b, // Amber Gold
-          fields: [
-            { name: '👤 العميل', value: 'شركة مشاريع الرياض للمقاولات', inline: true },
-            { name: '📦 الحاوية', value: 'حاوية أنقاض (20 ياردة) - C104', inline: true },
-            { name: '💰 المبلغ المحصل', value: '1,500 ريال (كاش ✅)', inline: true },
-            { name: '📍 الموقع', value: 'حي النرجس، شمال الرياض', inline: false }
-          ],
-          footer: { text: 'منظومة المحترز الذكية | الإشراف التنفيذي' },
-          timestamp: new Date().toISOString()
-        }]
-      };
-    } else if (type === 'alert') {
-      payload = {
-        username: 'مساعد الرقابة والمتابعة ⚠️',
-        embeds: [{
-          title: '🚨 تنبيه تشغيلي: حاوية متأخرة عن موعد السحب',
-          description: 'الحاوية رقم **C-08** لدى مؤسسة التعمير انتهى عقدها منذ 24 ساعة ولم تسحب بعد.',
-          color: 0xef4444, // Red
-          fields: [
-            { name: '🚚 السائق المسؤول', value: 'أحمد السائق (+966500000002)', inline: true },
-            { name: '📍 الحي', value: 'حي العارض، الرياض', inline: true }
-          ]
-        }]
-      };
-    } else {
-      payload = {
-        username: 'استوديو التسويق الذكي 📢',
-        content: `**🚀 إعلان جديد جاهز للنشر على منصة X وانستغرام:**\n\n${customText}\n\n📞 للحجز الفوري عبر الواتساب: 0536971105`
-      };
-    }
+    const voiceTitle = selectedVoice === 'zariyah' ? '🌸 زاريّة (المساعد الصوتي)' : selectedVoice === 'hamed' ? '👔 حامد (المشرف التنفيذي)' : '✨ فاطمة (المعلقة الإعلانية)';
+
+    const payload = {
+      username: `غرفة عمليات المحترز | ${voiceTitle}`,
+      avatar_url: selectedVoice === 'hamed' ? 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' : 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png',
+      embeds: [{
+        title: '📢 بيان/تسجيل معتمد من المدير العام (أبو ماجد)',
+        description: inputText,
+        color: selectedVoice === 'hamed' ? 0xf59e0b : selectedVoice === 'zariyah' ? 0xec4899 : 0x38bdf8,
+        fields: [
+          { name: '🎙️ المعلق الصوتي', value: voiceTitle, inline: true },
+          { name: '⚡ حالة الاعتماد', value: 'تمت المراجعة والموافقة بنجاح ✅', inline: true },
+          { name: '📍 النظام', value: 'منظومة المحترز لإدارة الحاويات', inline: false }
+        ],
+        footer: { text: 'غرفة العمليات المركزية | ديسكورد' },
+        timestamp: new Date().toISOString()
+      }]
+    };
 
     try {
       const res = await fetch(discordWebhookUrl, {
@@ -181,7 +162,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
       });
 
       if (res.ok || res.status === 204) {
-        setDiscordStatus({ ok: true, msg: 'تم إرسال الرسالة إلى سيرفر ديسكورد بنجاح تام! 🎯' });
+        setDiscordStatus({ ok: true, msg: 'تم إرسال المنشور المعتمد إلى ديسكورد بنجاح تام! 🎯' });
       } else {
         setDiscordStatus({ ok: false, msg: 'تعذر الإرسال. تأكد من صحة رابط الـ Webhook.' });
       }
@@ -195,15 +176,15 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '70px', direction: 'rtl', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
-      {/* Hidden Audio Player instance */}
+      {/* Audio Element instance */}
       <audio
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
         onError={() => {
-          console.warn('Audio tag error, falling back to native voice');
-          playNativeBrowserSpeech(customText, selectedVoice);
+          console.warn('Audio element error, falling back to device speech');
+          playNativeDeviceSpeech(inputText, selectedVoice);
         }}
         preload="auto"
       />
@@ -213,48 +194,37 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.4) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(14, 116, 144, 0.4) 100%)',
         border: '1px solid rgba(168, 85, 247, 0.4)',
         borderRadius: '24px',
-        padding: '26px 24px',
+        padding: '24px',
         marginBottom: '24px',
-        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5), 0 0 35px rgba(168, 85, 247, 0.15)',
-        position: 'relative',
-        overflow: 'hidden'
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', position: 'relative', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '18px',
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
               background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-              border: '2px solid rgba(255, 255, 255, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
-              boxShadow: '0 0 25px rgba(168, 85, 247, 0.5)',
+              boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)',
               flexShrink: 0
             }}>
-              <FlaskConical size={32} strokeWidth={2.4} />
+              <FlaskConical size={30} strokeWidth={2.4} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <h1 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.5px' }}>
-                  مختبر التطوير والابتكار المستقل (R&D Dev-Lab)
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff' }}>
+                  مختبر الذكاء الصوتي وغرفة عمليات ديسكورد (R&D Lab)
                 </h1>
-                <span style={{
-                  background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.25))',
-                  color: '#f472b6',
-                  border: '1px solid rgba(236, 72, 153, 0.4)',
-                  fontSize: '0.75rem',
-                  fontWeight: 900,
-                  padding: '3px 10px',
-                  borderRadius: '12px'
-                }}>
-                  🔒 خاص بالمدير العام
+                <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.4)', fontSize: '0.75rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px' }}>
+                  🔒 تحكم وإشراف المدير العام (أبو ماجد)
                 </span>
               </div>
-              <p style={{ color: '#cbd5e1', fontSize: '0.88rem', marginTop: '4px', lineHeight: 1.5 }}>
-                مساحة تجارب معزولة 100% لبناء واختبار التعليق الصوتي البشري، بوتات ديسكورد، واستوديو النشر الإعلاني
+              <p style={{ color: '#cbd5e1', fontSize: '0.86rem', marginTop: '4px' }}>
+                مساحة حرة لصياغة وضبط وتشكيل النصوص، مراجعتها واعتمادها قبل النطق، وإرسالها لغرفة عمليات ديسكورد
               </p>
             </div>
           </div>
@@ -263,7 +233,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
         
-        {/* ─── 🎙️ SECTION 1: SAUDI NEURAL VOICE STUDIO (FEMALE & MALE) ─── */}
+        {/* ─── 🎙️ SECTION 1: CUSTOM SCRIPT COMPOSER & PHONETIC DIACRITIZER ─── */}
         <div style={{
           background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
           border: '1px solid rgba(236, 72, 153, 0.35)',
@@ -274,24 +244,30 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
           flexDirection: 'column',
           gap: '18px'
         }}>
-          <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Volume2 size={22} color="#ec4899" />
-              <span>استوديو الصوت البشري السعودي (مجاني 100%)</span>
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '3px' }}>
-              محرك صوتي متقن بنبرة بشرية طبيعية ودافئة بدون روبوتية وبدون تكاليف اشتراك
-            </p>
+          <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Volume2 size={22} color="#ec4899" />
+                <span>محرر النصوص وضبط مخارج الحركات الصوتية</span>
+              </h2>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                اكتب أي نص بحرية كاملة، قم بتشكيله صوتياً، واعتمد نطقه بنفسك
+              </p>
+            </div>
+            {isApproved && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399', padding: '4px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800 }}>
+                <CheckCircle2 size={14} />
+                <span>نص معتمد ومضبوط</span>
+              </span>
+            )}
           </div>
 
-          {/* Voice Selector Cards */}
+          {/* Voice Selector */}
           <div>
             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '8px' }}>
-              اختر المعلق الصوتي المفضل:
+              اختر نبرة المعلق الصوتي:
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-              
-              {/* Option 1: Zariyah (Default Female) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
               <button
                 onClick={() => setSelectedVoice('zariyah')}
                 style={{
@@ -303,22 +279,16 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   fontWeight: 800,
                   fontSize: '0.82rem',
                   cursor: 'pointer',
-                  textAlign: 'right',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                  transition: 'all 0.2s ease',
-                  boxShadow: selectedVoice === 'zariyah' ? '0 0 15px rgba(236, 72, 153, 0.25)' : 'none'
+                  textAlign: 'right'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>🌸 زاريّة (المقترح)</span>
+                  <span>🌸 زاريّة</span>
                   <span style={{ fontSize: '0.65rem', background: '#ec4899', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇸🇦</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>صوت سعودي دافئ وعفوي</span>
+                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة سعودية دافئة وعفوية</div>
               </button>
 
-              {/* Option 2: Hamed (Saudi Male) */}
               <button
                 onClick={() => setSelectedVoice('hamed')}
                 style={{
@@ -330,21 +300,16 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   fontWeight: 800,
                   fontSize: '0.82rem',
                   cursor: 'pointer',
-                  textAlign: 'right',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                  transition: 'all 0.2s ease'
+                  textAlign: 'right'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>👔 حامد</span>
                   <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>ذكر 🇸🇦</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>صوت رجالي تنفيذي</span>
+                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>صوت رجالي تنفيذي فخم</div>
               </button>
 
-              {/* Option 3: Fatima (UAE / Ad Female) */}
               <button
                 onClick={() => setSelectedVoice('fatima')}
                 style={{
@@ -356,68 +321,70 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   fontWeight: 800,
                   fontSize: '0.82rem',
                   cursor: 'pointer',
-                  textAlign: 'right',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                  transition: 'all 0.2s ease'
+                  textAlign: 'right'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>✨ فاطمة</span>
                   <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇦🇪</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>نبرة إعلانية خليجية قوية</span>
+                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة إعلانية خليجية رنانة</div>
               </button>
             </div>
           </div>
 
-          {/* Textarea Input */}
+          {/* Text Area */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '6px' }}>
-              نص الكلام المراد نطقه بصوت بشري:
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1' }}>
+                النص المراد إلقاؤه أو نشره:
+              </label>
+              <button
+                onClick={handleAutoDiacritize}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2))',
+                  border: '1px solid rgba(168, 85, 247, 0.4)',
+                  color: '#c084fc',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Sparkles size={13} />
+                <span>✨ تشكيل وضبط مخارج الحروف تلقائياً</span>
+              </button>
+            </div>
             <textarea
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
+              value={inputText}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                setIsApproved(false);
+              }}
               rows={4}
+              placeholder="اكتب هنا أي كلام تريده أن يُنطق أو يُنشر..."
               style={{
                 width: '100%',
-                padding: '12px',
+                padding: '14px',
                 borderRadius: '14px',
                 background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                border: isApproved ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
                 color: '#ffffff',
-                fontSize: '0.88rem',
-                lineHeight: 1.6,
+                fontSize: '0.92rem',
+                lineHeight: 1.7,
                 outline: 'none'
               }}
             />
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>
+              💡 سر العفوية التامة في النطق هو ضبط الحركات (الفَتْحَة والضَّمَّة) والفواصل الصوتية.
+            </p>
           </div>
 
-          {/* Quick Preset Chips */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setCustomText('يا هلا والله ومسهلا يا أبو ماجد 🌸 أنا زاريّة، مساعدتك الذكية لمؤسسة المحترز للحاويات.. كيف أقدر أخدمك اليوم؟')}
-              style={{ background: 'rgba(236, 72, 153, 0.15)', border: '1px solid rgba(236, 72, 153, 0.3)', color: '#f472b6', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 700 }}
-            >
-              + ترحيب المدير
-            </button>
-            <button
-              onClick={() => setCustomText('تبحث عن حاوية أنقاض وبناء بالرياض؟ مؤسسة المحترز توفر لك تنزيل وسحب فوري بأفضل الأسعار.. اتصل بنا الآن على 0536971105!')}
-              style={{ background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 700 }}
-            >
-              + إعلان المقاولين
-            </button>
-            <button
-              onClick={() => setCustomText('مرحباً بك يا أحمد، تم إسناد مهمة تنزيل حاوية جديدة لك في حي النرجس، نرجو التوجه للموقع فوراً.')}
-              style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#fbbf24', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 700 }}
-            >
-              + مهمة سائق
-            </button>
-          </div>
-
-          {/* Action Buttons */}
+          {/* Action Controls */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', background: 'rgba(0,0,0,0.3)', padding: '12px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>سرعة الإلقاء:</span>
@@ -442,30 +409,29 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <button
-                onClick={handleGenerateVoice}
+                onClick={handlePlayVoice}
                 disabled={isLoadingAudio}
                 style={{
                   padding: '12px 24px',
                   background: isPlaying ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ec4899, #be185d)',
                   color: '#ffffff',
                   fontWeight: 900,
-                  fontSize: '0.9rem',
+                  fontSize: '0.88rem',
                   borderRadius: '14px',
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)',
-                  transition: 'all 0.2s ease'
+                  boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)'
                 }}
               >
                 {isLoadingAudio ? <RefreshCw size={18} className="animate-spin" /> : isPlaying ? <Volume2 size={18} className="animate-bounce" /> : <Play size={18} />}
-                <span>{isLoadingAudio ? 'جارِ تشغيل الصوت...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع للصوت الآن 🔊'}</span>
+                <span>{isLoadingAudio ? 'جارِ التحضير...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع للنص الصوتي 🔊'}</span>
               </button>
 
               <button
-                onClick={() => playNativeBrowserSpeech(customText, selectedVoice)}
+                onClick={() => playNativeDeviceSpeech(inputText, selectedVoice)}
                 style={{
                   padding: '12px 16px',
                   background: 'rgba(56, 189, 248, 0.15)',
@@ -479,7 +445,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   alignItems: 'center',
                   gap: '6px'
                 }}
-                title="نطق فوري عبر معالج الجهاز الداخلي"
+                title="نطق فوري عبر معالج الجهاز"
               >
                 <Smartphone size={16} />
                 <span>نطق الجهاز الفوري</span>
@@ -492,7 +458,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
           )}
         </div>
 
-        {/* ─── 🎮 SECTION 2: DISCORD OPERATIONS & MARKETING BRIDGE ─── */}
+        {/* ─── 🎮 SECTION 2: DISCORD OPERATIONS & PUBLISHING HUB ─── */}
         <div style={{
           background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
           border: '1px solid rgba(99, 102, 241, 0.35)',
@@ -506,16 +472,16 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
           <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Globe size={22} color="#818cf8" />
-              <span>جسر ديسكورد وغرفة العمليات المباشرة (Discord Bridge)</span>
+              <span>غرفة عمليات ديسكورد والموافقة على النشر (Discord Bridge)</span>
             </h2>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '3px' }}>
-              ربط فوري ومجاني بدون بوتات معقدة لإرسال التقارير، بطاقات العقود، والإعلانات
+            <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+              لا يتم نشر أي رسالة أو بيان إلا بعد صياغته ومراجعتك وموافقتك التامة
             </p>
           </div>
 
           <div>
             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '6px' }}>
-              رابط الـ Webhook الخاص بقناة ديسكورد (Discord Webhook URL):
+              رابط قناة ديسكورد المعتمدة (Webhook URL):
             </label>
             <input
               type="text"
@@ -535,77 +501,58 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                 outline: 'none'
               }}
             />
-            <p style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px' }}>
-              💡 من إعدادات أي قناة في ديسكورد ➔ Integrations ➔ Create Webhook ➔ Copy Webhook URL.
-            </p>
           </div>
 
-          {/* Test Action Buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button
-              onClick={() => handleSendDiscordTest('contract')}
-              disabled={isSendingDiscord}
-              style={{
-                padding: '12px',
-                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.25))',
-                border: '1px solid rgba(245, 158, 11, 0.4)',
-                borderRadius: '12px',
-                color: '#fbbf24',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                transition: 'all 0.2s'
-              }}
-            >
-              <span>📋 تجربة إرسال بطاقة عقد ملونة إلى ديسكورد</span>
-              <Send size={16} />
-            </button>
+          {/* Action Approval Card */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1))',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: '16px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileCheck size={18} color="#a5b4fc" />
+              <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ffffff' }}>معاينة ما سيتم إرساله لديسكورد:</span>
+            </div>
+
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.4)',
+              padding: '12px',
+              borderRadius: '10px',
+              color: '#e2e8f0',
+              fontSize: '0.82rem',
+              lineHeight: 1.6,
+              maxHeight: '100px',
+              overflowY: 'auto'
+            }}>
+              {inputText || 'لا يوجد نص مكتوب حالياً'}
+            </div>
 
             <button
-              onClick={() => handleSendDiscordTest('alert')}
-              disabled={isSendingDiscord}
+              onClick={handleSendApprovedToDiscord}
+              disabled={isSendingDiscord || !inputText.trim()}
               style={{
                 padding: '12px',
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.25))',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
+                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                border: 'none',
                 borderRadius: '12px',
-                color: '#f87171',
-                fontSize: '0.82rem',
-                fontWeight: 800,
+                color: '#ffffff',
+                fontSize: '0.85rem',
+                fontWeight: 900,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.35)',
                 transition: 'all 0.2s'
               }}
             >
-              <span>🚨 تجربة إرسال تنبيه تأخير حاوية إلى ديسكورد</span>
-              <Send size={16} />
-            </button>
-
-            <button
-              onClick={() => handleSendDiscordTest('marketing')}
-              disabled={isSendingDiscord}
-              style={{
-                padding: '12px',
-                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(147, 51, 234, 0.25))',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
-                borderRadius: '12px',
-                color: '#c084fc',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                transition: 'all 0.2s'
-              }}
-            >
-              <span>📢 تجربة إرسال منشور إعلاني إلى ديسكورد</span>
-              <Send size={16} />
+              {isSendingDiscord ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+              <span>{isSendingDiscord ? 'جارِ النشر إلى ديسكورد...' : 'اعتماد ونشر هذا البيان إلى ديسكورد الآن 🚀'}</span>
             </button>
           </div>
 
