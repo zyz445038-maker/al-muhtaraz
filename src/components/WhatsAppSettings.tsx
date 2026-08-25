@@ -38,6 +38,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
+import { SaudiPhoneInput } from './SaudiPhoneInput';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -509,24 +510,18 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <label className="text-xs font-bold text-slate-300 block">رقم جوال الواتساب للمنشأة:</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={pairPhoneInput}
-                          onChange={(e) => setPairPhoneInput(e.target.value)}
-                          placeholder="0501234567"
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none text-left"
-                          dir="ltr"
-                        />
-                        <button
-                          onClick={handleRequestPairCode}
-                          disabled={isRequestingPair}
-                          className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow"
-                        >
-                          {isRequestingPair ? 'جارِ التوليد...' : 'طلب الكود'}
-                        </button>
-                      </div>
+                      <SaudiPhoneInput
+                        label="رقم جوال الواتساب للمنشأة:"
+                        value={pairPhoneInput}
+                        onChange={(val) => setPairPhoneInput(val)}
+                      />
+                      <button
+                        onClick={handleRequestPairCode}
+                        disabled={isRequestingPair || pairPhoneInput.length < 10}
+                        className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition shadow"
+                      >
+                        {isRequestingPair ? 'جارِ التوليد...' : 'طلب كود الربط الرقمي (8 خانات)'}
+                      </button>
 
                       {pairError && (
                         <p className="text-xs text-red-400 font-bold">{pairError}</p>
@@ -773,17 +768,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           </div>
 
           <div className="space-y-4 max-w-xl">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">رقم هاتف المستلم للتجربة:</label>
-              <input
-                type="text"
-                value={testPhoneInput}
-                onChange={(e) => setTestPhoneInput(e.target.value)}
-                placeholder="0501234567"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none text-left"
-                dir="ltr"
-              />
-            </div>
+            <SaudiPhoneInput
+              label="رقم هاتف المستلم للتجربة:"
+              value={testPhoneInput}
+              onChange={(val) => setTestPhoneInput(val)}
+            />
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300">نص الرسالة التجريبية:</label>

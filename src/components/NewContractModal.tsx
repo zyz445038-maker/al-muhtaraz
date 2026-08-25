@@ -28,6 +28,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod } from '@/types/database';
+import { SaudiPhoneInput } from './SaudiPhoneInput';
 
 export type PaymentChoice = 'cash' | 'sadad' | 'postpaid';
 
@@ -500,23 +501,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                رقم جوال العميل (للواتساب والسداد):
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Phone size={16} color="#94a3b8" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="tel"
-                  className="form-input"
-                  style={{ paddingRight: '36px', direction: 'ltr', textAlign: 'left' }}
-                  placeholder="+9665XXXXXXXX"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
+            <SaudiPhoneInput
+              label="رقم جوال العميل (للواتساب والسداد):"
+              value={customerPhone}
+              onChange={(val) => setCustomerPhone(val)}
+              required
+            />
           </div>
 
           {/* 4. Dates, Time & Duration Fast Quick-Select System */}

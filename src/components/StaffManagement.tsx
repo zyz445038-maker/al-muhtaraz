@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Profile, StaffPermissions, UserRole } from '@/types/database';
 import { openDriverWhatsApp } from '@/utils/driverDispatch';
+import { SaudiPhoneInput } from './SaudiPhoneInput';
 
 interface StaffManagementProps {
   staffList: Profile[];
@@ -781,20 +782,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               </div>
 
               {/* Phone */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#10b981' }}>
-                  رقم جوال الواتساب {jobRole === 'driver' ? '(لاستلام أوامر المهام والمواقع)' : ''}:
-                </label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  dir="ltr"
-                  placeholder="+9665XXXXXXXX"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                />
-              </div>
+              <SaudiPhoneInput
+                label={`رقم جوال الواتساب ${jobRole === 'driver' ? '(لاستلام أوامر المهام والمواقع)' : ''}:`}
+                value={phone}
+                onChange={(val) => setPhone(val)}
+                required
+              />
 
               {/* Driver Extra: Vehicle / Crane notes */}
               {jobRole === 'driver' && (
@@ -1107,19 +1100,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               </div>
 
               {/* 2. Phone Number */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#e2e8f0' }}>
-                  رقم جوال الواتساب للمهام:
-                </label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  dir="ltr"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  required
-                />
-              </div>
+              <SaudiPhoneInput
+                label="رقم جوال الواتساب للمهام:"
+                value={editPhone}
+                onChange={(val) => setEditPhone(val)}
+                required
+              />
 
               {/* 3. Password PIN (Only for non-drivers or staff with system login) */}
               {!editingStaff.full_name.includes('سائق') && !editingStaff.email?.includes('driver') && (
