@@ -20,7 +20,8 @@ import {
   Smartphone,
   LogOut,
   ChevronLeft,
-  Sparkles
+  Sparkles,
+  FlaskConical
 } from 'lucide-react';
 import { InAppNotification, Profile, StaffPermissions, UserRole } from '@/types/database';
 import { NotificationBell } from './NotificationBell';
