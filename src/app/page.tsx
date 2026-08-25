@@ -723,8 +723,7 @@ function MainDashboard() {
     // 🚀 Tracked Silent WhatsApp Dispatch for Receipt Confirmation
     if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       const receiptAmount = remaining > 0 ? remaining : contract.total_cost;
-      const receiptUrl = typeof window !== 'undefined' ? `${window.location.origin}/receipt/${receiptNumber}` : `https://almuhtaraz.com/receipt/${receiptNumber}`;
-      const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وإصدار سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\n🧾 رابط السند الإلكتروني مع كود QR:\n${receiptUrl}\n\nشكراً لتعاملكم معنا 🏗️`;
+      const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وتوثيق سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🏗️`;
       await sendSilentWhatsApp(
         contract.customer.phone,
         receiptMsg,
@@ -1236,7 +1235,7 @@ function MainDashboard() {
           verificationUrl: receiptUrl
         });
 
-        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وسند عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\n🧾 رابط السند الإلكتروني والطباعة:\n${receiptUrl}`;
+        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وسند عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
 
         const imgResult = await sendSilentWhatsApp(
           customerObj.phone,
