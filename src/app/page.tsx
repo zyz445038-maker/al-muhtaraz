@@ -364,7 +364,7 @@ function MainDashboard() {
     setIsAuthenticated(true);
     setIsStaffLoginModalOpen(false);
     if (profile.role === 'employee') {
-      if (['staff', 'gateway-settings', 'payment-settings'].includes(currentTab)) {
+      if (['staff', 'payment-settings'].includes(currentTab)) {
         setCurrentTab('search');
       }
     }
@@ -1636,7 +1636,7 @@ function MainDashboard() {
           <span>تنبيه لجميع الموظفين والسائقين: خادم الواتساب السحابي غير متصل حالياً — الرسائل التلقائية متوقفة مؤقتاً.</span>
           {currentRole === 'admin' && (
             <button
-              onClick={() => setCurrentTab('gateway-settings')}
+              onClick={() => setCurrentTab('whatsapp')}
               style={{
                 background: '#ef4444',
                 color: '#ffffff',
@@ -1816,7 +1816,7 @@ function MainDashboard() {
             )}
 
             {/* ✅ UNIFIED WHATSAPP CLOUD CENTER TAB */}
-            {(currentTab === 'whatsapp' || currentTab === 'gateway-settings') && (
+            {currentTab === 'whatsapp' && (
               <WhatsAppSettings
                 settings={gatewaySettings}
                 notifications={notifications}

@@ -303,29 +303,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <CreditCard size={17} />
                 <span>بوابة الدفع</span>
               </button>
-
-              <button
-                id="nav-gateway-settings-tab"
-                onClick={() => setCurrentTab('gateway-settings')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 16px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  background: currentTab === 'gateway-settings' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                  color: currentTab === 'gateway-settings' ? '#fbbf24' : '#94a3b8',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <Settings size={17} />
-                <span>إعدادات البوابة</span>
-              </button>
             </>
           )}
         </nav>
@@ -356,7 +333,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           ) : (
             <button
-              onClick={() => setCurrentTab('gateway-settings')}
+              onClick={() => setCurrentTab('whatsapp')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
