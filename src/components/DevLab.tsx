@@ -22,9 +22,9 @@ import {
   Zap,
   Globe,
   Truck,
-  Heart
+  Heart,
+  Smartphone
 } from 'lucide-react';
-import { NEURAL_VOICES } from '@/app/api/voice/neural-tts/route';
 
 interface DevLabProps {
   currentRole: string;
@@ -47,13 +47,59 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Generate & Play Voice via Direct Stream (Mobile & Desktop Autoplay Compliant)
+  // Native Browser Speech Fallback
+  const playNativeBrowserSpeech = (text: string, voiceKey: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setErrorMessage('المتصفح لا يدعم مشغل الصوت الداخلي');
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    
+    // Set pitch and rate
+    if (voiceKey === 'hamed') {
+      utterance.pitch = 0.85; // Deep male pitch
+      utterance.rate = 0.95;
+    } else if (voiceKey === 'zariyah') {
+      utterance.pitch = 1.15; // Natural warm female pitch
+      utterance.rate = 1.0;
+    } else {
+      utterance.pitch = 1.05;
+      utterance.rate = 1.05;
+    }
+
+    // Match Arabic voices available in OS (Apple/Android/Windows)
+    const voices = window.speechSynthesis.getVoices();
+    const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.name.includes('Arabic') || v.name.includes('Saudi') || v.name.includes('Maged') || v.name.includes('Laila') || v.name.includes('Tarik'));
+    if (arabicVoice) {
+      utterance.voice = arabicVoice;
+    }
+
+    utterance.onstart = () => {
+      setIsPlaying(true);
+      setIsLoadingAudio(false);
+    };
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Generate & Play Voice via Direct Stream
   const handleGenerateVoice = () => {
     if (!customText.trim()) return;
     setIsLoadingAudio(true);
     setErrorMessage(null);
 
-    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(customText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
+    // Cancel any ongoing browser speech
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    // Fast direct cloud streaming URL
+    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(customText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
     setAudioStreamUrl(streamUrl);
 
     if (audioRef.current) {
@@ -68,11 +114,13 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             setIsLoadingAudio(false);
           })
           .catch((err) => {
-            console.warn('Playback notice:', err);
-            setIsLoadingAudio(false);
-            setIsPlaying(false);
+            console.warn('Cloud audio notice, switching to instant device speech:', err);
+            // Instant Seamless Fallback to device speech
+            playNativeBrowserSpeech(customText, selectedVoice);
           });
       }
+    } else {
+      playNativeBrowserSpeech(customText, selectedVoice);
     }
   };
 
@@ -154,9 +202,8 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
         onError={() => {
-          setIsPlaying(false);
-          setIsLoadingAudio(false);
-          setErrorMessage('تعذر تشغيل الصوت. تأكد من اتصال الإنترنت.');
+          console.warn('Audio tag error, falling back to native voice');
+          playNativeBrowserSpeech(customText, selectedVoice);
         }}
         preload="auto"
       />
@@ -271,33 +318,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                 <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>صوت سعودي دافئ وعفوي</span>
               </button>
 
-              {/* Option 2: Fatima (UAE / Ad Female) */}
-              <button
-                onClick={() => setSelectedVoice('fatima')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '14px',
-                  border: selectedVoice === 'fatima' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: selectedVoice === 'fatima' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.2))' : 'rgba(0, 0, 0, 0.3)',
-                  color: selectedVoice === 'fatima' ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  textAlign: 'right',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>✨ فاطمة</span>
-                  <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇦🇪</span>
-                </div>
-                <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>نبرة إعلانية خليجية قوية</span>
-              </button>
-
-              {/* Option 3: Hamed (Saudi Male) */}
+              {/* Option 2: Hamed (Saudi Male) */}
               <button
                 onClick={() => setSelectedVoice('hamed')}
                 style={{
@@ -321,6 +342,32 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>ذكر 🇸🇦</span>
                 </div>
                 <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>صوت رجالي تنفيذي</span>
+              </button>
+
+              {/* Option 3: Fatima (UAE / Ad Female) */}
+              <button
+                onClick={() => setSelectedVoice('fatima')}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '14px',
+                  border: selectedVoice === 'fatima' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: selectedVoice === 'fatima' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.2))' : 'rgba(0, 0, 0, 0.3)',
+                  color: selectedVoice === 'fatima' ? '#38bdf8' : '#94a3b8',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'right',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>✨ فاطمة</span>
+                  <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇦🇪</span>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 500 }}>نبرة إعلانية خليجية قوية</span>
               </button>
             </div>
           </div>
@@ -370,7 +417,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             </button>
           </div>
 
-          {/* Speech Rate & Audio Controls */}
+          {/* Action Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', background: 'rgba(0,0,0,0.3)', padding: '12px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>سرعة الإلقاء:</span>
@@ -393,7 +440,6 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               </select>
             </div>
 
-            {/* Action Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 onClick={handleGenerateVoice}
@@ -415,54 +461,31 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                 }}
               >
                 {isLoadingAudio ? <RefreshCw size={18} className="animate-spin" /> : isPlaying ? <Volume2 size={18} className="animate-bounce" /> : <Play size={18} />}
-                <span>{isLoadingAudio ? 'جارِ تجهيز الصوت...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع لصوت زاريّة 🔊'}</span>
+                <span>{isLoadingAudio ? 'جارِ تشغيل الصوت...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع للصوت الآن 🔊'}</span>
               </button>
 
-              {audioStreamUrl && (
-                <a
-                  href={audioStreamUrl}
-                  download="almuhtaraz_voice.mp3"
-                  style={{
-                    padding: '12px 16px',
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '14px',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    textDecoration: 'none'
-                  }}
-                  title="تحميل المقطع كملف MP3"
-                >
-                  <Download size={18} />
-                </a>
-              )}
+              <button
+                onClick={() => playNativeBrowserSpeech(customText, selectedVoice)}
+                style={{
+                  padding: '12px 16px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: '14px',
+                  color: '#38bdf8',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="نطق فوري عبر معالج الجهاز الداخلي"
+              >
+                <Smartphone size={16} />
+                <span>نطق الجهاز الفوري</span>
+              </button>
             </div>
           </div>
-
-          {/* HTML5 Native Audio Bar fallback for manual touch */}
-          {audioStreamUrl && (
-            <div style={{
-              background: 'rgba(0,0,0,0.5)',
-              padding: '10px 14px',
-              borderRadius: '14px',
-              border: '1px solid rgba(236, 72, 153, 0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <span style={{ fontSize: '0.72rem', color: '#f472b6', fontWeight: 700 }}>
-                📻 مشغل الصوت المباشر:
-              </span>
-              <audio
-                controls
-                src={audioStreamUrl}
-                style={{ width: '100%', height: '36px' }}
-              />
-            </div>
-          )}
 
           {errorMessage && (
             <p style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 700 }}>{errorMessage}</p>
