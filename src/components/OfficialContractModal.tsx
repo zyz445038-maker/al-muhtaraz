@@ -550,20 +550,6 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   </select>
                 </div>
               </div>
-
-              {/* Dynamic generated clause preview strip */}
-              <div style={{
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: '8px',
-                padding: '8px 10px',
-                fontSize: '0.78rem',
-                color: '#34d399',
-                lineHeight: 1.5
-              }}>
-                <span style={{ fontWeight: 800 }}>📌 الصياغة التلقائية للبند 1: </span>
-                {dynamicClause1}
-              </div>
             </div>
 
             {/* Section 4: اعتماد وختم المدير */}
