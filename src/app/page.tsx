@@ -27,7 +27,6 @@ import { Navbar } from '@/components/Navbar';
 import { SmartSearch } from '@/components/SmartSearch';
 import { ContainersView } from '@/components/ContainersView';
 import { ContractsView } from '@/components/ContractsView';
-import { WhatsAppHub } from '@/components/WhatsAppHub';
 import { StaffManagement, DEFAULT_DRIVER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS } from '@/components/StaffManagement';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';

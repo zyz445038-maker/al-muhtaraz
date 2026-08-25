@@ -59,9 +59,17 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Navigation within WhatsApp Engine Hub
   const [activeSection, setActiveSection] = useState<'connection' | 'routing' | 'sandbox' | 'guide'>('connection');
 
-  // Server & Gateway Config
-  const [serverUrl, setServerUrl] = useState(settings.evolution_server_url || 'http://localhost:5050');
-  const [apiKey, setApiKey] = useState(settings.evolution_api_key || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f');
+  // Server & Gateway Config (Render Cloud Microservice)
+  const [serverUrl, setServerUrl] = useState(
+    settings.evolution_server_url && !settings.evolution_server_url.includes('8080')
+      ? settings.evolution_server_url 
+      : 'https://al-muhtaraz-whatsapp.onrender.com'
+  );
+  const [apiKey, setApiKey] = useState(
+    settings.evolution_api_key && settings.evolution_api_key.startsWith('mhk_live')
+      ? settings.evolution_api_key
+      : 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0'
+  );
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
   const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
   const [autoSendEnabled, setAutoSendEnabled] = useState(settings.auto_send_enabled ?? true);
