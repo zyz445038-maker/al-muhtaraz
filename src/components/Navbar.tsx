@@ -448,7 +448,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="إنشاء وتوثيق عقد تأجير حاوية رسمي A4"
               >
                 <FileCode2 size={17} />
-                <span>عقد البلدية الموثق A4</span>
+                <span>عقد رفع أنقاض موثق A4</span>
               </button>
             )}
 
@@ -1008,7 +1008,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
               >
                 <FileCode2 size={18} />
-                <span>📜 إصدار عقد البلدية الموثق A4</span>
+                <span>📜 إصدار عقد رفع أنقاض موثق A4</span>
               </button>
             )}
 

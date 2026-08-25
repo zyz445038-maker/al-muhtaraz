@@ -150,7 +150,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
             }}
           >
             <FileCode2 size={18} />
-            <span>📜 إنشاء عقد البلدية الموثق A4</span>
+            <span>📜 إنشاء عقد رفع أنقاض موثق A4</span>
           </button>
         )}
       </div>
