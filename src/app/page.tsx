@@ -429,6 +429,30 @@ function MainDashboard() {
   // Driver Mission WhatsApp Dispatch Modal State
   const [selectedDriverDispatchContract, setSelectedDriverDispatchContract] = useState<Contract | null>(null);
 
+  // Live WhatsApp Connection Status (Monitored across all dashboards)
+  const [whatsappLiveStatus, setWhatsappLiveStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connected');
+
+  useEffect(() => {
+    const pollWhatsAppStatus = async () => {
+      try {
+        const res = await fetch('/api/whatsapp/status');
+        const data = await res.json();
+        if (data.status === 'connected') {
+          setWhatsappLiveStatus('connected');
+        } else if (data.status === 'connecting') {
+          setWhatsappLiveStatus('connecting');
+        } else {
+          setWhatsappLiveStatus('disconnected');
+        }
+      } catch {
+        // Network failure
+      }
+    };
+    pollWhatsAppStatus();
+    const interval = setInterval(pollWhatsAppStatus, 25000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Fetch initial data from Supabase if connected
   useEffect(() => {
     const fetchSupabaseData = async () => {
@@ -1498,7 +1522,48 @@ function MainDashboard() {
         onMarkAllInAppAsRead={handleMarkAllInAppAsRead}
         onClearAllInApp={handleClearAllInApp}
         onSelectContract={handleSelectContractFromNotification}
+        whatsappStatus={whatsappLiveStatus}
       />
+
+      {/* ⚠️ Global WhatsApp Disconnected Alert Banner for ALL Employees */}
+      {whatsappLiveStatus === 'disconnected' && isAuthenticated && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.22) 0%, rgba(220, 38, 38, 0.35) 50%, rgba(239, 68, 68, 0.22) 100%)',
+          borderBottom: '1px solid rgba(239, 68, 68, 0.45)',
+          color: '#fee2e2',
+          padding: '9px 16px',
+          textAlign: 'center',
+          fontSize: '0.84rem',
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          boxShadow: '0 4px 15px rgba(239, 68, 68, 0.15)',
+          zIndex: 900
+        }}>
+          <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+          <span>تنبيه لجميع الموظفين والسائقين: خادم الواتساب السحابي غير متصل حالياً — الرسائل التلقائية متوقفة مؤقتاً.</span>
+          {currentRole === 'admin' && (
+            <button
+              onClick={() => setCurrentTab('gateway-settings')}
+              style={{
+                background: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '4px 14px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+              }}
+            >
+              إعادة ربط الجهاز الآن 🔄
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 3. Main Body Content */}
       <main style={{

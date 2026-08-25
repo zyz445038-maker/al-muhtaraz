@@ -540,18 +540,20 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </div>
 
                 {/* QR Display Area */}
-                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[300px]">
+                <div className="bg-slate-900/90 border border-amber-500/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[220px] shadow-lg shadow-amber-500/5">
                   {qrCodeBase64 ? (
-                    <div className="space-y-3">
-                      <div className="bg-white p-3 rounded-2xl shadow-xl inline-block">
-                        <img src={qrCodeBase64} alt="QR Code" className="w-56 h-56 block rounded-lg" />
+                    <div className="space-y-2.5 flex flex-col items-center">
+                      <div className="bg-white p-2.5 rounded-xl shadow-lg border-2 border-emerald-500/40 inline-block">
+                        <img src={qrCodeBase64} alt="QR Code" className="w-32 h-32 block rounded-lg object-contain" />
                       </div>
-                      <p className="text-xs text-slate-400">يتجدد الكود تلقائياً للحفاظ على الأمان</p>
+                      <p className="text-xs text-amber-400 font-bold flex items-center gap-1">
+                        <span>⚡ كود المسح السريع — يتجدد تلقائياً</span>
+                      </p>
                     </div>
                   ) : (
-                    <div className="space-y-3 text-slate-400">
-                      <RefreshCw className="w-8 h-8 mx-auto animate-spin text-emerald-400" />
-                      <p className="text-xs">جارِ توليد كود الـ QR من المحرك المستقل...</p>
+                    <div className="space-y-2 text-slate-400">
+                      <RefreshCw className="w-6 h-6 mx-auto animate-spin text-emerald-400" />
+                      <p className="text-xs text-slate-300 font-medium">جارِ توليد كود الـ QR من السيرفر السحابي...</p>
                     </div>
                   )}
                 </div>

@@ -39,6 +39,7 @@ interface NavbarProps {
   onMarkAllInAppAsRead: () => void;
   onClearAllInApp: () => void;
   onSelectContract: (contractId: string) => void;
+  whatsappStatus?: 'connected' | 'connecting' | 'disconnected';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -60,6 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onMarkAllInAppAsRead,
   onClearAllInApp,
   onSelectContract,
+  whatsappStatus = 'connected'
 }) => {
   return (
     <header style={{
@@ -328,9 +330,55 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </nav>
 
-        {/* Right Actions: Install App, In-App Bell, New Contract, Role Switcher, Replay Intro */}
+        {/* Right Actions: WhatsApp Status Pill, Install App, In-App Bell, New Contract, Role Switcher, Replay Intro */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           
+          {/* 📡 Live WhatsApp Cloud Connection Indicator */}
+          {whatsappStatus === 'connected' ? (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: '10px',
+                padding: '5px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                color: '#34d399',
+                boxShadow: '0 0 12px rgba(16, 185, 129, 0.15)'
+              }}
+              title="محرك الواتساب السحابي متصل ويعمل 24/7"
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981', display: 'inline-block' }}></span>
+              <span>الواتساب متصل 🟢</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setCurrentTab('gateway-settings')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.35))',
+                border: '1px solid #ef4444',
+                borderRadius: '10px',
+                padding: '5px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                color: '#fee2e2',
+                cursor: 'pointer',
+                boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)',
+                transition: 'transform 0.15s'
+              }}
+              title="⚠️ تنبيه: انقطاع اتصال الواتساب السحابي! اضغط لإعادة الربط"
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444', display: 'inline-block' }}></span>
+              <span>⚠️ انقطاع الواتساب 🔴</span>
+            </button>
+          )}
+
           {/* 📱 Executive PWA Install Button with Periodic Ambient Pulse */}
           <InstallAppButton />
 
