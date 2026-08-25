@@ -44,6 +44,8 @@ import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import { DevLab } from '@/components/DevLab';
 import { OfficialContractModal } from '@/components/OfficialContractModal';
+import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
+import { OfficialContractRecord, OfficialContractData, ContractSealSettings } from '@/types/officialContract';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -427,6 +429,167 @@ function MainDashboard() {
 
   // Official Municipal Contract Modal State
   const [isOfficialContractModalOpen, setIsOfficialContractModalOpen] = useState(false);
+  const [selectedOfficialRecordForModal, setSelectedOfficialRecordForModal] = useState<OfficialContractRecord | null>(null);
+
+  // ── 📜 OFFICIAL CONTRACTS & MANAGER SEAL AUTHENTICATION STATE ──
+  const [officialContractRecords, setOfficialContractRecords] = useState<OfficialContractRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('al_muhtaraz_official_contracts');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.warn('Error reading stored official contracts:', e);
+      }
+    }
+    return [
+      {
+        id: 'off-1',
+        status: 'pending_seal',
+        contractData: {
+          contractDate: new Date().toISOString().split('T')[0],
+          approvalNumber: 'APP-2026-9104',
+          serialNumber: '0208',
+          secondPartyName: 'شركة الإعمار والتطوير للمقاولات',
+          containerCount: 2,
+          containerType: 'حاوية مخلفات وترميم 20 ياردة',
+          phoneNumber: '0555123456',
+          plotNumber: '140 / ب',
+          planNumber: '254 / ج',
+          locationDescription: 'حي المروج — تقاطع شارع الملك فهد مع شارع الأندلس',
+          renovationLicenseYears: 1,
+          buildingLicenseYears: 2,
+          isSealed: false
+        },
+        createdBy: 'أحمد السائق',
+        createdAt: new Date().toISOString()
+      }
+    ];
+  });
+
+  const [contractSealSettings, setContractSealSettings] = useState<ContractSealSettings>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('al_muhtaraz_contract_seal_settings');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.warn('Error reading stored seal settings:', e);
+      }
+    }
+    return {
+      sealImageUrl: null,
+      managerName: 'أبو ماجد (المدير العام)',
+      updatedAt: new Date().toISOString()
+    };
+  });
+
+  // Sync official contracts to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('al_muhtaraz_official_contracts', JSON.stringify(officialContractRecords));
+      } catch (e) {
+        console.warn('Error saving official contracts locally:', e);
+      }
+    }
+  }, [officialContractRecords]);
+
+  // Sync seal settings
+  const handleSaveSealSettings = (settings: ContractSealSettings) => {
+    setContractSealSettings(settings);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('al_muhtaraz_contract_seal_settings', JSON.stringify(settings));
+      } catch (e) {
+        console.warn('Error saving seal settings locally:', e);
+      }
+    }
+  };
+
+  // Submit contract for manager sealing (Employee)
+  const handleSubmitOfficialContractForSealing = async (data: OfficialContractData): Promise<boolean> => {
+    const newRecord: OfficialContractRecord = {
+      id: `off-${Date.now()}`,
+      status: 'pending_seal',
+      contractData: data,
+      createdBy: currentProfile?.full_name || 'موظف',
+      createdAt: new Date().toISOString()
+    };
+    setOfficialContractRecords(prev => [newRecord, ...prev]);
+
+    // Send in-app notification to Manager
+    const inApp: InAppNotification = {
+      id: `notif-${Date.now()}`,
+      contract_id: newRecord.id,
+      title: `📑 عقد رفع أنقاض جديد بحاجة للتوثيق`,
+      message: `قام (${newRecord.createdBy}) برفع عقد رقم (${data.serialNumber}) لصالح (${data.secondPartyName}) بانتظار اعتماد وختم المدير.`,
+      type: 'contract_created',
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+    setInAppNotifications(prev => [inApp, ...prev]);
+    return true;
+  };
+
+  // Seal contract (Manager)
+  const handleSealOfficialContractByManager = async (recordId: string, data: OfficialContractData): Promise<boolean> => {
+    setOfficialContractRecords(prev => prev.map(rec => {
+      if (rec.id === recordId) {
+        return {
+          ...rec,
+          status: 'sealed',
+          contractData: {
+            ...data,
+            isSealed: true,
+            sealedBy: contractSealSettings.managerName || 'المدير العام',
+            sealedAt: new Date().toISOString(),
+            sealImageUrl: contractSealSettings.sealImageUrl || undefined
+          },
+          sealedBy: contractSealSettings.managerName || 'المدير العام',
+          sealedAt: new Date().toISOString(),
+          sealImageUrl: contractSealSettings.sealImageUrl || undefined
+        };
+      }
+      return rec;
+    }));
+
+    // In-app notification
+    const inApp: InAppNotification = {
+      id: `notif-sealed-${Date.now()}`,
+      contract_id: recordId,
+      title: `✓ تم توثيق وختم العقد (${data.serialNumber})`,
+      message: `تم اعتماد وختم العقد رسمياً وأصبح جاهزاً للطباعة والإرسال للطرف الثاني (${data.secondPartyName}).`,
+      type: 'contract_created',
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+    setInAppNotifications(prev => [inApp, ...prev]);
+    return true;
+  };
+
+  const handleDeleteOfficialContractRecord = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا العقد من سجلات التوثيق؟')) {
+      setOfficialContractRecords(prev => prev.filter(r => r.id !== id));
+    }
+  };
+
+  const handleOpenContractForSealing = (record: OfficialContractRecord) => {
+    setSelectedOfficialRecordForModal(record);
+    setIsOfficialContractModalOpen(true);
+  };
+
+  const handlePrintOfficialContract = (record: OfficialContractRecord) => {
+    setSelectedOfficialRecordForModal(record);
+    setIsOfficialContractModalOpen(true);
+  };
+
+  const handleSendOfficialContractWhatsApp = (record: OfficialContractRecord) => {
+    if (record.contractData.phoneNumber && isRealCallablePhone(record.contractData.phoneNumber)) {
+      const msg = `مرحباً ${record.contractData.secondPartyName}، مرفق عقد رفع الأنقاض الموثق والمعتمد رقم (${record.contractData.serialNumber}) من شركة المحترز للحاويات 🏗️.\n\nشكراً لتعاملكم معنا.`;
+      handleSendWhatsApp(record.contractData.phoneNumber, msg);
+    } else {
+      alert('رقم جوال الطرف الثاني غير مسجل أو غير صحيح.');
+    }
+  };
 
   // Driver Mission WhatsApp Dispatch Modal State
   const [selectedDriverDispatchContract, setSelectedDriverDispatchContract] = useState<Contract | null>(null);
@@ -1610,7 +1773,11 @@ function MainDashboard() {
           setPreSelectedContainerId(undefined);
           setIsContractModalOpen(true);
         }}
-        onOpenOfficialContract={() => setIsOfficialContractModalOpen(true)}
+        onOpenOfficialContract={() => {
+          setSelectedOfficialRecordForModal(null);
+          setIsOfficialContractModalOpen(true);
+        }}
+        pendingOfficialContractsCount={officialContractRecords.filter(r => r.status === 'pending_seal').length}
         onLogout={handleLogout}
         inAppNotifications={inAppNotifications}
         onMarkInAppAsRead={handleMarkInAppAsRead}
@@ -1833,6 +2000,20 @@ function MainDashboard() {
               />
             )}
 
+            {/* 🔖 OFFICIAL CONTRACTS AUTHENTICATION & ELECTRONIC SEAL HUB */}
+            {currentTab === 'contract-auth' && (
+              <ContractAuthenticationHub
+                currentRole={currentRole}
+                contracts={officialContractRecords}
+                onOpenContractForSealing={handleOpenContractForSealing}
+                onPrintContract={handlePrintOfficialContract}
+                onSendContractWhatsApp={handleSendOfficialContractWhatsApp}
+                onDeleteContractRecord={handleDeleteOfficialContractRecord}
+                sealSettings={contractSealSettings}
+                onSaveSealSettings={handleSaveSealSettings}
+              />
+            )}
+
             {/* 🧪 ISOLATED R&D DEV-LAB TAB (ADMIN ONLY) */}
             {currentTab === 'dev-lab' && currentRole === 'admin' && (
               <DevLab currentRole={currentRole} />
@@ -1896,8 +2077,15 @@ function MainDashboard() {
       {/* 9. 📜 Official Municipal Container Rental Contract Modal (A4 Print / PDF / Electronic Seal) */}
       <OfficialContractModal
         isOpen={isOfficialContractModalOpen}
-        onClose={() => setIsOfficialContractModalOpen(false)}
+        onClose={() => {
+          setIsOfficialContractModalOpen(false);
+          setSelectedOfficialRecordForModal(null);
+        }}
+        initialRecord={selectedOfficialRecordForModal}
         userRole={currentRole}
+        sealSettings={contractSealSettings}
+        onSubmitForSealing={handleSubmitOfficialContractForSealing}
+        onSealContractByManager={handleSealOfficialContractByManager}
       />
 
       {/* 👑 Floating Saudi Female Voice Assistant Orb (Admin Exclusively) */}

@@ -15,7 +15,27 @@ export interface OfficialContractData {
   isSealed: boolean;              // معتمد ومختوم إلكترونياً
   sealedBy?: string;              // اسم المعتمد
   sealedAt?: string;              // تاريخ ووقت الاعتماد
+  sealImageUrl?: string;          // صورة الختم الرسمي المستخدم
   notes?: string;
+}
+
+export type OfficialContractStatus = 'pending_seal' | 'sealed';
+
+export interface OfficialContractRecord {
+  id: string;
+  status: OfficialContractStatus;
+  contractData: OfficialContractData;
+  createdBy: string;
+  createdAt: string;
+  sealedBy?: string;
+  sealedAt?: string;
+  sealImageUrl?: string;
+}
+
+export interface ContractSealSettings {
+  sealImageUrl: string | null;
+  managerName: string;
+  updatedAt: string;
 }
 
 export const FIXED_CONTRACT_CLAUSES: string[] = [

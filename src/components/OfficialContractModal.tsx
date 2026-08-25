@@ -18,10 +18,14 @@ import {
   Stamp, 
   Download, 
   Sparkles,
-  RefreshCw
+  Send,
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 import { 
   OfficialContractData, 
+  OfficialContractRecord,
+  ContractSealSettings,
   FIXED_CONTRACT_CLAUSES, 
   CONTRACT_PLEDGE_TEXT, 
   COMPANY_OFFICIAL_INFO 
@@ -34,7 +38,11 @@ interface OfficialContractModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialData?: Partial<OfficialContractData>;
+  initialRecord?: OfficialContractRecord | null;
   userRole?: string;
+  sealSettings?: ContractSealSettings;
+  onSubmitForSealing?: (data: OfficialContractData) => Promise<boolean>;
+  onSealContractByManager?: (recordId: string, data: OfficialContractData) => Promise<boolean>;
   onSaveContract?: (data: OfficialContractData) => Promise<boolean>;
 }
 
@@ -42,59 +50,110 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
   isOpen,
   onClose,
   initialData,
+  initialRecord,
   userRole = 'admin',
+  sealSettings,
+  onSubmitForSealing,
+  onSealContractByManager,
   onSaveContract
 }) => {
   // Form State
   const [contractDate, setContractDate] = useState(
-    initialData?.contractDate || new Date().toISOString().split('T')[0]
+    initialRecord?.contractData?.contractDate || initialData?.contractDate || new Date().toISOString().split('T')[0]
   );
   const [approvalNumber, setApprovalNumber] = useState(
-    initialData?.approvalNumber || `APP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+    initialRecord?.contractData?.approvalNumber || initialData?.approvalNumber || `APP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
   );
   const [serialNumber, setSerialNumber] = useState(
-    initialData?.serialNumber || '0208'
+    initialRecord?.contractData?.serialNumber || initialData?.serialNumber || '0208'
   );
   const [secondPartyName, setSecondPartyName] = useState(
-    initialData?.secondPartyName || ''
+    initialRecord?.contractData?.secondPartyName || initialData?.secondPartyName || ''
   );
   const [containerCount, setContainerCount] = useState<number>(
-    initialData?.containerCount || 1
+    initialRecord?.contractData?.containerCount || initialData?.containerCount || 1
   );
   const [containerType, setContainerType] = useState(
-    initialData?.containerType || 'حاوية مخلفات وترميم 20 ياردة'
+    initialRecord?.contractData?.containerType || initialData?.containerType || 'حاوية مخلفات وأنقاض 20 ياردة'
   );
   const [phoneNumber, setPhoneNumber] = useState(
-    initialData?.phoneNumber || ''
+    initialRecord?.contractData?.phoneNumber || initialData?.phoneNumber || ''
   );
   const [plotNumber, setPlotNumber] = useState(
-    initialData?.plotNumber || ''
+    initialRecord?.contractData?.plotNumber || initialData?.plotNumber || ''
   );
   const [planNumber, setPlanNumber] = useState(
-    initialData?.planNumber || ''
+    initialRecord?.contractData?.planNumber || initialData?.planNumber || ''
   );
   const [locationDescription, setLocationDescription] = useState(
-    initialData?.locationDescription || ''
+    initialRecord?.contractData?.locationDescription || initialData?.locationDescription || ''
   );
   const [renovationLicenseYears, setRenovationLicenseYears] = useState<number>(
-    initialData?.renovationLicenseYears ?? 1
+    initialRecord?.contractData?.renovationLicenseYears ?? initialData?.renovationLicenseYears ?? 1
   );
   const [buildingLicenseYears, setBuildingLicenseYears] = useState<number>(
-    initialData?.buildingLicenseYears ?? 2
+    initialRecord?.contractData?.buildingLicenseYears ?? initialData?.buildingLicenseYears ?? 2
   );
   const [isSealed, setIsSealed] = useState<boolean>(
-    initialData?.isSealed ?? true
+    initialRecord?.status === 'sealed' || initialRecord?.contractData?.isSealed || (userRole === 'admin' && (initialData?.isSealed ?? false))
   );
 
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
-  const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>(
+    initialRecord ? 'preview' : 'editor'
+  );
+  const [isProcessing, setIsProcessing] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Sync when initialRecord changes
+  useEffect(() => {
+    if (initialRecord) {
+      setContractDate(initialRecord.contractData.contractDate);
+      setApprovalNumber(initialRecord.contractData.approvalNumber);
+      setSerialNumber(initialRecord.contractData.serialNumber);
+      setSecondPartyName(initialRecord.contractData.secondPartyName);
+      setContainerCount(initialRecord.contractData.containerCount);
+      setContainerType(initialRecord.contractData.containerType);
+      setPhoneNumber(initialRecord.contractData.phoneNumber);
+      setPlotNumber(initialRecord.contractData.plotNumber);
+      setPlanNumber(initialRecord.contractData.planNumber);
+      setLocationDescription(initialRecord.contractData.locationDescription);
+      setRenovationLicenseYears(initialRecord.contractData.renovationLicenseYears);
+      setBuildingLicenseYears(initialRecord.contractData.buildingLicenseYears);
+      setIsSealed(initialRecord.status === 'sealed' || initialRecord.contractData.isSealed);
+      setActiveTab('preview');
+    }
+  }, [initialRecord]);
 
   // Dynamic Clause 1
   const dynamicClause1 = generateContractClause1(renovationLicenseYears, buildingLicenseYears);
 
+  // Build contract data object
+  const getCurrentContractData = (): OfficialContractData => ({
+    contractDate,
+    approvalNumber,
+    serialNumber,
+    secondPartyName: secondPartyName.trim() || 'الطرف الثاني',
+    containerCount,
+    containerType,
+    phoneNumber,
+    plotNumber,
+    planNumber,
+    locationDescription,
+    renovationLicenseYears,
+    buildingLicenseYears,
+    isSealed,
+    sealedBy: isSealed ? (sealSettings?.managerName || 'المدير العام - شركة المحترز') : undefined,
+    sealedAt: isSealed ? new Date().toISOString() : undefined,
+    sealImageUrl: isSealed ? (sealSettings?.sealImageUrl || undefined) : undefined
+  });
+
   // Print Handler
   const handlePrint = () => {
+    if (!isSealed && userRole !== 'admin') {
+      alert('عفواً: لا يمكن طباعة العقد قبل اعتماده وختمه رسمياً من المدير العام.');
+      return;
+    }
+
     const printContent = printRef.current?.innerHTML;
     if (!printContent) return;
 
@@ -166,37 +225,53 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
     win.document.close();
   };
 
-  const handleSave = async () => {
-    const contractData: OfficialContractData = {
-      contractDate,
-      approvalNumber,
-      serialNumber,
-      secondPartyName: secondPartyName.trim() || 'الطرف الثاني',
-      containerCount,
-      containerType,
-      phoneNumber,
-      plotNumber,
-      planNumber,
-      locationDescription,
-      renovationLicenseYears,
-      buildingLicenseYears,
-      isSealed,
-      sealedBy: isSealed ? 'المدير العام - شركة المحترز' : undefined,
-      sealedAt: isSealed ? new Date().toISOString() : undefined
-    };
+  // Submit for Sealing (Employee Action)
+  const handleSubmitForSealing = async () => {
+    if (!secondPartyName.trim()) {
+      alert('يرجى كتابة اسم الطرف الثاني (الجهة أو الشخص) قبل الإرسال للتوثيق.');
+      return;
+    }
 
-    setIsSaving(true);
-    if (onSaveContract) {
-      const success = await onSaveContract(contractData);
-      setIsSaving(false);
+    const data = getCurrentContractData();
+    data.isSealed = false;
+
+    setIsProcessing(true);
+    if (onSubmitForSealing) {
+      const success = await onSubmitForSealing(data);
+      setIsProcessing(false);
       if (success) {
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        onClose();
       }
     } else {
-      setIsSaving(false);
-      alert('تم حفظ وتوثيق العقد بنجاح.');
-      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+      setIsProcessing(false);
+      alert('تم إرسال العقد بنجاح إلى مركز توثيق العقود بانتظار ختم المدير.');
+      onClose();
     }
+  };
+
+  // Manager Direct Sealing Action (Floating Button Trigger)
+  const handleManagerStampAndSeal = async () => {
+    setIsSealed(true);
+    const data = getCurrentContractData();
+    data.isSealed = true;
+    data.sealedBy = sealSettings?.managerName || 'أبو ماجد (المدير العام)';
+    data.sealedAt = new Date().toISOString();
+    data.sealImageUrl = sealSettings?.sealImageUrl || undefined;
+
+    setIsProcessing(true);
+    if (initialRecord?.id && onSealContractByManager) {
+      await onSealContractByManager(initialRecord.id, data);
+    } else if (onSaveContract) {
+      await onSaveContract(data);
+    }
+    setIsProcessing(false);
+
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
   };
 
   if (!isOpen) return null;
@@ -215,7 +290,8 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
           flexDirection: 'column',
           background: '#0a0f1d',
           border: '1px solid rgba(220, 38, 38, 0.3)',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
         {/* Modal Header */}
@@ -242,17 +318,44 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               <FileCode2 size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-                إنشاء وتوثيق «عقد تأجير حاوية» رسمي موحد (A4)
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                  عقد رفع أنقاض موثق (A4)
+                </h2>
+                {isSealed ? (
+                  <span style={{
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    borderRadius: '8px',
+                    padding: '2px 8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 900
+                  }}>
+                    ✓ موثق ومختوم رسمياً
+                  </span>
+                ) : (
+                  <span style={{
+                    background: 'rgba(245, 158, 11, 0.2)',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    borderRadius: '8px',
+                    padding: '2px 8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 900
+                  }}>
+                    ⏳ بانتظار توثيق المدير
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: '0.78rem', color: '#cbd5e1', margin: 0 }}>
-                مطابق للنموذج المعتمد — توليد لغوي تلقائي للمدد وتصدير PDF عالي الدقة
+                مطابق للنموذج المعتمد — توليد لغوي تلقائي للمدد وتوثيق إداري فوري
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* View Mode Toggle (Mobile / Desktop Tab switch) */}
+            {/* View Mode Toggle */}
             <div style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.6)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
               <button
                 type="button"
@@ -308,10 +411,10 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Body: Split Screen (Inputs on Left, Live A4 on Right) */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: '680px' }}>
+        {/* Modal Body: Split Screen */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: '680px', position: 'relative' }}>
           
-          {/* ── LEFT PANEL: Form Editor (Always accessible or on Editor Tab) ── */}
+          {/* ── LEFT PANEL: Form Editor ── */}
           <div style={{
             flex: activeTab === 'editor' ? '1 1 450px' : '0 0 380px',
             maxWidth: activeTab === 'editor' ? '100%' : '420px',
@@ -452,7 +555,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   className="form-input"
                   value={containerType}
                   onChange={(e) => setContainerType(e.target.value)}
-                  placeholder="حاوية مخلفات وترميم 20 ياردة"
+                  placeholder="حاوية مخلفات وأنقاض 20 ياردة"
                   style={{ height: '36px', fontSize: '0.82rem' }}
                 />
               </div>
@@ -501,7 +604,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               </div>
             </div>
 
-            {/* Section 3: مدة الرخص (المولد اللغوي للبند الأول) */}
+            {/* Section 3: مدة الرخص */}
             <div style={{
               background: 'rgba(30, 41, 59, 0.5)',
               border: '1px solid rgba(16, 185, 129, 0.25)',
@@ -511,11 +614,9 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               flexDirection: 'column',
               gap: '12px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontWeight: 800, fontSize: '0.86rem' }}>
-                  <Sparkles size={16} />
-                  <span>3. مدة رخص البناء والترميم (البند الأول الذكي)</span>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontWeight: 800, fontSize: '0.86rem' }}>
+                <Sparkles size={16} />
+                <span>3. مدة رخص البناء والترميم (البند الأول الذكي)</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -553,51 +654,28 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               </div>
             </div>
 
-            {/* Section 4: اعتماد وختم المدير */}
-            {userRole === 'admin' && (
-              <div style={{
-                background: 'rgba(30, 41, 59, 0.5)',
-                border: '1px solid rgba(245, 158, 11, 0.25)',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Stamp size={20} color={isSealed ? '#fbbf24' : '#94a3b8'} />
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>
-                      الختم والتوقيع الإلكتروني المعتمد
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
-                      {isSealed ? 'مختوم وموقع إلكترونياً من المدير العام' : 'غير مختوم (بانتظار الاعتماد)'}
-                    </div>
+            {/* Section 4: حالة التوثيق والختم */}
+            <div style={{
+              background: isSealed ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+              border: `1px solid ${isSealed ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
+              borderRadius: '12px',
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Stamp size={20} color={isSealed ? '#34d399' : '#fbbf24'} />
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>
+                    {isSealed ? 'العقد موثق ومختوم رسمياً ✓' : 'العقد بانتظار توثيق المدير ⏳'}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                    {isSealed ? `اعتمد بواسطة: ${sealSettings?.managerName || 'المدير العام'}` : 'يجب إرساله لمركز التوثيق لوضع الختم الرسمي'}
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsSealed(!isSealed)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: `1px solid ${isSealed ? '#10b981' : 'rgba(255, 255, 255, 0.2)'}`,
-                    background: isSealed ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 23, 42, 0.6)',
-                    color: isSealed ? '#34d399' : '#94a3b8',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}
-                >
-                  <CheckCircle2 size={14} />
-                  <span>{isSealed ? 'معتمد ومختوم ✓' : 'انقر للختم والاعتماد'}</span>
-                </button>
               </div>
-            )}
+            </div>
 
             {/* Editor Action Buttons */}
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px' }}>
@@ -611,29 +689,44 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                 <span>معاينة العقد المباشرة A4</span>
               </button>
 
-              <button
-                type="button"
-                className="btn-emerald"
-                style={{ padding: '10px 18px', fontSize: '0.85rem', fontWeight: 800 }}
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                <CheckCircle2 size={16} />
-                <span>{isSaving ? 'جارٍ الحفظ...' : 'حفظ وتوثيق العقد'}</span>
-              </button>
+              {!isSealed && (
+                <button
+                  type="button"
+                  onClick={handleSubmitForSealing}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#050811',
+                    fontSize: '0.85rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.35)'
+                  }}
+                >
+                  <Send size={16} />
+                  <span>{isProcessing ? 'جارٍ الإرسال...' : 'إرسال للتوثيق الإداري 📤'}</span>
+                </button>
+              )}
             </div>
 
           </div>
 
-          {/* ── RIGHT PANEL: Live A4 Visual Canvas (Matching original paper contract) ── */}
+          {/* ── RIGHT PANEL: Live A4 Visual Canvas ── */}
           <div style={{
             flex: activeTab === 'preview' ? '1 1 100%' : '1 1 650px',
             display: 'flex',
             flexDirection: 'column',
             background: '#1e293b',
             overflowY: 'auto',
-            padding: '24px',
-            alignItems: 'center'
+            padding: '24px 24px 100px 24px', // Extra bottom padding for floating button
+            alignItems: 'center',
+            position: 'relative'
           }}>
 
             {/* Toolbar above preview */}
@@ -657,28 +750,30 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrint}
+                  disabled={!isSealed && userRole !== 'admin'}
                   style={{
                     padding: '6px 14px',
                     borderRadius: '8px',
-                    border: '1px solid #dc2626',
-                    background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
-                    color: '#ffffff',
+                    border: isSealed ? '1px solid #dc2626' : '1px solid #64748b',
+                    background: isSealed ? 'linear-gradient(135deg, #b91c1c, #dc2626)' : 'rgba(255, 255, 255, 0.1)',
+                    color: isSealed ? '#ffffff' : '#94a3b8',
                     fontSize: '0.82rem',
                     fontWeight: 800,
-                    cursor: 'pointer',
+                    cursor: isSealed || userRole === 'admin' ? 'pointer' : 'not-allowed',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)'
+                    boxShadow: isSealed ? '0 2px 8px rgba(220, 38, 38, 0.4)' : 'none'
                   }}
+                  title={!isSealed ? 'تتطلب الطباعة اعتماد وختم المدير أولاً' : 'طباعة أو حفظ PDF'}
                 >
                   <Printer size={15} />
-                  <span>طباعة أو حفظ PDF</span>
+                  <span>{isSealed ? 'طباعة أو حفظ PDF' : 'طباعة (بانتظار الختم 🔒)'}</span>
                 </button>
               </div>
             </div>
 
-            {/* ── THE A4 PAPER DOCUMENT (True vector CSS layout) ── */}
+            {/* ── THE A4 PAPER DOCUMENT ── */}
             <div 
               ref={printRef}
               style={{
@@ -699,14 +794,14 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
             >
               <div>
 
-                {/* ── 1. HEADER (Top 3 columns) ── */}
+                {/* ── 1. HEADER ── */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-start',
                   paddingBottom: '12px'
                 }}>
-                  {/* Right Header: Company Branding */}
+                  {/* Right Header */}
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#dc2626', lineHeight: 1.1 }}>
                       شركة
@@ -724,7 +819,6 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
 
                   {/* Center Header: Logo & English */}
                   <div style={{ textAlign: 'center', paddingTop: '2px' }}>
-                    {/* Official Vector Container Logo */}
                     <div style={{
                       width: '64px',
                       height: '48px',
@@ -748,7 +842,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Left Header: Date, Approval, Serial */}
+                  {/* Left Header */}
                   <div style={{ textAlign: 'left', direction: 'ltr', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: '0.82rem', color: '#0f172a', fontWeight: 700, width: '100%', textAlign: 'right', direction: 'rtl' }}>
                       <span style={{ color: '#475569' }}>التاريخ: </span>
@@ -784,7 +878,6 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   }}>
                     عقد تأجير حاوية
                   </h1>
-                  {/* Double underline matching paper contract */}
                   <div style={{ width: '220px', height: '2px', background: '#dc2626', margin: '4px auto 2px auto' }} />
                   <div style={{ width: '170px', height: '1px', background: '#dc2626', margin: '0 auto' }} />
                 </div>
@@ -834,22 +927,18 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   </thead>
                   <tbody>
                     <tr>
-                      {/* عدد الحاويات */}
                       <td style={{ padding: '10px 8px', borderLeft: '1.5px solid #dc2626', textAlign: 'center', fontWeight: 800, fontSize: '1rem' }}>
                         {containerCount}
                       </td>
 
-                      {/* النوع */}
                       <td style={{ padding: '10px 8px', borderLeft: '1.5px solid #dc2626', textAlign: 'center', fontWeight: 700 }}>
                         {containerType || 'أنقاض 20 ياردة'}
                       </td>
 
-                      {/* الجوال */}
                       <td style={{ padding: '10px 8px', borderLeft: '1.5px solid #dc2626', textAlign: 'center', fontWeight: 700, direction: 'ltr' }}>
                         {phoneNumber || '-'}
                       </td>
 
-                      {/* وصف الموقع (رقم القطعة + رقم المخطط + الوصف) */}
                       <td style={{ padding: '8px 10px', lineHeight: 1.6, fontWeight: 700 }}>
                         <div>1- رقم القطعة: <strong style={{ color: '#0f172a' }}>{plotNumber || '—'}</strong></div>
                         <div>2- رقم المخطط: <strong style={{ color: '#0f172a' }}>{planNumber || '—'}</strong></div>
@@ -863,7 +952,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   </tbody>
                 </table>
 
-                {/* ── 5. PLEDGE BOX (مربع التعهد بإطار أحمر) ── */}
+                {/* ── 5. PLEDGE BOX ── */}
                 <div style={{
                   border: '2px solid #dc2626',
                   borderRadius: '4px',
@@ -886,12 +975,10 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '0.80rem', lineHeight: 1.45, color: '#1e293b' }}>
-                    {/* Clause 1: Dynamic */}
                     <div style={{ fontWeight: 800, color: '#0f172a' }}>
                       {dynamicClause1}
                     </div>
 
-                    {/* Clauses 2 to 8: Fixed */}
                     {FIXED_CONTRACT_CLAUSES.map((clause, idx) => (
                       <div key={idx} style={{ textAlign: 'justify' }}>
                         {clause}
@@ -911,7 +998,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   padding: '12px 16px 6px 16px',
                   marginTop: '10px'
                 }}>
-                  {/* الطرف الأول (يمين) */}
+                  {/* الطرف الأول (يمين) - مكان الختم والتوقيع الرسمي */}
                   <div style={{ textAlign: 'center', width: '220px', position: 'relative' }}>
                     <div style={{ fontSize: '0.92rem', fontWeight: 900, color: '#dc2626' }}>
                       الطرف الأول
@@ -920,36 +1007,64 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                       {COMPANY_OFFICIAL_INFO.nameArabic}
                     </div>
 
-                    {/* Electronic Official Stamp */}
+                    {/* Official Stamp Rendering */}
                     {isSealed ? (
+                      <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'center' }}>
+                        {sealSettings?.sealImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={sealSettings.sealImageUrl}
+                            alt="Official Stamp"
+                            style={{
+                              width: '95px',
+                              height: '95px',
+                              objectFit: 'contain',
+                              transform: 'rotate(-4deg)'
+                            }}
+                          />
+                        ) : (
+                          <div style={{
+                            display: 'inline-flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '2px dashed #dc2626',
+                            borderRadius: '50%',
+                            width: '90px',
+                            height: '90px',
+                            padding: '4px',
+                            color: '#dc2626',
+                            background: 'rgba(254, 242, 242, 0.6)',
+                            transform: 'rotate(-4deg)'
+                          }}>
+                            <div style={{ fontSize: '0.55rem', fontWeight: 900 }}>معتمد رسمياً</div>
+                            <ShieldCheck size={20} strokeWidth={2.4} />
+                            <div style={{ fontSize: '0.55rem', fontWeight: 800 }}>المحترز للحاويات</div>
+                            <div style={{ fontSize: '0.48rem', fontFamily: 'sans-serif' }}>{COMPANY_OFFICIAL_INFO.crNumber}</div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
                       <div style={{
-                        marginTop: '4px',
-                        display: 'inline-flex',
+                        height: '80px',
+                        display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: '2px dashed #dc2626',
-                        borderRadius: '50%',
-                        width: '90px',
-                        height: '90px',
-                        padding: '4px',
-                        color: '#dc2626',
-                        background: 'rgba(254, 242, 242, 0.6)',
-                        transform: 'rotate(-4deg)'
+                        color: '#94a3b8',
+                        fontSize: '0.75rem',
+                        border: '1px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        marginTop: '6px',
+                        background: '#f8fafc'
                       }}>
-                        <div style={{ fontSize: '0.55rem', fontWeight: 900 }}>معتمد رسمياً</div>
-                        <ShieldCheck size={20} strokeWidth={2.4} />
-                        <div style={{ fontSize: '0.55rem', fontWeight: 800 }}>المحترز للحاويات</div>
-                        <div style={{ fontSize: '0.48rem', fontFamily: 'sans-serif' }}>{COMPANY_OFFICIAL_INFO.crNumber}</div>
-                      </div>
-                    ) : (
-                      <div style={{ height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
-                        (التوقيع والختم)
+                        <Lock size={16} color="#94a3b8" />
+                        <span style={{ marginTop: '2px' }}>(بانتظار ختم واعتماد المدير)</span>
                       </div>
                     )}
                   </div>
 
-                  {/* رمز الـ QR للتوثيق والتحقق الإلكتروني (في المنتصف بين الطرفين) */}
+                  {/* رمز الـ QR للتوثيق والتحقق الإلكتروني (في المنتصف) */}
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -999,7 +1114,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   </div>
                 </div>
 
-                {/* ── 8. FOOTER BAR (Red Separator + Address/Phone/Email) ── */}
+                {/* ── 8. FOOTER BAR ── */}
                 <div style={{ marginTop: '10px' }}>
                   <div style={{ height: '2px', background: '#dc2626', width: '100%', marginBottom: '6px' }} />
                   <div style={{
@@ -1023,6 +1138,57 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
             </div>
 
           </div>
+
+          {/* ── 👑 FLOATING MANAGER SEALLING BAR (الزر العائم لتوثيق وختم العقد) ── */}
+          {userRole === 'admin' && !isSealed && (
+            <div style={{
+              position: 'absolute',
+              bottom: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 100,
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))',
+              backdropFilter: 'blur(16px)',
+              border: '2px solid #dc2626',
+              borderRadius: '20px',
+              padding: '10px 24px',
+              boxShadow: '0 10px 35px rgba(220, 38, 38, 0.5), 0 0 20px rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              animation: 'pulse 2s infinite'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Stamp size={24} color="#f87171" />
+                <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff' }}>
+                  العقد جاهز للمصادقة:
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleManagerStampAndSeal}
+                disabled={isProcessing}
+                style={{
+                  background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  padding: '10px 22px',
+                  fontSize: '0.92rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <ShieldCheck size={18} />
+                <span>{isProcessing ? 'جارٍ الختم والتوثيق...' : 'توثيق واعتماد بالختم الرسمي 🔖'}</span>
+              </button>
+            </div>
+          )}
 
         </div>
 

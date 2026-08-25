@@ -22,7 +22,8 @@ import {
   ChevronLeft,
   Sparkles,
   FlaskConical,
-  FileCode2
+  FileCode2,
+  Stamp
 } from 'lucide-react';
 import { InAppNotification, Profile, StaffPermissions, UserRole } from '@/types/database';
 import { NotificationBell } from './NotificationBell';
@@ -42,6 +43,7 @@ interface NavbarProps {
   onReplayIntro: () => void;
   onOpenNewContract: () => void;
   onOpenOfficialContract?: () => void;
+  pendingOfficialContractsCount?: number;
   onLogout?: () => void;
   inAppNotifications: InAppNotification[];
   onMarkInAppAsRead: (id: string) => void;
@@ -65,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onReplayIntro,
   onOpenNewContract,
   onOpenOfficialContract,
+  pendingOfficialContractsCount = 0,
   onLogout,
   inAppNotifications,
   onMarkInAppAsRead,
@@ -316,6 +319,42 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Users size={17} />
                   <span>إدارة الموظفين</span>
+                </button>
+
+                <button
+                  id="nav-contract-auth-tab"
+                  onClick={() => setCurrentTab('contract-auth')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    border: currentTab === 'contract-auth' ? '1px solid #dc2626' : '1px solid rgba(220, 38, 38, 0.3)',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    background: currentTab === 'contract-auth' ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.25), rgba(153, 27, 27, 0.2))' : 'rgba(220, 38, 38, 0.08)',
+                    color: '#f87171',
+                    boxShadow: currentTab === 'contract-auth' ? '0 0 15px rgba(220, 38, 38, 0.35)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Stamp size={17} color="#f87171" />
+                  <span>توثيق العقود</span>
+                  {pendingOfficialContractsCount > 0 && (
+                    <span style={{
+                      background: '#f59e0b',
+                      color: '#050811',
+                      borderRadius: '10px',
+                      padding: '1px 6px',
+                      fontSize: '0.68rem',
+                      fontWeight: 900
+                    }}>
+                      {pendingOfficialContractsCount}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -1184,6 +1223,36 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>إدارة الموظفين والسائقين</span>
                     </div>
                     <ChevronLeft size={16} color="#64748b" />
+                  </button>
+
+                  <button
+                    onClick={() => handleTabSelect('contract-auth')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      background: currentTab === 'contract-auth' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
+                      border: 'none',
+                      color: currentTab === 'contract-auth' ? '#f87171' : '#e2e8f0',
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'right'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Stamp size={18} color="#f87171" />
+                      <span>مركز توثيق العقود والختم</span>
+                    </div>
+                    {pendingOfficialContractsCount > 0 ? (
+                      <span style={{ background: '#f59e0b', color: '#000', fontSize: '0.7rem', fontWeight: 900, padding: '1px 6px', borderRadius: '8px' }}>
+                        {pendingOfficialContractsCount}
+                      </span>
+                    ) : (
+                      <ChevronLeft size={16} color="#64748b" />
+                    )}
                   </button>
 
                   <button
