@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   FlaskConical, 
   Volume2, 
@@ -9,23 +9,41 @@ import {
   Play, 
   RefreshCw, 
   Globe, 
-  Smartphone,
-  CheckCircle2,
-  Smile,
-  Briefcase,
-  Heart,
-  Sliders,
-  FileCheck,
-  Gauge
+  Smartphone, 
+  CheckCircle2, 
+  Smile, 
+  Briefcase, 
+  Heart, 
+  Gauge, 
+  Brain, 
+  Plus, 
+  Trash2, 
+  BookOpen, 
+  GraduationCap, 
+  Zap, 
+  MessageSquare, 
+  Search,
+  Check
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
+import { 
+  KnowledgeItem, 
+  getLearnedKnowledge, 
+  teachAssistantRule, 
+  deleteLearnedRule, 
+  querySystemKnowledge 
+} from '@/utils/aiCopilotKnowledge';
 
 interface DevLabProps {
   currentRole: string;
 }
 
 export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
-  // Voice Studio States
+  // Navigation Tabs inside DevLab
+  const [activeLabTab, setActiveLabTab] = useState<'education' | 'voice_studio' | 'discord'>('education');
+
+  // ─── Voice Studio States ─────────────────────────
   const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
   const [inputText, setInputText] = useState('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَبْشِرْ، كَيْفَ أَقْدِرْ أَخْدِمَكْ الْيَوْمْ؟');
   const [speechRate, setSpeechRate] = useState<string>('0%');
@@ -35,12 +53,27 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   const [isApproved, setIsApproved] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Discord Bridge States
+  // ─── Dynamic AI Education & Learning States ───────
+  const [learnedRules, setLearnedRules] = useState<KnowledgeItem[]>([]);
+  const [newRuleTitle, setNewRuleTitle] = useState('');
+  const [newRuleCategory, setNewRuleCategory] = useState<'pricing' | 'policy' | 'drivers' | 'containers' | 'custom_rule'>('pricing');
+  const [newRuleTriggers, setNewRuleTriggers] = useState('');
+  const [newRuleResponse, setNewRuleResponse] = useState('');
+  const [testQuery, setTestQuery] = useState('');
+  const [testQueryResult, setTestQueryResult] = useState<{ match: KnowledgeItem | null; tested: boolean }>({ match: null, tested: false });
+  const [isTeaching, setIsTeaching] = useState(false);
+
+  // ─── Discord Bridge States ───────────────────────
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('https://discord.com/api/webhooks/1541716427071819858/t30PNmg-72eTI9p5NnwPzDZGz6wm1B4DNWgPvHcQrMuNrnCQQSeb0bT5iyiKYH2ya3W1');
   const [isSendingDiscord, setIsSendingDiscord] = useState(false);
   const [discordStatus, setDiscordStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Load learned memory on mount
+  useEffect(() => {
+    setLearnedRules(getLearnedKnowledge());
+  }, []);
 
   // Automatic Arabic Diacritization & Phonetic Shaping
   const handleAutoDiacritize = () => {
@@ -63,7 +96,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     }
   };
 
-  // Native Device Speech Synthesis (Instant, 100% human-natural on modern iOS/Android/Windows)
+  // Native Device Speech Synthesis
   const playNativeDeviceSpeech = (text: string, voiceKey: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setErrorMessage('متصفحك لا يدعم مشغل الصوت المدمج');
@@ -74,21 +107,16 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
     
-    // Apply granular speed
     const baseSpeed = getRateMultiplier(speechRate);
     utterance.rate = baseSpeed;
 
-    // Apply Mood and Pitch Adjustments
     if (voiceMood === 'cheerful') {
-      // 🌟 Cheerful & Playful: higher lively pitch and slightly upbeat tone
       utterance.pitch = voiceKey === 'hamed' ? 1.0 : 1.35;
       utterance.rate = baseSpeed * 1.08;
     } else if (voiceMood === 'formal') {
-      // 👔 Formal & Executive: steady, dignified, and deep
       utterance.pitch = voiceKey === 'hamed' ? 0.80 : 1.0;
       utterance.rate = baseSpeed * 0.95;
     } else {
-      // 🌸 Warm & Calm
       utterance.pitch = voiceKey === 'hamed' ? 0.88 : 1.15;
     }
 
@@ -108,18 +136,17 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Generate & Play Voice via Cloud or Device
-  const handlePlayVoice = () => {
-    if (!inputText.trim()) return;
+  // Generate & Play Voice
+  const handlePlayVoice = (textToPlay: string = inputText) => {
+    if (!textToPlay.trim()) return;
     setIsLoadingAudio(true);
     setErrorMessage(null);
 
-    // Cancel previous audio
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
-    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(inputText)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&mood=${voiceMood}&t=${Date.now()}`;
+    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&mood=${voiceMood}&t=${Date.now()}`;
 
     if (audioRef.current) {
       audioRef.current.src = streamUrl;
@@ -133,26 +160,64 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             setIsLoadingAudio(false);
           })
           .catch((err) => {
-            console.warn('Cloud audio stream notice, playing native device voice:', err);
-            playNativeDeviceSpeech(inputText, selectedVoice);
+            console.warn('Cloud stream notice, playing native device speech:', err);
+            playNativeDeviceSpeech(textToPlay, selectedVoice);
           });
       }
     } else {
-      playNativeDeviceSpeech(inputText, selectedVoice);
+      playNativeDeviceSpeech(textToPlay, selectedVoice);
+    }
+  };
+
+  // Teach Assistant New Rule
+  const handleTeachRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRuleTitle.trim() || !newRuleTriggers.trim() || !newRuleResponse.trim()) {
+      return;
+    }
+
+    setIsTeaching(true);
+    const triggersArray = newRuleTriggers.split(',').map(t => t.trim()).filter(Boolean);
+    const diacritizedResponse = diacritizeArabicSpeech(newRuleResponse.trim());
+
+    teachAssistantRule({
+      category: newRuleCategory,
+      title: newRuleTitle.trim(),
+      triggers: triggersArray,
+      speechResponse: diacritizedResponse,
+      displayMarkdown: `📌 **${newRuleTitle.trim()}:**\n\n${newRuleResponse.trim()}`,
+      taught_by: 'المدير العام (أبو ماجد)'
+    });
+
+    setLearnedRules(getLearnedKnowledge());
+    setNewRuleTitle('');
+    setNewRuleTriggers('');
+    setNewRuleResponse('');
+    setIsTeaching(false);
+
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+  };
+
+  // Delete Rule
+  const handleDeleteRule = (id: string) => {
+    deleteLearnedRule(id);
+    setLearnedRules(getLearnedKnowledge());
+  };
+
+  // Test Assistant Knowledge
+  const handleTestKnowledge = () => {
+    if (!testQuery.trim()) return;
+    const match = querySystemKnowledge(testQuery.trim());
+    setTestQueryResult({ match, tested: true });
+
+    if (match) {
+      handlePlayVoice(match.speechResponse);
     }
   };
 
   // Send Approved Content to Discord
   const handleSendApprovedToDiscord = async () => {
-    if (!discordWebhookUrl) {
-      setDiscordStatus({ ok: false, msg: 'يرجى إدخال رابط الـ Webhook الخاص بقناة ديسكورد' });
-      return;
-    }
-
-    if (!inputText.trim()) {
-      setDiscordStatus({ ok: false, msg: 'لا يوجد نص لإرساله' });
-      return;
-    }
+    if (!discordWebhookUrl || !inputText.trim()) return;
 
     setIsSendingDiscord(true);
     setDiscordStatus(null);
@@ -206,7 +271,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
         onError={() => {
-          console.warn('Audio element error, falling back to device speech');
+          console.warn('Audio tag notice, playing device voice');
           playNativeDeviceSpeech(inputText, selectedVoice);
         }}
         preload="auto"
@@ -218,7 +283,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         border: '1px solid rgba(168, 85, 247, 0.4)',
         borderRadius: '24px',
         padding: '24px',
-        marginBottom: '24px',
+        marginBottom: '20px',
         boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
@@ -235,420 +300,776 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)',
               flexShrink: 0
             }}>
-              <FlaskConical size={30} strokeWidth={2.4} />
+              <GraduationCap size={32} strokeWidth={2.3} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff' }}>
-                  مختبر الذكاء الصوتي ومشاعر النطق (R&D Lab)
+                  مختبر تثقيف وتطوير المساعد الذكي (AI Education Hub)
                 </h1>
                 <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.4)', fontSize: '0.75rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px' }}>
                   🔒 تحكم وإشراف المدير العام (أبو ماجد)
                 </span>
               </div>
               <p style={{ color: '#cbd5e1', fontSize: '0.86rem', marginTop: '4px' }}>
-                تحكم كامل في نبرات المشاعر (المرح / الرصانة)، سرعات النطق الدقيقة بالسالب والموجب، وتشكيل الحروف الفصيحة
+                تلقين المساعد أسرار العمل وقواعد الأسعار والسياسات، وتطوير ذاكرته المعرفية والنطق الفصيح
               </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
-        
-        {/* ─── 🎙️ SECTION 1: SCRIPT COMPOSER, MOODS & GRANULAR SPEEDS ─── */}
-        <div style={{
-          background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
-          border: '1px solid rgba(236, 72, 153, 0.35)',
-          borderRadius: '24px',
-          padding: '24px',
-          boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '18px'
-        }}>
-          <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Volume2 size={22} color="#ec4899" />
-                <span>ضبط النبرة الصوتية والشعور ومخارج الحروف</span>
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
-                تحكم في طابع الصوت المرح والرسمي وتعديل السرعة بالدرجات
-              </p>
-            </div>
-            {isApproved && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399', padding: '4px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800 }}>
-                <CheckCircle2 size={14} />
-                <span>نص معتمد ومضبوط</span>
-              </span>
-            )}
-          </div>
-
-          {/* Voice Selector */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '8px' }}>
-              1. اختر المعلق الصوتي:
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-              <button
-                onClick={() => setSelectedVoice('zariyah')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '14px',
-                  border: selectedVoice === 'zariyah' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: selectedVoice === 'zariyah' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.2))' : 'rgba(0, 0, 0, 0.3)',
-                  color: selectedVoice === 'zariyah' ? '#f472b6' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  textAlign: 'right'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>🌸 زاريّة</span>
-                  <span style={{ fontSize: '0.65rem', background: '#ec4899', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇸🇦</span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة سعودية دافئة وعفوية</div>
-              </button>
-
-              <button
-                onClick={() => setSelectedVoice('hamed')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '14px',
-                  border: selectedVoice === 'hamed' ? '2px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: selectedVoice === 'hamed' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.2))' : 'rgba(0, 0, 0, 0.3)',
-                  color: selectedVoice === 'hamed' ? '#fbbf24' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  textAlign: 'right'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>👔 حامد</span>
-                  <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>ذكر 🇸🇦</span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>صوت رجالي تنفيذي فخم</div>
-              </button>
-
-              <button
-                onClick={() => setSelectedVoice('fatima')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '14px',
-                  border: selectedVoice === 'fatima' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: selectedVoice === 'fatima' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.2))' : 'rgba(0, 0, 0, 0.3)',
-                  color: selectedVoice === 'fatima' ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  textAlign: 'right'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>✨ فاطمة</span>
-                  <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇦🇪</span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة إعلانية خليجية رنانة</div>
-              </button>
-            </div>
-          </div>
-
-          {/* 🎭 Voice Mood / Emotion Selector */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '8px' }}>
-              2. طابع الشعور والمزاج الصوتي:
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-              
-              {/* Cheerful Mood */}
-              <button
-                onClick={() => setVoiceMood('cheerful')}
-                style={{
-                  padding: '10px',
-                  borderRadius: '12px',
-                  border: voiceMood === 'cheerful' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: voiceMood === 'cheerful' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(244, 114, 182, 0.2))' : 'rgba(0,0,0,0.3)',
-                  color: voiceMood === 'cheerful' ? '#f472b6' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Smile size={16} />
-                <span>😄 مرح وحيوي</span>
-              </button>
-
-              {/* Formal Mood */}
-              <button
-                onClick={() => setVoiceMood('formal')}
-                style={{
-                  padding: '10px',
-                  borderRadius: '12px',
-                  border: voiceMood === 'formal' ? '2px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: voiceMood === 'formal' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.2))' : 'rgba(0,0,0,0.3)',
-                  color: voiceMood === 'formal' ? '#fbbf24' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Briefcase size={16} />
-                <span>👔 رسمي رزين</span>
-              </button>
-
-              {/* Friendly Mood */}
-              <button
-                onClick={() => setVoiceMood('friendly')}
-                style={{
-                  padding: '10px',
-                  borderRadius: '12px',
-                  border: voiceMood === 'friendly' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: voiceMood === 'friendly' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.2))' : 'rgba(0,0,0,0.3)',
-                  color: voiceMood === 'friendly' ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Heart size={16} />
-                <span>🌸 ودود دافئ</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Text Area */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1' }}>
-                3. النص المراد إلقاؤه:
-              </label>
-              <button
-                onClick={handleAutoDiacritize}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2))',
-                  border: '1px solid rgba(168, 85, 247, 0.4)',
-                  color: '#c084fc',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <Sparkles size={13} />
-                <span>✨ تشكيل وضبط مخارج الحروف تلقائياً</span>
-              </button>
-            </div>
-            <textarea
-              value={inputText}
-              onChange={(e) => {
-                setInputText(e.target.value);
-                setIsApproved(false);
-              }}
-              rows={4}
-              placeholder="اكتب هنا أي كلام تريده أن يُنطق أو يُنشر..."
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: isApproved ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                fontSize: '0.92rem',
-                lineHeight: 1.7,
-                outline: 'none'
-              }}
-            />
-          </div>
-
-          {/* Granular Speed Controls (-30% to +30%) */}
-          <div style={{ background: 'rgba(0,0,0,0.35)', padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Gauge size={16} color="#38bdf8" />
-                <span>مستويات السرعة الدقيقة (بالسالب والموجب):</span>
-              </span>
-              <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 900 }}>
-                {speechRate === '0%' ? 'سرعة قياسية (0%)' : `مستوى السرعة: ${speechRate}`}
-              </span>
-            </div>
-
-            {/* Granular Speed Buttons */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {['-30%', '-20%', '-10%', '0%', '+10%', '+20%', '+30%'].map((rate) => {
-                const isSelected = speechRate === rate;
-                const isNegative = rate.startsWith('-');
-                const isPositive = rate.startsWith('+');
-                
-                let activeColor = '#38bdf8';
-                if (isNegative) activeColor = '#a78bfa'; // Purple for slower
-                if (isPositive) activeColor = '#f472b6'; // Pink for faster
-                if (rate === '0%') activeColor = '#34d399'; // Emerald for standard
-
-                return (
-                  <button
-                    key={rate}
-                    onClick={() => setSpeechRate(rate)}
-                    style={{
-                      flex: '1 0 11%',
-                      padding: '7px 4px',
-                      borderRadius: '10px',
-                      border: isSelected ? `2px solid ${activeColor}` : '1px solid rgba(255,255,255,0.1)',
-                      background: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)',
-                      color: isSelected ? '#ffffff' : '#94a3b8',
-                      fontWeight: isSelected ? 900 : 600,
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {rate === '0%' ? '0%' : rate}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Action Trigger Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '6px' }}>
+          {/* Quick Sub-Tabs Switcher */}
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.4)', padding: '5px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <button
-              onClick={handlePlayVoice}
-              disabled={isLoadingAudio}
+              onClick={() => setActiveLabTab('education')}
               style={{
-                padding: '12px 24px',
-                background: isPlaying ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ec4899, #be185d)',
-                color: '#ffffff',
-                fontWeight: 900,
-                fontSize: '0.88rem',
-                borderRadius: '14px',
+                padding: '8px 16px',
+                borderRadius: '10px',
                 border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)'
-              }}
-            >
-              {isLoadingAudio ? <RefreshCw size={18} className="animate-spin" /> : isPlaying ? <Volume2 size={18} className="animate-bounce" /> : <Play size={18} />}
-              <span>{isLoadingAudio ? 'جارِ التحضير...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع للنص الصوتي 🔊'}</span>
-            </button>
-
-            <button
-              onClick={() => playNativeDeviceSpeech(inputText, selectedVoice)}
-              style={{
-                padding: '12px 16px',
-                background: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                borderRadius: '14px',
-                color: '#38bdf8',
+                background: activeLabTab === 'education' ? 'linear-gradient(135deg, #ec4899, #be185d)' : 'transparent',
+                color: activeLabTab === 'education' ? '#fff' : '#94a3b8',
                 fontWeight: 800,
-                fontSize: '0.8rem',
+                fontSize: '0.82rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
               }}
-              title="نطق فوري عبر معالج الجهاز"
             >
-              <Smartphone size={16} />
-              <span>نطق الجهاز الفوري</span>
+              <Brain size={16} />
+              <span>استوديو التثقيف والتعلم</span>
+            </button>
+
+            <button
+              onClick={() => setActiveLabTab('voice_studio')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                background: activeLabTab === 'voice_studio' ? 'linear-gradient(135deg, #a855f7, #7e22ce)' : 'transparent',
+                color: activeLabTab === 'voice_studio' ? '#fff' : '#94a3b8',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Volume2 size={16} />
+              <span>استوديو المشاعر والنطق</span>
+            </button>
+
+            <button
+              onClick={() => setActiveLabTab('discord')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                background: activeLabTab === 'discord' ? 'linear-gradient(135deg, #6366f1, #4338ca)' : 'transparent',
+                color: activeLabTab === 'discord' ? '#fff' : '#94a3b8',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Globe size={16} />
+              <span>غرفة عمليات ديسكورد</span>
             </button>
           </div>
-
-          {errorMessage && (
-            <p style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 700 }}>{errorMessage}</p>
-          )}
         </div>
+      </div>
 
-        {/* ─── 🎮 SECTION 2: DISCORD OPERATIONS & PUBLISHING HUB ─── */}
-        <div style={{
-          background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.35)',
-          borderRadius: '24px',
-          padding: '24px',
-          boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '18px'
-        }}>
-          <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Globe size={22} color="#818cf8" />
-              <span>غرفة عمليات ديسكورد والموافقة على النشر (Discord Bridge)</span>
-            </h2>
-            <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
-              لا يتم نشر أي رسالة أو بيان إلا بعد صياغته ومراجعتك وموافقتك التامة
-            </p>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '6px' }}>
-              رابط قناة ديسكورد المعتمدة (Webhook URL):
-            </label>
-            <input
-              type="text"
-              value={discordWebhookUrl}
-              onChange={(e) => setDiscordWebhookUrl(e.target.value)}
-              placeholder="https://discord.com/api/webhooks/xxxx/xxxx"
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '12px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                fontSize: '0.82rem',
-                direction: 'ltr',
-                textAlign: 'left',
-                outline: 'none'
-              }}
-            />
-          </div>
-
-          {/* Action Approval Card */}
+      {/* ─── 🧠 TAB 1: AI EDUCATION & KNOWLEDGE BRAIN ─── */}
+      {activeLabTab === 'education' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          
+          {/* 1. Form to Teach New Rule */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1))',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
-            borderRadius: '16px',
-            padding: '16px',
+            background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(236, 72, 153, 0.35)',
+            borderRadius: '24px',
+            padding: '24px',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px'
+            gap: '16px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileCheck size={18} color="#a5b4fc" />
-              <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ffffff' }}>معاينة ما سيتم إرساله لديسكورد:</span>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Brain size={22} color="#ec4899" />
+                <span>تلقين قاعدة أو معرفة جديدة للمساعد</span>
+              </h2>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                علّم المساعد قواعد عملك وسيتعلمها فوراً ويجيب بها بصوته البشري
+              </p>
             </div>
 
+            <form onSubmit={handleTeachRule} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '5px' }}>
+                  عنوان المعلومة / التوجيه:
+                </label>
+                <input
+                  type="text"
+                  value={newRuleTitle}
+                  onChange={(e) => setNewRuleTitle(e.target.value)}
+                  placeholder="مثال: أسعار حاويات حي النرجس شمال الرياض"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    borderRadius: '12px',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '5px' }}>
+                    تصنيف المعرفة:
+                  </label>
+                  <select
+                    value={newRuleCategory}
+                    onChange={(e: any) => setNewRuleCategory(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 0, 0, 0.6)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      fontSize: '0.82rem',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="pricing">💰 سياسات التسعير والعروض</option>
+                    <option value="policy">📜 سياسات وعقود المؤسسة</option>
+                    <option value="drivers">🚛 تعليمات السائقين والميدان</option>
+                    <option value="containers">📦 قواعد الحاويات والمقاسات</option>
+                    <option value="custom_rule">⚙️ توجيه إداري مخصص</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '5px' }}>
+                    الكلمات المفتاحية (مفصولة بفواصل):
+                  </label>
+                  <input
+                    type="text"
+                    value={newRuleTriggers}
+                    onChange={(e) => setNewRuleTriggers(e.target.value)}
+                    placeholder="مثال: سعر النرجس, حاوية النرجس, اسعار النرجس"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      fontSize: '0.82rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '5px' }}>
+                  ما يجب على المساعد قوله وتطبيقه عند السؤال (المنطوق المعتمد):
+                </label>
+                <textarea
+                  value={newRuleResponse}
+                  onChange={(e) => setNewRuleResponse(e.target.value)}
+                  rows={3}
+                  placeholder="مثال: أهلاً وسهلاً بأبو ماجد.. سعر الحاوية مقاس 20 ياردة في حي النرجس 600 ريال لمدة 7 أيام والتمديد اليومي بـ 50 ريال."
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    fontSize: '0.86rem',
+                    lineHeight: 1.6,
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isTeaching}
+                style={{
+                  padding: '13px',
+                  background: 'linear-gradient(135deg, #ec4899, #be185d)',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: '0.88rem',
+                  borderRadius: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)',
+                  marginTop: '4px'
+                }}
+              >
+                {isTeaching ? <RefreshCw size={18} className="animate-spin" /> : <Plus size={18} />}
+                <span>تلقين وحفظ في ذاكرة المساعد الذكي 💾</span>
+              </button>
+            </form>
+          </div>
+
+          {/* 2. Learned Knowledge Bank & Test Simulator */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* Live Knowledge Test Simulator */}
             <div style={{
-              background: 'rgba(0, 0, 0, 0.4)',
-              padding: '12px',
-              borderRadius: '10px',
-              color: '#e2e8f0',
-              fontSize: '0.82rem',
-              lineHeight: 1.6,
-              maxHeight: '100px',
-              overflowY: 'auto'
+              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              borderRadius: '24px',
+              padding: '20px',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)'
             }}>
-              {inputText || 'لا يوجد نص مكتوب حالياً'}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Search size={18} color="#38bdf8" />
+                  <span>اختبار فهم واستيعاب المساعد فوراً:</span>
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 800, background: 'rgba(56, 189, 248, 0.15)', padding: '2px 8px', borderRadius: '8px' }}>
+                  فحص الذاكرة الحية ⚡
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={testQuery}
+                  onChange={(e) => setTestQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTestKnowledge()}
+                  placeholder="اطرح أي سؤال مما لقنته إياه لتختبر جوابه..."
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    borderRadius: '12px',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#ffffff',
+                    fontSize: '0.84rem',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  onClick={handleTestKnowledge}
+                  style={{
+                    padding: '11px 18px',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontWeight: 900,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Play size={15} />
+                  <span>فحص الجواب</span>
+                </button>
+              </div>
+
+              {testQueryResult.tested && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: testQueryResult.match ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  border: `1px solid ${testQueryResult.match ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                }}>
+                  {testQueryResult.match ? (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 900, color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <CheckCircle2 size={16} />
+                          <span>تم الاستيعاب بنجاح: {testQueryResult.match.title}</span>
+                        </span>
+                        <button
+                          onClick={() => handlePlayVoice(testQueryResult.match!.speechResponse)}
+                          style={{ background: 'rgba(16, 185, 129, 0.3)', border: 'none', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 800 }}
+                        >
+                          🔊 إعادة الاستماع
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: '#f1f5f9', lineHeight: 1.5 }}>
+                        {testQueryResult.match.speechResponse}
+                      </p>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 800 }}>
+                      ⚠️ لم يجد المساعد قاعدة مطابقة لهذا السؤال.. لقّنه القاعدة في الصندوق المقابل وسيحفظها فوراً!
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Bank of Learned Rules */}
+            <div style={{
+              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              borderRadius: '24px',
+              padding: '20px',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BookOpen size={18} color="#c084fc" />
+                  <span>بنك المعرفة والذاكرة المكتسبة ({learnedRules.length})</span>
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: 800 }}>
+                  تحديث تلقائي لحظي 🔄
+                </span>
+              </div>
+
+              {learnedRules.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8' }}>
+                  <Brain size={36} color="#64748b" style={{ margin: '0 auto 8px' }} />
+                  <p style={{ fontSize: '0.84rem' }}>لا توجد قواعد مخصصة ملقنة بعد.. أضف أول قاعدة في الاستوديو أعلاه!</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+                  {learnedRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '14px',
+                        padding: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px'
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ffffff' }}>{rule.title}</span>
+                          <span style={{ fontSize: '0.65rem', background: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe', padding: '1px 6px', borderRadius: '6px' }}>
+                            {rule.category}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px', lineHeight: 1.4 }}>
+                          {rule.speechResponse}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => handlePlayVoice(rule.speechResponse)}
+                          style={{ background: 'rgba(236, 72, 153, 0.2)', border: 'none', color: '#f472b6', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="استماع للنطق"
+                        >
+                          <Volume2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRule(rule.id!)}
+                          style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: '#f87171', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="حذف القاعدة"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ─── 🎙️ TAB 2: VOICE & MOOD STUDIO ─── */}
+      {activeLabTab === 'voice_studio' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(236, 72, 153, 0.35)',
+            borderRadius: '24px',
+            padding: '24px',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px'
+          }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Volume2 size={22} color="#ec4899" />
+                  <span>ضبط النبرة الصوتية والشعور ومخارج الحروف</span>
+                </h2>
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                  تحكم في طابع الصوت المرح والرسمي وتعديل السرعة بالدرجات
+                </p>
+              </div>
+              {isApproved && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399', padding: '4px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800 }}>
+                  <CheckCircle2 size={14} />
+                  <span>نص معتمد ومضبوط</span>
+                </span>
+              )}
+            </div>
+
+            {/* Voice Selector */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '8px' }}>
+                1. اختر المعلق الصوتي:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                <button
+                  onClick={() => setSelectedVoice('zariyah')}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '14px',
+                    border: selectedVoice === 'zariyah' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: selectedVoice === 'zariyah' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.2))' : 'rgba(0, 0, 0, 0.3)',
+                    color: selectedVoice === 'zariyah' ? '#f472b6' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'right'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>🌸 زاريّة</span>
+                    <span style={{ fontSize: '0.65rem', background: '#ec4899', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇸🇦</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة سعودية دافئة وعفوية</div>
+                </button>
+
+                <button
+                  onClick={() => setSelectedVoice('hamed')}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '14px',
+                    border: selectedVoice === 'hamed' ? '2px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: selectedVoice === 'hamed' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.2))' : 'rgba(0, 0, 0, 0.3)',
+                    color: selectedVoice === 'hamed' ? '#fbbf24' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'right'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>👔 حامد</span>
+                    <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>ذكر 🇸🇦</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>صوت رجالي تنفيذي فخم</div>
+                </button>
+
+                <button
+                  onClick={() => setSelectedVoice('fatima')}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '14px',
+                    border: selectedVoice === 'fatima' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: selectedVoice === 'fatima' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.2))' : 'rgba(0, 0, 0, 0.3)',
+                    color: selectedVoice === 'fatima' ? '#38bdf8' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'right'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>✨ فاطمة</span>
+                    <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇦🇪</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة إعلانية خليجية رنانة</div>
+                </button>
+              </div>
+            </div>
+
+            {/* 🎭 Voice Mood / Emotion Selector */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '8px' }}>
+                2. طابع الشعور والمزاج الصوتي:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <button
+                  onClick={() => setVoiceMood('cheerful')}
+                  style={{
+                    padding: '10px',
+                    borderRadius: '12px',
+                    border: voiceMood === 'cheerful' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: voiceMood === 'cheerful' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(244, 114, 182, 0.2))' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'cheerful' ? '#f472b6' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Smile size={16} />
+                  <span>😄 مرح وحيوي</span>
+                </button>
+
+                <button
+                  onClick={() => setVoiceMood('formal')}
+                  style={{
+                    padding: '10px',
+                    borderRadius: '12px',
+                    border: voiceMood === 'formal' ? '2px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: voiceMood === 'formal' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.2))' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'formal' ? '#fbbf24' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Briefcase size={16} />
+                  <span>👔 رسمي رزين</span>
+                </button>
+
+                <button
+                  onClick={() => setVoiceMood('friendly')}
+                  style={{
+                    padding: '10px',
+                    borderRadius: '12px',
+                    border: voiceMood === 'friendly' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: voiceMood === 'friendly' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.2))' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'friendly' ? '#38bdf8' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Heart size={16} />
+                  <span>🌸 ودود دافئ</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Text Area */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1' }}>
+                  3. النص المراد إلقاؤه:
+                </label>
+                <button
+                  onClick={handleAutoDiacritize}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2))',
+                    border: '1px solid rgba(168, 85, 247, 0.4)',
+                    color: '#c084fc',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Sparkles size={13} />
+                  <span>✨ تشكيل وضبط مخارج الحروف تلقائياً</span>
+                </button>
+              </div>
+              <textarea
+                value={inputText}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  setIsApproved(false);
+                }}
+                rows={4}
+                placeholder="اكتب هنا أي كلام تريده أن يُنطق أو يُنشر..."
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: isApproved ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  fontSize: '0.92rem',
+                  lineHeight: 1.7,
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            {/* Granular Speed Controls */}
+            <div style={{ background: 'rgba(0,0,0,0.35)', padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Gauge size={16} color="#38bdf8" />
+                  <span>مستويات السرعة الدقيقة (بالسالب والموجب):</span>
+                </span>
+                <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 900 }}>
+                  {speechRate === '0%' ? 'سرعة قياسية (0%)' : `مستوى السرعة: ${speechRate}`}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {['-30%', '-20%', '-10%', '0%', '+10%', '+20%', '+30%'].map((rate) => {
+                  const isSelected = speechRate === rate;
+                  const isNegative = rate.startsWith('-');
+                  const isPositive = rate.startsWith('+');
+                  
+                  let activeColor = '#38bdf8';
+                  if (isNegative) activeColor = '#a78bfa';
+                  if (isPositive) activeColor = '#f472b6';
+                  if (rate === '0%') activeColor = '#34d399';
+
+                  return (
+                    <button
+                      key={rate}
+                      onClick={() => setSpeechRate(rate)}
+                      style={{
+                        flex: '1 0 11%',
+                        padding: '7px 4px',
+                        borderRadius: '10px',
+                        border: isSelected ? `2px solid ${activeColor}` : '1px solid rgba(255,255,255,0.1)',
+                        background: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)',
+                        color: isSelected ? '#ffffff' : '#94a3b8',
+                        fontWeight: isSelected ? 900 : 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {rate === '0%' ? '0%' : rate}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '6px' }}>
+              <button
+                onClick={() => handlePlayVoice(inputText)}
+                disabled={isLoadingAudio}
+                style={{
+                  padding: '12px 24px',
+                  background: isPlaying ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #ec4899, #be185d)',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: '0.88rem',
+                  borderRadius: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 18px rgba(236, 72, 153, 0.45)'
+                }}
+              >
+                {isLoadingAudio ? <RefreshCw size={18} className="animate-spin" /> : isPlaying ? <Volume2 size={18} className="animate-bounce" /> : <Play size={18} />}
+                <span>{isLoadingAudio ? 'جارِ التحضير...' : isPlaying ? 'الصوت يعمل الآن 🔊' : 'استماع للنص الصوتي 🔊'}</span>
+              </button>
+
+              <button
+                onClick={() => playNativeDeviceSpeech(inputText, selectedVoice)}
+                style={{
+                  padding: '12px 16px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: '14px',
+                  color: '#38bdf8',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="نطق فوري عبر معالج الجهاز"
+              >
+                <Smartphone size={16} />
+                <span>نطق الجهاز الفوري</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 🎮 TAB 3: DISCORD OPERATIONS ─── */}
+      {activeLabTab === 'discord' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            borderRadius: '24px',
+            padding: '24px',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px'
+          }}>
+            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Globe size={22} color="#818cf8" />
+                <span>غرفة عمليات ديسكورد والموافقة على النشر (Discord Bridge)</span>
+              </h2>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                لا يتم نشر أي رسالة أو بيان إلا بعد صياغته ومراجعتك وموافقتك التامة
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: '#cbd5e1', marginBottom: '6px' }}>
+                رابط قناة ديسكورد المعتمدة (Webhook URL):
+              </label>
+              <input
+                type="text"
+                value={discordWebhookUrl}
+                onChange={(e) => setDiscordWebhookUrl(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/xxxx/xxxx"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  direction: 'ltr',
+                  textAlign: 'left',
+                  outline: 'none'
+                }}
+              />
             </div>
 
             <button
@@ -672,26 +1093,26 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               }}
             >
               {isSendingDiscord ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
-              <span>{isSendingDiscord ? 'جارِ النشر إلى ديسكورد...' : 'اعتماد ونشر هذا البيان إلى ديسكورد الآن 🚀'}</span>
+              <span>{isSendingDiscord ? 'جارِ النشر إلى ديسكورد...' : 'اعتماد ونشر البيان إلى ديسكورد الآن 🚀'}</span>
             </button>
+
+            {discordStatus && (
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '12px',
+                background: discordStatus.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                border: `1px solid ${discordStatus.ok ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                color: discordStatus.ok ? '#34d399' : '#f87171',
+                fontSize: '0.8rem',
+                fontWeight: 800
+              }}>
+                {discordStatus.msg}
+              </div>
+            )}
           </div>
-
-          {discordStatus && (
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '12px',
-              background: discordStatus.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              border: `1px solid ${discordStatus.ok ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
-              color: discordStatus.ok ? '#34d399' : '#f87171',
-              fontSize: '0.8rem',
-              fontWeight: 800
-            }}>
-              {discordStatus.msg}
-            </div>
-          )}
         </div>
+      )}
 
-      </div>
     </div>
   );
 };
