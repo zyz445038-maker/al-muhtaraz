@@ -11,7 +11,8 @@ import {
   TrendingUp, 
   Truck, 
   Package, 
-  ShieldCheck 
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { 
   Contract, 
@@ -24,6 +25,7 @@ import {
 import { 
   processDeepAssistantQuery 
 } from '@/utils/aiCopilotBrain';
+import { playInteractionFeedback } from '@/utils/audioFeedback';
 
 interface FloatingVoiceOrbProps {
   userRole: UserRole;
@@ -49,79 +51,145 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
+  const [isThinking, setIsThinking] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
+  const [manualInput, setManualInput] = useState<string>('');
   const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا أبو ماجد، أنا معك وجاهز لأي استفسار!');
-  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله يا أبو ماجد 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
+  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله ومسهلا يا أبو ماجد 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
+  
   const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef<boolean>(false);
+  const accumulatedTextRef = useRef<string>('');
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Keep ref synchronized
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
-  // Initialize Speech Recognition
+  // Initialize Speech Recognition with continuous stream & long-phrase tolerance
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true; // ✅ Do not stop on brief pauses
         recognition.interimResults = true;
         recognition.lang = 'ar-SA';
 
         recognition.onstart = () => {
           setIsListening(true);
+          playInteractionFeedback('start_listening');
         };
 
         recognition.onresult = (event: any) => {
-          const current = event.resultIndex;
-          const text = event.results[current][0].transcript;
-          setTranscript(text);
-          if (event.results[current].isFinal) {
-            handleProcessVoiceInput(text);
+          let interimTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              accumulatedTextRef.current += ' ' + event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
           }
+
+          const currentFullText = (accumulatedTextRef.current + ' ' + interimTranscript).trim();
+          setTranscript(currentFullText);
+
+          // Reset silence timer on every new speech chunk (gives 4.5 seconds for user to pause/think)
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+          }
+
+          silenceTimerRef.current = setTimeout(() => {
+            if (currentFullText.length > 2 && isListeningRef.current) {
+              // User has finished speaking after 4.5s of silence
+              handleProcessVoiceInput(currentFullText);
+              stopListeningSession();
+            }
+          }, 4500);
         };
 
         recognition.onerror = (event: any) => {
           console.warn('Voice recognition error:', event.error);
-          setIsListening(false);
+          if (event.error !== 'no-speech') {
+            setIsListening(false);
+          }
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          // If the user hasn't explicitly stopped listening, keep session alive
+          if (isListeningRef.current) {
+            try {
+              recognition.start();
+            } catch (e) {
+              setIsListening(false);
+            }
+          } else {
+            setIsListening(false);
+          }
         };
 
         recognitionRef.current = recognition;
       }
     }
 
-    return () => {};
+    return () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    };
   }, [contracts, containers, customers, staffList, receipts]);
 
-  // Process Real-time Deep Reasoning Query
-  const handleProcessVoiceInput = (inputText: string) => {
-    if (!inputText.trim()) return;
-
-    // Process through Deep Intelligence Brain
-    const { displayText } = processDeepAssistantQuery(inputText, {
-      contracts,
-      containers,
-      customers,
-      staffList,
-      receipts
-    });
-
-    // Update text response instantly
-    setLastSpeechText(displayText);
-    setLastResponse(displayText);
+  // Stop listening cleanly
+  const stopListeningSession = () => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    isListeningRef.current = false;
+    setIsListening(false);
+    try {
+      recognitionRef.current?.stop();
+    } catch (e) {}
   };
 
+  // Process Real-time Deep Reasoning Query with interactive typing & audio feedback
+  const handleProcessVoiceInput = (inputText: string) => {
+    const cleanQuery = inputText.trim();
+    if (!cleanQuery) return;
+
+    stopListeningSession();
+    setIsThinking(true);
+    playInteractionFeedback('thinking'); // 🎵 Play soft thinking chime
+
+    // Simulate natural thinking/typing reaction (350ms)
+    setTimeout(() => {
+      const { displayText } = processDeepAssistantQuery(cleanQuery, {
+        contracts,
+        containers,
+        customers,
+        staffList,
+        receipts
+      });
+
+      setIsThinking(false);
+      setLastSpeechText(displayText);
+      setLastResponse(displayText);
+      playInteractionFeedback('response'); // 🎵 Play crisp answer completion chime
+      accumulatedTextRef.current = '';
+    }, 450);
+  };
 
   // Toggle Voice Dictation Listening
   const toggleListening = () => {
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      if (transcript.trim().length > 1) {
+        handleProcessVoiceInput(transcript);
+      } else {
+        stopListeningSession();
+      }
     } else {
       setTranscript('');
+      accumulatedTextRef.current = '';
+      isListeningRef.current = true;
       try {
         recognitionRef.current?.start();
+        setIsListening(true);
       } catch (err) {
         console.warn('Recognition start error:', err);
       }
@@ -140,6 +208,10 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
             box-shadow: 0 0 35px rgba(245, 158, 11, 0.7), 0 0 70px rgba(236, 72, 153, 0.4);
             transform: scale(1.06);
           }
+        }
+        @keyframes typingDots {
+          0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+          40% { transform: scale(1); opacity: 1; }
         }
       `}</style>
 
@@ -193,7 +265,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         {/* 🌟 Conversation Pop-up Card */}
         {isOpen && (
           <div style={{
-            width: '360px',
+            width: '380px',
             maxWidth: 'calc(100vw - 32px)',
             background: 'linear-gradient(165deg, rgba(15, 23, 42, 0.96) 0%, rgba(5, 8, 17, 0.98) 100%)',
             border: '1px solid rgba(245, 158, 11, 0.4)',
@@ -223,16 +295,18 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                     <span>مساعد المحترز الذكي</span>
                     <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>👑</span>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#34d399', fontWeight: 700 }}>
-                    {isListening ? '🎙️ يستمع لصوتك الآن...' : '✨ جاهز لخدمتك يا أبو ماجد'}
+                  <div style={{ fontSize: '0.74rem', color: isListening ? '#38bdf8' : isThinking ? '#fbbf24' : '#34d399', fontWeight: 700 }}>
+                    {isListening ? '🎙️ يستمع لك.. تحدث براحتك' : isThinking ? '⚡ جاري التحليل وصياغة الرد...' : '✨ جاهز لخدمتك يا أبو ماجد'}
                   </div>
-
                 </div>
               </div>
 
               {/* Close button */}
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  stopListeningSession();
+                  setIsOpen(false);
+                }}
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
                   border: 'none',
@@ -252,28 +326,110 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
             {/* Conversation Box */}
             <div style={{
-              background: 'rgba(0, 0, 0, 0.4)',
+              background: 'rgba(0, 0, 0, 0.45)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '14px',
-              marginBottom: '16px',
-              minHeight: '110px',
+              marginBottom: '14px',
+              minHeight: '120px',
               maxHeight: '260px',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              position: 'relative'
             }}>
               {transcript && (
-                <div style={{ fontSize: '0.78rem', color: '#fbbf24', marginBottom: '8px', fontWeight: 700 }}>
-                  🎤 سؤالك: "{transcript}"
+                <div style={{
+                  fontSize: '0.8rem',
+                  color: '#fbbf24',
+                  marginBottom: '8px',
+                  fontWeight: 700,
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(245, 158, 11, 0.2)'
+                }}>
+                  🎤 جاري الاستماع: "{transcript}"
                 </div>
               )}
-              <div style={{ fontSize: '0.86rem', color: '#f8fafc', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {lastResponse}
-              </div>
+
+              {/* Dynamic Typing & Thinking Reaction */}
+              {isThinking ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  borderRadius: '10px',
+                  color: '#fbbf24',
+                  fontSize: '0.85rem',
+                  fontWeight: 700
+                }}>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>المساعد يحلل البيانات ويكتب الإجابة...</span>
+                  <div style={{ display: 'flex', gap: '3px', marginRight: 'auto' }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24', animation: 'typingDots 1.4s infinite ease-in-out' }}></span>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24', animation: 'typingDots 1.4s infinite ease-in-out', animationDelay: '0.2s' }}></span>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24', animation: 'typingDots 1.4s infinite ease-in-out', animationDelay: '0.4s' }}></span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.86rem', color: '#f8fafc', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {lastResponse}
+                </div>
+              )}
             </div>
 
+            {/* Quick Text Input for Long/Edited Requests */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (manualInput.trim()) {
+                  handleProcessVoiceInput(manualInput);
+                  setManualInput('');
+                }
+              }}
+              style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '12px'
+              }}
+            >
+              <input
+                type="text"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="أو اكتب طلبك بالتفصيل هنا..."
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  borderRadius: '10px',
+                  padding: '0 12px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Send size={15} />
+              </button>
+            </form>
 
             {/* Main Microphone Button */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
@@ -289,7 +445,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                   border: 'none',
                   color: '#050811',
                   fontWeight: 900,
-                  fontSize: '0.95rem',
+                  fontSize: '0.92rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -302,7 +458,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 }}
               >
                 {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                <span>{isListening ? 'اضغط لإيقاف التسجيل...' : 'اضغط هنا وتحدث بصوتك 🎙️'}</span>
+                <span>{isListening ? 'اضغط لإرسال السؤال الآن ⚡' : 'اضغط هنا وتحدث بصوتك 🎙️'}</span>
               </button>
 
               {/* Quick Chips */}

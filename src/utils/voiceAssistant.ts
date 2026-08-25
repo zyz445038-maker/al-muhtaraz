@@ -140,8 +140,8 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   // 💰 1. Financial Status / Income / Cash
   if (hasToken(financialTokens)) {
     if (totalIncome === 0) {
-      const speech = `هلا والله يا أبو سعود، اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
-      const display = `💰 **هلا والله يا أبو سعود!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
+      const speech = `هلا والله يا أبو ماجد، اليوم بعدنا ما سجلنا أي مبالغ نقدية أو تحصيل، وبإذن الله الخير جاي بالطريق والعقود جاهزة!`;
+      const display = `💰 **هلا والله يا أبو ماجد!** ✨\n\n• **إجمالي دخل اليوم:** 0 ر.س (لم تُسجل مبالغ حتى الآن اليوم).\n• النظام جاهز ومراقب لأي عمليات دفع جديدة 🟢.\n\nبإذن الله الخير جاي ومداخيل البركة بالطريق 🌿!`;
       return { speechText: speech, displayText: display };
     }
 
@@ -158,43 +158,43 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
       breakdown = `كلها مدفوعة عبر السداد الإلكتروني`;
     }
 
-    const speech = `يا هلا والله يا أبو سعود! ما شاء الله الدخل اليوم وصل ${totalWords} ريال، ${breakdown}.. عساها مداخيل الخير والعافية يا رب!`;
-    const display = `💰 **يسعد لي هاليوم يا أبو سعود! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
+    const speech = `يا هلا والله يا أبو ماجد! ما شاء الله الدخل اليوم وصل ${totalWords} ريال، ${breakdown}.. عساها مداخيل الخير والعافية يا رب!`;
+    const display = `💰 **يسعد لي هاليوم يا أبو ماجد! التقرير المالي:** ✨\n\n• **إجمالي دخل اليوم:** **${totalIncome.toLocaleString('ar-SA')} ر.س** 🎉\n• **المستلم نقداً:** ${cashIncome.toLocaleString('ar-SA')} ر.س 💵\n• **سداد إلكتروني:** ${electronicIncome.toLocaleString('ar-SA')} ر.س 💳\n\nعساها مداخيل الخير والبركة يا رب! 🌿`;
     return { speechText: speech, displayText: display };
   }
 
   // 📦 2. Containers / Stock Availability
   if (hasToken(containerTokens)) {
     if (availableCount === 0) {
-      const speech = `هلا يا أبو سعود، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
-      const display = `📦 **ما شاء الله يا أبو سعود!**\n\nكافة الحاويات مأجرة ونشطة حالياً في الميدان 🚛. لا توجد حاويات شاغرة بالمستودع حالياً.`;
+      const speech = `هلا يا أبو ماجد، ما شاء الله كل الحاويات مأجرة وشغالة في الميدان حالياً، وما فيه شواغر بالحوش!`;
+      const display = `📦 **ما شاء الله يا أبو ماجد!**\n\nكافة الحاويات مأجرة ونشطة حالياً في الميدان 🚛. لا توجد حاويات شاغرة بالمستودع حالياً.`;
       return { speechText: speech, displayText: display };
     }
 
     const availWords = numberToArabicWords(availableCount);
-    const speech = `يا هلا والله يا أبو سعود! متوفر الحين في الحوش ${availWords} حاويات جاهزة للتأجير والتنزيل على طول، ربي يبارك في حلالك!`;
-    const display = `✨ **يا هلا والله ومسهلا يا أبو سعود!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
+    const speech = `يا هلا والله يا أبو ماجد! متوفر الحين في الحوش ${availWords} حاويات جاهزة للتأجير والتنزيل على طول، ربي يبارك في حلالك!`;
+    const display = `✨ **يا هلا والله ومسهلا يا أبو ماجد!** ☀️\n\n📦 يتوفر الحين في المخزون **(${availableCount})** حاوية شاغرة وجاهزة للتأجير فوراً 🟢.\nربي يزيد ويبارك لك في حلالك! 🌸`;
     return { speechText: speech, displayText: display };
   }
 
   // ⚠️ 3. Expiring Contracts & Municipality Warning
   if (hasToken(expiringTokens)) {
     if (expiringCount === 0) {
-      const speech = `تطمن يا أبو سعود، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
-      const display = `✅ **تطمن يا أبو سعود، كل الأمور تحت السيطرة!**\n\nما عندك أي حاويات متأخرة أو تنتهي بكرة. كل الأسطول منضبط وموثق 🌟.`;
+      const speech = `تطمن يا أبو ماجد، كل العقود سارية وما عندك أي حاويات بتنتهي بكرة، وأمور البلدية كلها في السليم!`;
+      const display = `✅ **تطمن يا أبو ماجد، كل الأمور تحت السيطرة!**\n\nما عندك أي حاويات متأخرة أو تنتهي بكرة. كل الأسطول منضبط وموثق 🌟.`;
       return { speechText: speech, displayText: display };
     }
 
     const expWords = numberToArabicWords(expiringCount);
-    const speech = `يا أبو سعود، انتبه ترى فيه ${expWords} عقود بتنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`;
-    const display = `⚠️ **يا هلا يا أبو سعود، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`;
+    const speech = `يا أبو ماجد، انتبه ترى فيه ${expWords} عقود بتنتهي بكرة.. يبي لنا نوجه الرافعات تسحبها عشان ما تنزل عليكم غرامات بلدية.`;
+    const display = `⚠️ **يا هلا يا أبو ماجد، تنبيه سريع:**\n\nفيه **(${expiringCount})** عقود تنتهي بكرة وتتطلب سحب الحاويات أو التمديد فوراً عشان نتفادى أي مخالفات من البلدية 🚜.`;
     return { speechText: speech, displayText: display };
   }
 
   // 🚛 4. Drivers & Field Operations
   if (hasToken(driverTokens)) {
-    const speech = `أبشر يا أبو سعود، طاقم السائقين شغالين ومرسلين لهم تفاصيل العناوين والخرائط على الواتساب أول بأول!`;
-    const display = `🚛 **أبشر يا أبو سعود:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
+    const speech = `أبشر يا أبو ماجد، طاقم السائقين شغالين ومرسلين لهم تفاصيل العناوين والخرائط على الواتساب أول بأول!`;
+    const display = `🚛 **أبشر يا أبو ماجد:**\n\nطاقم السائقين والميدان شغالين بنشاط، وتصلهم تفاصيل المواقع وروابط الخرائط تلقائياً على الواتساب 📲.`;
     return { speechText: speech, displayText: display };
   }
 
@@ -204,15 +204,15 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
     const incomeWords = totalIncome > 0 ? numberToArabicWords(totalIncome) : 'صفر';
     const availWords = numberToArabicWords(availableCount);
 
-    const speech = `يا هلا وغلا يا أبو سعود! العلوم تسرك: عندك ${activeWords} عقد شغال، وإجمالي مبالغ اليوم ${incomeWords} ريال، وبالمستودع ${availWords} حاوية جاهزة.`;
-    const display = `📊 **الموجز التنفيذي لليوم يا أبو سعود:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
+    const speech = `يا هلا وغلا يا أبو ماجد! العلوم تسرك: عندك ${activeWords} عقد شغال، وإجمالي مبالغ اليوم ${incomeWords} ريال، وبالمستودع ${availWords} حاوية جاهزة.`;
+    const display = `📊 **الموجز التنفيذي لليوم يا أبو ماجد:**\n\n• **العقود النشطة:** ${activeCount} عقد 📋\n• **إجمالي التحصيل:** ${totalIncome.toLocaleString('ar-SA')} ر.س 💰\n• **حاويات المخزن:** ${availableCount} حاوية 📦\n\nكل شيء مراقب والعمل يسير بأعلى كفاءة ✨!`;
     return { speechText: speech, displayText: display };
   }
 
   // Default Warm Saudi Greeting
   const activeWords = numberToArabicWords(activeCount);
-  const speech = `أبشر من عيوني يا أبو سعود! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
-  const display = `👑 **أبشر من عيوني يا أبو سعود!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
+  const speech = `أبشر من عيوني يا أبو ماجد! كل العمليات والعقود مراقبة ومحفوظة، وتراك مأجر حالياً ${activeWords} عقد. تامرني بشي ثاني أسويه لك؟`;
+  const display = `👑 **أبشر من عيوني يا أبو ماجد!** 🌸\n\nجميع العمليات وسجلات الواتساب مراقبة ومحدثة أولاً بأول. عندك حالياً **(${activeCount})** عقد نشط في الميدان.\n\nتامرني بشي ثاني أساعدك فيه؟ ✨`;
   return { speechText: speech, displayText: display };
 }
 

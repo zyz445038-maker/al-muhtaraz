@@ -44,6 +44,7 @@ import {
 } from '@/types/database';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking, unlockAudio } from '@/utils/voiceAssistant';
+import { playInteractionFeedback } from '@/utils/audioFeedback';
 
 interface SmartAssistantHubProps {
   contracts: Contract[];
@@ -166,10 +167,11 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
 
   // Chat State
   const [chatInput, setChatInput] = useState<string>('');
+  const [isCopilotThinking, setIsCopilotThinking] = useState<boolean>(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string; time: string }>>([
     {
       role: 'assistant',
-      text: 'مرحباً بك يا بو سعود 👑 أنا المساعد الذكي لمؤسسة المحترز للحاويات. جاهز لمساعدتك في تحليل الأسطول، إرسال تقارير اليوم، أو تتبع مبالغ الكاش والسائقين. كيف يمكنني خدمتك؟',
+      text: 'مرحباً بك يا أبو ماجد 👑 أنا المساعد الذكي لمؤسسة المحترز للحاويات. جاهز لمساعدتك في تحليل الأسطول، إرسال تقارير اليوم، أو تتبع مبالغ الكاش والسائقين. كيف يمكنني خدمتك؟',
       time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -241,6 +243,8 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     const newMessages = [...chatMessages, { role: 'user' as const, text: query, time: userTime }];
     setChatMessages(newMessages);
     setChatInput('');
+    setIsCopilotThinking(true);
+    playInteractionFeedback('thinking'); // 🎵 Soft thinking chime
 
     // Process intelligence query against real data dynamically
     setTimeout(() => {
@@ -254,7 +258,9 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
 
       const botTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
       setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
-    }, 200);
+      setIsCopilotThinking(false);
+      playInteractionFeedback('response'); // 🎵 Answer completion chime
+    }, 450);
   };
 
 
@@ -583,6 +589,30 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
                 </span>
               </div>
             ))}
+
+            {isCopilotThinking && (
+              <div style={{
+                alignSelf: 'flex-start',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: '16px',
+                padding: '12px 18px',
+                color: '#fbbf24',
+                fontSize: '0.88rem',
+                fontWeight: 700
+              }}>
+                <Sparkles size={16} className="animate-spin" />
+                <span>المساعد يحلل البيانات ويكتب الإجابة...</span>
+                <span style={{ display: 'inline-flex', gap: '3px', marginRight: '4px' }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24' }}></span>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24' }}></span>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24' }}></span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Input Bar */}
