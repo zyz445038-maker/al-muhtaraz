@@ -47,11 +47,16 @@ export async function POST(request: Request) {
       console.warn('Using default settings due to db fetch failure:', err);
     }
 
-    // Format phone number
+    // Format and normalize phone number
     let cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('05')) {
+    if (cleanPhone.startsWith('00966')) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+    if (cleanPhone.startsWith('96605')) {
+      cleanPhone = '966' + cleanPhone.substring(4);
+    } else if (cleanPhone.startsWith('05')) {
       cleanPhone = '966' + cleanPhone.substring(1);
-    } else if (cleanPhone.startsWith('5')) {
+    } else if (cleanPhone.startsWith('5') && cleanPhone.length === 9) {
       cleanPhone = '966' + cleanPhone;
     }
 

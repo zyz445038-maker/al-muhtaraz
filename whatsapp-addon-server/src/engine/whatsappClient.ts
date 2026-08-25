@@ -19,7 +19,12 @@ export interface SendMessageOptions {
 
 export function formatToWhatsAppJid(phone: string): string {
   let cleaned = phone.replace(/[^0-9]/g, '');
-  if (cleaned.startsWith('05')) {
+  if (cleaned.startsWith('00966')) {
+    cleaned = cleaned.substring(2);
+  }
+  if (cleaned.startsWith('96605')) {
+    cleaned = '966' + cleaned.substring(4);
+  } else if (cleaned.startsWith('05')) {
     cleaned = '966' + cleaned.substring(1);
   } else if (cleaned.startsWith('5') && cleaned.length === 9) {
     cleaned = '966' + cleaned;

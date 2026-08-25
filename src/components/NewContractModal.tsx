@@ -509,6 +509,95 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
             />
           </div>
 
+          {/* 3.5. Driver Assignment System (اختيار السائق وإشعاره بالواتساب) */}
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: '16px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Truck size={18} color="#38bdf8" />
+                <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#38bdf8' }}>
+                  🚚 تعيين السائق المسؤول عن التنزيل (إشعار واتساب تلقائي):
+                </span>
+              </div>
+              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                سيتم إرسال تفاصيل المهمة وموقع GPS تلقائياً لجوال السائق
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                  اختر السائق من فريق العمل:
+                </label>
+                <select
+                  className="form-select"
+                  value={assignedEmployeeId}
+                  onChange={(e) => setAssignedEmployeeId(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: '0.88rem' }}
+                >
+                  <option value="">-- بدون تحديد سائق حالياً (لاحقاً) --</option>
+                  {staffList.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.role === 'admin' ? '👑' : '👷'} {staff.full_name} ({staff.role === 'admin' ? 'الإدارة' : 'سائق / موظف'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                  حالة جوال السائق للإشعار:
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'rgba(30, 41, 59, 0.65)',
+                  padding: '9px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  minHeight: '44px'
+                }}>
+                  {assignedEmployeeId ? (
+                    (() => {
+                      const selStaff = staffList.find(s => s.id === assignedEmployeeId);
+                      const hasPhone = !!selStaff?.phone && selStaff.phone.replace(/\D/g, '').length >= 9;
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                          <span style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            📱 <strong style={{ color: '#38bdf8' }}>{selStaff?.phone || 'غير مسجل'}</strong>
+                          </span>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            background: hasPhone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: hasPhone ? '#34d399' : '#f87171',
+                            border: `1px solid ${hasPhone ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                          }}>
+                            {hasPhone ? 'جاهز للإشعار 🟢' : 'لا يوجد رقم ⚠️'}
+                          </span>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                      ⚪ سيتم تخطي إشعار السائق لعدم التعيين
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 4. Dates, Time & Duration Fast Quick-Select System */}
           <div style={{
             background: 'rgba(15, 23, 42, 0.75)',

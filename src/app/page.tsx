@@ -512,7 +512,7 @@ function MainDashboard() {
     recipientName: string,
     contractNumber: string,
     extraPayload?: Record<string, string>
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
       const res = await fetch('/api/whatsapp/send', {
@@ -535,6 +535,7 @@ function MainDashboard() {
         };
         setWhatsappAlerts(prev => [successAlert, ...prev]);
         setTimeout(() => dismissAlert(alertId), 5000);
+        return { success: true };
       } else {
         // Failure: show persistent red alert that stays until manually dismissed
         const errorAlert: WhatsAppAlert = {
@@ -549,6 +550,7 @@ function MainDashboard() {
           timestamp: new Date().toISOString()
         };
         setWhatsappAlerts(prev => [errorAlert, ...prev]);
+        return { success: false, error: data.error };
       }
     } catch (err: any) {
       const errorAlert: WhatsAppAlert = {
@@ -563,6 +565,7 @@ function MainDashboard() {
         timestamp: new Date().toISOString()
       };
       setWhatsappAlerts(prev => [errorAlert, ...prev]);
+      return { success: false, error: err?.message };
     }
   }, [dismissAlert]);
 
@@ -1207,7 +1210,7 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [newInApp, ...prev]);
 
-    // 🚀 1. Check Routing & Dispatch Official Voucher to Customer (ONLY if real phone number)
+    // 🚀 1. Check Routing & Dispatch Official Voucher to Customer
     const shouldNotifyCustomer = assistantSettings.whatsapp_routing?.notify_customer ?? true;
     if (shouldNotifyCustomer && isRealCallablePhone(customerObj.phone)) {
       await sendSilentWhatsApp(
@@ -1218,28 +1221,64 @@ function MainDashboard() {
         newContract.contract_number,
         { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
       );
+    } else if (shouldNotifyCustomer) {
+      // Customer phone was invalid/missing
+      const warnAlertId = `wa-alert-cust-${Date.now()}`;
+      setWhatsappAlerts(prev => [{
+        id: warnAlertId,
+        type: 'error',
+        recipient: 'customer',
+        recipientName: customerObj.name,
+        recipientPhone: customerObj.phone || 'غير مسجل',
+        contractNumber: newContract.contract_number,
+        message: 'تعذر إرسال السند للعميل: رقم الهاتف غير مكتمل أو غير صالح للإرسال.',
+        errorMessage: 'رقم جوال العميل غير صحيح (يجب 10 أرقام تبدأ بـ 05)',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
     }
 
-    // 🚀 2. Check Routing & Dispatch to Driver (ONLY if driver is assigned and has a real phone)
+    // ⏱️ Pacing Delay (800ms) - Prevents Baileys WebSocket concurrency drop
+    await new Promise(r => setTimeout(r, 800));
+
+    // 🚀 2. Check Routing & Dispatch to Driver
     const shouldNotifyDriver = assistantSettings.whatsapp_routing?.notify_driver ?? true;
-    if (shouldNotifyDriver && assignedStaff?.phone && isRealCallablePhone(assignedStaff.phone)) {
-      const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
-      const driverMsg = formatDriverMissionMessage({
-        contract: newContract,
-        customer: customerObj,
-        container: containerObj,
-        mapsUrl,
-        expectedTime: contractData.expected_pickup_time
-      });
-      await sendSilentWhatsApp(
-        assignedStaff.phone,
-        driverMsg,
-        'driver',
-        assignedStaff.full_name,
-        newContract.contract_number,
-        { contract_id: newContract.id, recipient_role: 'driver', notification_type: 'driver_dispatch' }
-      );
+    if (shouldNotifyDriver && assignedStaff) {
+      if (assignedStaff.phone && isRealCallablePhone(assignedStaff.phone)) {
+        const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
+        const driverMsg = formatDriverMissionMessage({
+          contract: newContract,
+          customer: customerObj,
+          container: containerObj,
+          mapsUrl,
+          expectedTime: contractData.expected_pickup_time
+        });
+        await sendSilentWhatsApp(
+          assignedStaff.phone,
+          driverMsg,
+          'driver',
+          assignedStaff.full_name,
+          newContract.contract_number,
+          { contract_id: newContract.id, recipient_role: 'driver', notification_type: 'driver_dispatch' }
+        );
+      } else {
+        // Driver was assigned, but lacks a valid phone number -> Alert staff immediately!
+        const warnAlertId = `wa-alert-driver-${Date.now()}`;
+        setWhatsappAlerts(prev => [{
+          id: warnAlertId,
+          type: 'error',
+          recipient: 'driver',
+          recipientName: assignedStaff.full_name,
+          recipientPhone: assignedStaff.phone || 'غير مسجل',
+          contractNumber: newContract.contract_number,
+          message: `تعذر إرسال إشعار المهمة للسائق (${assignedStaff.full_name}) لعدم وجود رقم جوال صالح مسجل في ملفه.`,
+          errorMessage: 'رقم جوال السائق مفقود أو غير مكتمل في إدارة الموظفين',
+          timestamp: new Date().toISOString()
+        }, ...prev]);
+      }
     }
+
+    // ⏱️ Pacing Delay (800ms)
+    await new Promise(r => setTimeout(r, 800));
 
     // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin (ONLY if real admin phone configured)
     const shouldNotifyAdmin = assistantSettings.whatsapp_routing?.notify_admin ?? true;
