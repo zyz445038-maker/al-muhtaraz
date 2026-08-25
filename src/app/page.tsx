@@ -1656,7 +1656,7 @@ function MainDashboard() {
       )}
 
       {/* 3. Main Body Content */}
-      <main style={{
+      <main className="main-app-container" style={{
         flex: 1,
         maxWidth: '1400px',
         width: '100%',

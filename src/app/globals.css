@@ -487,6 +487,17 @@ html, body {
   }
 }
 
+@keyframes slideUpBottom {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @keyframes slideInFromTop {
   0% {
     transform: translateY(-28px) scale(0.97);
@@ -497,4 +508,48 @@ html, body {
     opacity: 1;
   }
 }
+
+/* ==============================================================================
+   📱 Smart Mobile Native UX & Responsiveness (max-width: 768px)
+   ============================================================================== */
+@media (max-width: 768px) {
+  .main-app-container {
+    padding: 12px 10px 100px 10px !important;
+  }
+
+  /* Bottom Sheet Modals on Smartphones */
+  .modal-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .modal-content {
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 28px !important;
+    max-height: 88vh !important;
+    animation: slideUpBottom 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  /* Horizontal Filter Chips on Mobile */
+  .mobile-horizontal-scroll {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 6px;
+  }
+
+  .mobile-horizontal-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Single Column Card Grid on Mobile */
+  .mobile-grid-1col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 
