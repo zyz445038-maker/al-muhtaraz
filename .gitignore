@@ -45,3 +45,5 @@ baileys_store.json
 sessions/
 whatsapp-addon-server/sessions/
 whatsapp-addon-server/.env
+
+cloudflared.exe
