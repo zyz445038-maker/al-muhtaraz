@@ -65,6 +65,20 @@ function getPaymentMethodLabel(method?: PaymentMethod): { label: string; icon: s
   }
 }
 
+function encodeUtf8Base64(data: any): string {
+  try {
+    const jsonStr = JSON.stringify(data);
+    const bytes = new TextEncoder().encode(jsonStr);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return encodeURIComponent(btoa(binary));
+  } catch (e) {
+    return '';
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
@@ -114,7 +128,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       notes: receipt?.notes || ''
     };
     try {
-      const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(receiptData)))));
+      const encoded = encodeUtf8Base64(receiptData);
       setReceiptUrl(`${window.location.origin}/receipt/${receiptNumber}?d=${encoded}`);
     } catch {
       setReceiptUrl(window.location.origin);
@@ -135,19 +149,72 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8"/>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>سند قبض - ${receiptNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Cairo', sans-serif; background: #fff; color: #0f172a; direction: rtl; }
-    .receipt-paper { max-width: 760px; margin: 0 auto; padding: 32px; }
-    table { border-collapse: collapse; }
-    td, th { padding: 0; }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      direction: rtl !important;
+      text-align: right;
+      font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    html, body { 
+      background: #fff; 
+      color: #0f172a; 
+      direction: rtl !important; 
+      text-align: right;
+      width: 100%;
+    }
+    .receipt-paper { 
+      max-width: 760px; 
+      margin: 0 auto; 
+      padding: 24px; 
+      direction: rtl !important;
+    }
+    table { 
+      border-collapse: collapse; 
+      width: 100%;
+      direction: rtl !important;
+    }
+    td, th { 
+      direction: rtl !important;
+      text-align: right;
+    }
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+      body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="receipt-paper">${content}</div>
-  <script>window.onload=()=>{window.print();window.close();}<\/script>
+  <script>
+    if (document.fonts) {
+      document.fonts.ready.then(() => {
+        window.print();
+        setTimeout(() => window.close(), 1000);
+      });
+    } else {
+      window.onload = () => {
+        window.print();
+        setTimeout(() => window.close(), 1000);
+      };
+    }
+  <\/script>
 </body>
 </html>`);
     win.document.close();
