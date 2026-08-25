@@ -26,7 +26,9 @@ import {
   Check,
   Bot,
   User,
-  Lightbulb
+  Lightbulb,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
@@ -72,13 +74,15 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     {
       id: 'welcome-msg',
       sender: 'assistant',
-      text: 'أهلاً وسهلاً بأبو ماجد.. أنا جاهز لخدمتك والتعلم منك! يمكنك سؤالي عن العمليات أو تلقيني عبارات جديدة مثل: «قل مستقبلاً: مرحباً بك في المحترز» أو «إذا سألتك عن سعر الحاوية قل: 500 ريال».',
-      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا جَاهِزٌ لِخِدْمَتِكَ وَالتَّعَلُّمِ مِنْكْ..',
+      text: 'أهلاً وسهلاً بأبو ماجد.. أنا جاهز للتحدث معك صوتياً والتعلم منك! يمكنك الضغط على المايك 🎙️ والتحدث مباشرة، أو تلقيني قواعد وعبارات جديدة.',
+      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا جَاهِزٌ لِلتَّحَدُّثِ مَعَكَ صَوْتِيّاً وَالتَّعَلُّمِ مِنْكْ..',
       time: 'الآن'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isReplying, setIsReplying] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // ─── Dynamic AI Education & Learning States ───────
@@ -178,7 +182,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
     if (audioRef.current) {
       audioRef.current.src = streamUrl;
-      audioRef.current.playbackRate = getRateMultiplier(speechRate); // Apply rate to HTML Audio as well
+      audioRef.current.playbackRate = getRateMultiplier(speechRate);
       audioRef.current.load();
       
       const playPromise = audioRef.current.play();
@@ -198,11 +202,66 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     }
   };
 
+  // 🎙️ Toggle Live Voice Microphone (Speech to Text)
+  const handleToggleVoiceRecognition = () => {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('المتصفح الحالي لا يدعم التعرف الصوتي المباشر. يُفضل استخدام متصفح Chrome أو Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'ar-SA';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setChatInput(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition notice:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Error starting speech recognition:', err);
+      setIsListening(false);
+    }
+  };
+
   // 💬 Handle Conversational Chat & In-Line Teaching
   const handleSendChatMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const userMsg = chatInput.trim();
     if (!userMsg || isReplying) return;
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
 
     const newMsg: ChatMessage = {
       id: 'msg-' + Date.now(),
@@ -420,11 +479,11 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
                   مختبر الذكاء الاصطناعي والمحادثة التعليمية
                 </h1>
                 <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.4)', fontSize: '0.75rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px' }}>
-                  🔒 تحكم وإشراف أبو ماجد
+                  🔒 بيئة تطوير معزولة خاصة بأبو ماجد
                 </span>
               </div>
               <p style={{ color: '#cbd5e1', fontSize: '0.86rem', marginTop: '4px' }}>
-                تحدث مع المساعد مباشرة وعلّمه عبارات وقواعد جديدة ليتذكرها ويجيب بها فوراً
+                تحدث مع المساعد صوتياً بالمايك أو كتابة، وعلّمه عبارات وقواعد جديدة ليتذكرها ويجيب بها فوراً
               </p>
             </div>
           </div>
@@ -625,24 +684,69 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               <div ref={chatBottomRef} />
             </div>
 
-            {/* Chat Input Field */}
+            {/* Listening Indicator when Mic is Active */}
+            {isListening && (
+              <div style={{
+                marginBottom: '8px',
+                padding: '8px 14px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#f87171',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                animation: 'pulse 1.5s infinite'
+              }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+                <span>المايك يستمع لصوتك الآن.. تحدث وسيكتب كلامك تلقائياً 🎙️</span>
+              </div>
+            )}
+
+            {/* Chat Input Field with Mic & Send */}
             <form onSubmit={handleSendChatMessage} style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
+              
+              {/* 🎙️ Microphone Speech-to-Text Button */}
+              <button
+                type="button"
+                onClick={handleToggleVoiceRecognition}
+                style={{
+                  padding: '12px 14px',
+                  background: isListening ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255, 255, 255, 0.08)',
+                  border: isListening ? '2px solid #f87171' : '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '14px',
+                  color: isListening ? '#ffffff' : '#38bdf8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: isListening ? '0 0 15px rgba(239, 68, 68, 0.6)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+                title={isListening ? 'إيقاف الاستماع' : 'تحدث بالصوت عبر المايك'}
+              >
+                {isListening ? <MicOff size={18} className="animate-bounce" /> : <Mic size={18} />}
+              </button>
+
               <input
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="تحدث أو لقّن المساعد: (مثال: قل مستقبلاً: أهلاً وسهلاً بك في المحترز)..."
+                placeholder="اكتب أو تحدث بالمايك: (مثال: قل مستقبلاً: أهلاً وسهلاً بك في المحترز)..."
                 style={{
                   flex: 1,
                   padding: '12px 16px',
                   borderRadius: '14px',
                   background: 'rgba(0, 0, 0, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  border: isListening ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.15)',
                   color: '#ffffff',
                   fontSize: '0.86rem',
                   outline: 'none'
                 }}
               />
+
               <button
                 type="submit"
                 disabled={isReplying || !chatInput.trim()}
@@ -680,10 +784,10 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <Lightbulb size={20} color="#f472b6" />
-                <span>كيف تلقّن المساعد من المحادثة مباشرة؟</span>
+                <span>كيف تلقّن المساعد بالصوت أو النص؟</span>
               </h3>
               <p style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '12px' }}>
-                المساعد يمتلك الآن محرك استخراج ذاتي يفهم أوامر التلقين في المحادثة ويحفظها في ذاكرته فوراً! جرب إرسال التالي في الشات:
+                المساعد يمتلك الآن محرك استخراج ذاتي يفهم أوامر التلقين في المحادثة ويحفظها في ذاكرته فوراً! جرب إرسال أو نطق التالي:
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
