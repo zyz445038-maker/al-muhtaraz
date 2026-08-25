@@ -23,7 +23,10 @@ import {
   Zap, 
   MessageSquare, 
   Search,
-  Check
+  Check,
+  Bot,
+  User,
+  Lightbulb
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
@@ -32,16 +35,27 @@ import {
   getLearnedKnowledge, 
   teachAssistantRule, 
   deleteLearnedRule, 
-  querySystemKnowledge 
+  querySystemKnowledge,
+  parseConversationalTeaching
 } from '@/utils/aiCopilotKnowledge';
+import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
 
 interface DevLabProps {
   currentRole: string;
 }
 
+interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  speechText?: string;
+  isTaught?: boolean;
+  time: string;
+}
+
 export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   // Navigation Tabs inside DevLab
-  const [activeLabTab, setActiveLabTab] = useState<'education' | 'voice_studio' | 'discord'>('education');
+  const [activeLabTab, setActiveLabTab] = useState<'chat' | 'education' | 'voice_studio' | 'discord'>('chat');
 
   // ─── Voice Studio States ─────────────────────────
   const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
@@ -52,6 +66,20 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   const [isLoadingAudio, setIsLoadingAudio] = useState<boolean>(false);
   const [isApproved, setIsApproved] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // ─── Interactive Chat & Live Learning States ───────
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome-msg',
+      sender: 'assistant',
+      text: 'أهلاً وسهلاً بأبو ماجد.. أنا جاهز لخدمتك والتعلم منك! يمكنك سؤالي عن العمليات أو تلقيني عبارات جديدة مثل: «قل مستقبلاً: مرحباً بك في المحترز» أو «إذا سألتك عن سعر الحاوية قل: 500 ريال».',
+      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا جَاهِزٌ لِخِدْمَتِكَ وَالتَّعَلُّمِ مِنْكْ..',
+      time: 'الآن'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // ─── Dynamic AI Education & Learning States ───────
   const [learnedRules, setLearnedRules] = useState<KnowledgeItem[]>([]);
@@ -75,7 +103,11 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     setLearnedRules(getLearnedKnowledge());
   }, []);
 
-  // Automatic Arabic Diacritization & Phonetic Shaping
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Automatic Arabic Diacritization
   const handleAutoDiacritize = () => {
     if (!inputText.trim()) return;
     const diacritized = diacritizeArabicSpeech(inputText);
@@ -85,15 +117,11 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
   // Convert rate percentage to factor
   const getRateMultiplier = (rateStr: string): number => {
-    switch (rateStr) {
-      case '-30%': return 0.70;
-      case '-20%': return 0.80;
-      case '-10%': return 0.90;
-      case '+10%': return 1.10;
-      case '+20%': return 1.20;
-      case '+30%': return 1.30;
-      default: return 1.0;
+    const clean = parseFloat(rateStr.replace('%', '').trim());
+    if (!isNaN(clean)) {
+      return Math.max(0.5, Math.min(2.0, 1.0 + (clean / 100)));
     }
+    return 1.0;
   };
 
   // Native Device Speech Synthesis
@@ -136,7 +164,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Generate & Play Voice
+  // Generate & Play Voice with active rate & mood
   const handlePlayVoice = (textToPlay: string = inputText) => {
     if (!textToPlay.trim()) return;
     setIsLoadingAudio(true);
@@ -150,6 +178,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
 
     if (audioRef.current) {
       audioRef.current.src = streamUrl;
+      audioRef.current.playbackRate = getRateMultiplier(speechRate); // Apply rate to HTML Audio as well
       audioRef.current.load();
       
       const playPromise = audioRef.current.play();
@@ -169,7 +198,89 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     }
   };
 
-  // Teach Assistant New Rule
+  // 💬 Handle Conversational Chat & In-Line Teaching
+  const handleSendChatMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const userMsg = chatInput.trim();
+    if (!userMsg || isReplying) return;
+
+    const newMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      text: userMsg,
+      time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setChatMessages(prev => [...prev, newMsg]);
+    setChatInput('');
+    setIsReplying(true);
+
+    setTimeout(() => {
+      // 1. Check if user is teaching the assistant directly in conversation
+      const teachingResult = parseConversationalTeaching(userMsg);
+
+      if (teachingResult.isTeaching) {
+        setLearnedRules(getLearnedKnowledge());
+        confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
+
+        const replyMsg: ChatMessage = {
+          id: 'reply-' + Date.now(),
+          sender: 'assistant',
+          text: teachingResult.responseMessage || 'أبشر.. تم حفظ هذه المعلومة وتعلمها بنجاح! 💾✨',
+          speechText: teachingResult.speechResponse,
+          isTaught: true,
+          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setChatMessages(prev => [...prev, replyMsg]);
+        setIsReplying(false);
+
+        if (teachingResult.speechResponse) {
+          handlePlayVoice(teachingResult.speechResponse);
+        }
+        return;
+      }
+
+      // 2. Check System & Learned Knowledge Base
+      const knowledgeMatch = querySystemKnowledge(userMsg);
+      if (knowledgeMatch) {
+        const replyMsg: ChatMessage = {
+          id: 'reply-' + Date.now(),
+          sender: 'assistant',
+          text: knowledgeMatch.speechResponse,
+          speechText: knowledgeMatch.speechResponse,
+          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        };
+        setChatMessages(prev => [...prev, replyMsg]);
+        setIsReplying(false);
+        handlePlayVoice(knowledgeMatch.speechResponse);
+        return;
+      }
+
+      // 3. Fallback to standard intelligent response
+      const standardResponse = formatSaudiCheerResponse(userMsg, {
+        availableCount: 4,
+        totalIncome: 1800,
+        cashIncome: 600,
+        electronicIncome: 1200,
+        expiringCount: 0,
+        activeCount: 12
+      });
+
+      const replyMsg: ChatMessage = {
+        id: 'reply-' + Date.now(),
+        sender: 'assistant',
+        text: standardResponse.displayText,
+        speechText: standardResponse.speechText,
+        time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages(prev => [...prev, replyMsg]);
+      setIsReplying(false);
+      handlePlayVoice(standardResponse.speechText);
+    }, 400);
+  };
+
+  // Teach Assistant New Rule from Form
   const handleTeachRule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRuleTitle.trim() || !newRuleTriggers.trim() || !newRuleResponse.trim()) {
@@ -235,6 +346,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         fields: [
           { name: '🎙️ المعلق الصوتي', value: voiceTitle, inline: true },
           { name: '🎭 طابع النبرة', value: moodTitle, inline: true },
+          { name: '⚡ سرعة النطق', value: speechRate, inline: true },
           { name: '⚡ حالة الاعتماد', value: 'تمت المراجعة والموافقة بنجاح ✅', inline: true }
         ],
         footer: { text: 'غرفة العمليات المركزية | ديسكورد' },
@@ -300,25 +412,47 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)',
               flexShrink: 0
             }}>
-              <GraduationCap size={32} strokeWidth={2.3} />
+              <Bot size={32} strokeWidth={2.3} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff' }}>
-                  مختبر تثقيف وتطوير المساعد الذكي (AI Education Hub)
+                  مختبر الذكاء الاصطناعي والمحادثة التعليمية
                 </h1>
                 <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.4)', fontSize: '0.75rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px' }}>
-                  🔒 تحكم وإشراف المدير العام (أبو ماجد)
+                  🔒 تحكم وإشراف أبو ماجد
                 </span>
               </div>
               <p style={{ color: '#cbd5e1', fontSize: '0.86rem', marginTop: '4px' }}>
-                تلقين المساعد أسرار العمل وقواعد الأسعار والسياسات، وتطوير ذاكرته المعرفية والنطق الفصيح
+                تحدث مع المساعد مباشرة وعلّمه عبارات وقواعد جديدة ليتذكرها ويجيب بها فوراً
               </p>
             </div>
           </div>
 
           {/* Quick Sub-Tabs Switcher */}
-          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.4)', padding: '5px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.4)', padding: '5px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap' }}>
+            
+            {/* 💬 TAB: LIVE CHAT & LEARNING */}
+            <button
+              onClick={() => setActiveLabTab('chat')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                background: activeLabTab === 'chat' ? 'linear-gradient(135deg, #06b6d4, #0891b2)' : 'transparent',
+                color: activeLabTab === 'chat' ? '#fff' : '#94a3b8',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <MessageSquare size={16} />
+              <span>محادثة وتعلّم فوري</span>
+            </button>
+
             <button
               onClick={() => setActiveLabTab('education')}
               style={{
@@ -336,7 +470,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               }}
             >
               <Brain size={16} />
-              <span>استوديو التثقيف والتعلم</span>
+              <span>بنك القواعد ({learnedRules.length})</span>
             </button>
 
             <button
@@ -356,7 +490,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               }}
             >
               <Volume2 size={16} />
-              <span>استوديو المشاعر والنطق</span>
+              <span>المشاعر والسرعات</span>
             </button>
 
             <button
@@ -376,11 +510,328 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
               }}
             >
               <Globe size={16} />
-              <span>غرفة عمليات ديسكورد</span>
+              <span>ديسكورد</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* ─── 💬 TAB 0: LIVE CONVERSATION & INSTANT LEARNING ─── */}
+      {activeLabTab === 'chat' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          
+          {/* Chat Messenger Container */}
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(6, 182, 212, 0.35)',
+            borderRadius: '24px',
+            padding: '20px',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '620px'
+          }}>
+            
+            {/* Chat Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#ffffff' }}>
+                  محادثة المساعد المباشرة ({selectedVoice === 'zariyah' ? '🌸 زاريّة' : selectedVoice === 'hamed' ? '👔 حامد' : '✨ فاطمة'})
+                </span>
+              </div>
+
+              {/* Quick speed selector inside chat */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: '10px' }}>
+                <Gauge size={13} color="#38bdf8" />
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>السرعة:</span>
+                <select
+                  value={speechRate}
+                  onChange={(e) => setSpeechRate(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontWeight: 800, fontSize: '0.75rem', outline: 'none', cursor: 'pointer' }}
+                >
+                  {['-30%', '-20%', '-10%', '0%', '+10%', '+20%', '+30%'].map(r => (
+                    <option key={r} value={r} style={{ background: '#0f172a', color: '#fff' }}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Chat Messages Log */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 4px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {chatMessages.map((msg) => {
+                const isUser = msg.sender === 'user';
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isUser ? 'flex-start' : 'flex-end',
+                      maxWidth: '85%',
+                      alignSelf: isUser ? 'flex-start' : 'flex-end'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>
+                        {isUser ? 'أبو ماجد' : selectedVoice === 'zariyah' ? 'زاريّة' : 'المساعد'}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{msg.time}</span>
+                    </div>
+
+                    <div style={{
+                      padding: '12px 16px',
+                      borderRadius: isUser ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
+                      background: isUser ? 'linear-gradient(135deg, #0284c7, #0369a1)' : msg.isTaught ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.25))' : 'rgba(30, 41, 59, 0.9)',
+                      border: msg.isTaught ? '1px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#ffffff',
+                      fontSize: '0.88rem',
+                      lineHeight: 1.6,
+                      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                    }}>
+                      {msg.isTaught && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#f472b6', fontWeight: 900, fontSize: '0.75rem', marginBottom: '4px' }}>
+                          <Sparkles size={14} />
+                          <span>تم حفظ المعلومة في الذاكرة المكتسبة!</span>
+                        </div>
+                      )}
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                    </div>
+
+                    {!isUser && msg.speechText && (
+                      <button
+                        onClick={() => handlePlayVoice(msg.speechText)}
+                        style={{
+                          marginTop: '4px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#38bdf8',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 6px'
+                        }}
+                      >
+                        <Volume2 size={13} />
+                        <span>إعادة الاستماع بالصوت ({speechRate})</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Chat Input Field */}
+            <form onSubmit={handleSendChatMessage} style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="تحدث أو لقّن المساعد: (مثال: قل مستقبلاً: أهلاً وسهلاً بك في المحترز)..."
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: '14px',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  fontSize: '0.86rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isReplying || !chatInput.trim()}
+                style={{
+                  padding: '12px 20px',
+                  background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+                  border: 'none',
+                  borderRadius: '14px',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)'
+                }}
+              >
+                {isReplying ? <RefreshCw size={17} className="animate-spin" /> : <Send size={17} />}
+                <span>إرسال</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Quick Learning Hints & Speed Fine-Tuning Guide */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            
+            {/* Quick Teaching Guide Card */}
+            <div style={{
+              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+              border: '1px solid rgba(236, 72, 153, 0.35)',
+              borderRadius: '24px',
+              padding: '20px',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)'
+            }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <Lightbulb size={20} color="#f472b6" />
+                <span>كيف تلقّن المساعد من المحادثة مباشرة؟</span>
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '12px' }}>
+                المساعد يمتلك الآن محرك استخراج ذاتي يفهم أوامر التلقين في المحادثة ويحفظها في ذاكرته فوراً! جرب إرسال التالي في الشات:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div
+                  onClick={() => setChatInput('قل مستقبلاً: أهلاً وسهلاً بك في مؤسسة المحترز لخدمات الحاويات')}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px dashed rgba(236, 72, 153, 0.4)',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    fontSize: '0.78rem',
+                    color: '#f472b6',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💬 <strong>قل مستقبلاً:</strong> «أهلاً وسهلاً بك في مؤسسة المحترز لخدمات الحاويات»
+                </div>
+
+                <div
+                  onClick={() => setChatInput('إذا سألتك عن سعر الحاوية في حي النرجس قل: السعر 600 ريال لمدة أسبوع')}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px dashed rgba(56, 189, 248, 0.4)',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    fontSize: '0.78rem',
+                    color: '#38bdf8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💬 <strong>إذا سألتك عن [كذا] قل:</strong> «السعر 600 ريال لمدة أسبوع»
+                </div>
+
+                <div
+                  onClick={() => setChatInput('تعلم: السائق محمد يتولى حاويات شمال الرياض فقط')}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px dashed rgba(168, 85, 247, 0.4)',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    fontSize: '0.78rem',
+                    color: '#d8b4fe',
+                    cursor: 'pointer'
+                  }}
+                >
+                  💬 <strong>تعلم:</strong> «السائق محمد يتولى حاويات شمال الرياض فقط»
+                </div>
+              </div>
+            </div>
+
+            {/* Active Speech Speed & Emotion Summary */}
+            <div style={{
+              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              borderRadius: '24px',
+              padding: '20px',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Gauge size={18} color="#a855f7" />
+                  <span>مستويات السرعة الفعّالة (+ / -):</span>
+                </h3>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#34d399' }}>
+                  مفعلة وتؤثر على النطق فوراً ✅
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {['-30%', '-20%', '-10%', '0%', '+10%', '+20%', '+30%'].map((rate) => {
+                  const isSelected = speechRate === rate;
+                  return (
+                    <button
+                      key={rate}
+                      onClick={() => setSpeechRate(rate)}
+                      style={{
+                        flex: '1 0 12%',
+                        padding: '8px 4px',
+                        borderRadius: '10px',
+                        border: isSelected ? '2px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                        background: isSelected ? 'rgba(236, 72, 153, 0.25)' : 'rgba(0,0,0,0.3)',
+                        color: isSelected ? '#ffffff' : '#94a3b8',
+                        fontWeight: isSelected ? 900 : 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {rate}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '14px' }}>
+                <button
+                  onClick={() => setVoiceMood('cheerful')}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '10px',
+                    border: voiceMood === 'cheerful' ? '2px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
+                    background: voiceMood === 'cheerful' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'cheerful' ? '#f472b6' : '#94a3b8',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  😄 مرح
+                </button>
+
+                <button
+                  onClick={() => setVoiceMood('formal')}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '10px',
+                    border: voiceMood === 'formal' ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
+                    background: voiceMood === 'formal' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'formal' ? '#fbbf24' : '#94a3b8',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  👔 رسمي
+                </button>
+
+                <button
+                  onClick={() => setVoiceMood('friendly')}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '10px',
+                    border: voiceMood === 'friendly' ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                    background: voiceMood === 'friendly' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0,0,0,0.3)',
+                    color: voiceMood === 'friendly' ? '#38bdf8' : '#94a3b8',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🌸 ودود
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
       {/* ─── 🧠 TAB 1: AI EDUCATION & KNOWLEDGE BRAIN ─── */}
       {activeLabTab === 'education' && (
@@ -532,178 +983,85 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             </form>
           </div>
 
-          {/* 2. Learned Knowledge Bank & Test Simulator */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
-            {/* Live Knowledge Test Simulator */}
-            <div style={{
-              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: '24px',
-              padding: '20px',
-              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Search size={18} color="#38bdf8" />
-                  <span>اختبار فهم واستيعاب المساعد فوراً:</span>
-                </h3>
-                <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 800, background: 'rgba(56, 189, 248, 0.15)', padding: '2px 8px', borderRadius: '8px' }}>
-                  فحص الذاكرة الحية ⚡
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={testQuery}
-                  onChange={(e) => setTestQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleTestKnowledge()}
-                  placeholder="اطرح أي سؤال مما لقنته إياه لتختبر جوابه..."
-                  style={{
-                    flex: 1,
-                    padding: '11px',
-                    borderRadius: '12px',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    fontSize: '0.84rem',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  onClick={handleTestKnowledge}
-                  style={{
-                    padding: '11px 18px',
-                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    fontSize: '0.84rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <Play size={15} />
-                  <span>فحص الجواب</span>
-                </button>
-              </div>
-
-              {testQueryResult.tested && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '14px',
-                  borderRadius: '14px',
-                  background: testQueryResult.match ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  border: `1px solid ${testQueryResult.match ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
-                }}>
-                  {testQueryResult.match ? (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 900, color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <CheckCircle2 size={16} />
-                          <span>تم الاستيعاب بنجاح: {testQueryResult.match.title}</span>
-                        </span>
-                        <button
-                          onClick={() => handlePlayVoice(testQueryResult.match!.speechResponse)}
-                          style={{ background: 'rgba(16, 185, 129, 0.3)', border: 'none', color: '#fff', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 800 }}
-                        >
-                          🔊 إعادة الاستماع
-                        </button>
-                      </div>
-                      <p style={{ fontSize: '0.82rem', color: '#f1f5f9', lineHeight: 1.5 }}>
-                        {testQueryResult.match.speechResponse}
-                      </p>
-                    </div>
-                  ) : (
-                    <p style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 800 }}>
-                      ⚠️ لم يجد المساعد قاعدة مطابقة لهذا السؤال.. لقّنه القاعدة في الصندوق المقابل وسيحفظها فوراً!
-                    </p>
-                  )}
-                </div>
-              )}
+          {/* 2. Learned Knowledge Bank */}
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
+            border: '1px solid rgba(168, 85, 247, 0.35)',
+            borderRadius: '24px',
+            padding: '20px',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BookOpen size={18} color="#c084fc" />
+                <span>بنك المعرفة والذاكرة المكتسبة ({learnedRules.length})</span>
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: 800 }}>
+                تحديث تلقائي لحظي 🔄
+              </span>
             </div>
 
-            {/* Bank of Learned Rules */}
-            <div style={{
-              background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 15, 29, 0.98) 100%)',
-              border: '1px solid rgba(168, 85, 247, 0.35)',
-              borderRadius: '24px',
-              padding: '20px',
-              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <BookOpen size={18} color="#c084fc" />
-                  <span>بنك المعرفة والذاكرة المكتسبة ({learnedRules.length})</span>
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: 800 }}>
-                  تحديث تلقائي لحظي 🔄
-                </span>
+            {learnedRules.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8' }}>
+                <Brain size={36} color="#64748b" style={{ margin: '0 auto 8px' }} />
+                <p style={{ fontSize: '0.84rem' }}>لا توجد قواعد مخصصة ملقنة بعد.. لقّن المساعد من الشات أو من النموذج المقابل!</p>
               </div>
-
-              {learnedRules.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8' }}>
-                  <Brain size={36} color="#64748b" style={{ margin: '0 auto 8px' }} />
-                  <p style={{ fontSize: '0.84rem' }}>لا توجد قواعد مخصصة ملقنة بعد.. أضف أول قاعدة في الاستوديو أعلاه!</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
-                  {learnedRules.map((rule) => (
-                    <div
-                      key={rule.id}
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.4)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '14px',
-                        padding: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px'
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ffffff' }}>{rule.title}</span>
-                          <span style={{ fontSize: '0.65rem', background: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe', padding: '1px 6px', borderRadius: '6px' }}>
-                            {rule.category}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px', lineHeight: 1.4 }}>
-                          {rule.speechResponse}
-                        </p>
-                      </div>
-
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto' }}>
+                {learnedRules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '14px',
+                      padding: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          onClick={() => handlePlayVoice(rule.speechResponse)}
-                          style={{ background: 'rgba(236, 72, 153, 0.2)', border: 'none', color: '#f472b6', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="استماع للنطق"
-                        >
-                          <Volume2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRule(rule.id!)}
-                          style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: '#f87171', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="حذف القاعدة"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#ffffff' }}>{rule.title}</span>
+                        <span style={{ fontSize: '0.65rem', background: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe', padding: '1px 6px', borderRadius: '6px' }}>
+                          {rule.category}
+                        </span>
                       </div>
+                      <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '3px', lineHeight: 1.4 }}>
+                        {rule.speechResponse}
+                      </p>
+                      {rule.taught_by && (
+                        <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px', display: 'block' }}>
+                          تلقين بواسطة: {rule.taught_by}
+                        </span>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        onClick={() => handlePlayVoice(rule.speechResponse)}
+                        style={{ background: 'rgba(236, 72, 153, 0.2)', border: 'none', color: '#f472b6', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="استماع للنطق"
+                      >
+                        <Volume2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRule(rule.id!)}
+                        style={{ background: 'rgba(239, 68, 68, 0.2)', border: 'none', color: '#f87171', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="حذف القاعدة"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

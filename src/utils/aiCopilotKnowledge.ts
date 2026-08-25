@@ -1,5 +1,5 @@
-// Comprehensive System Knowledge Base & Dynamic Learning Engine for AI Assistant
-// Contains static domain knowledge + Dynamic Self-Learning Memory Bank
+// Comprehensive System Knowledge Base & Dynamic Conversational Learning Engine for AI Assistant
+// Contains static domain knowledge + Dynamic Self-Learning Memory Bank + In-Conversation Auto-Learning Parser
 
 export interface KnowledgeItem {
   id?: string;
@@ -120,6 +120,91 @@ export function deleteLearnedRule(id: string): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem(LEARNED_KNOWLEDGE_KEY, JSON.stringify(filtered));
   }
+}
+
+// 🧠 Conversational Auto-Learning Parser: detects when user is actively teaching the assistant in chat!
+export function parseConversationalTeaching(userMessage: string): { isTeaching: boolean; item?: KnowledgeItem; responseMessage?: string; speechResponse?: string } {
+  const clean = userMessage.trim();
+  
+  // Patterns like:
+  // 1. "قل مستقبلا: [العبارة]" or "قل مستقبلاً [العبارة]"
+  // 2. "احفظ عندك إذا سألتك عن [كذا] قل: [كذا]"
+  // 3. "إذا سألتك عن [كذا] قل: [كذا]"
+  // 4. "تعلم: [كذا]"
+  
+  const futureSayRegex = /^(?:قل\s+(?:مستقبلا|مستقبلاً|دايما|دائما|في\s+المستقبل)\s*[:،,-]?\s*)(.+)$/i;
+  const ifAskSayRegex = /^(?:اذا\s+سألتك\s+عن|إذا\s+سألتك\s+عن|لو\s+سألتك\s+عن|لو\s+قلت\s+لك|احفظ\s+عندك\s+إذا\s+سألتك\s+عن)\s*(.+?)\s*(?:قل|جاوب|رد)\s*[:،,-]?\s*(.+)$/i;
+  const learnRegex = /^(?:تعلم\s*[:،,-]?\s*|احفظ\s+عندك\s*[:،,-]?\s*)(.+)$/i;
+
+  // Match Pattern 1: "قل مستقبلا: ..."
+  const match1 = clean.match(futureSayRegex);
+  if (match1 && match1[1]) {
+    const phrase = match1[1].trim();
+    const triggers = [phrase.slice(0, 20), 'مرحبا', 'السلام عليكم', 'يا مساعد', 'يا هلا'];
+    const saved = teachAssistantRule({
+      category: 'custom_rule',
+      title: `عبارة ملقنة: ${phrase.slice(0, 30)}...`,
+      triggers: triggers,
+      speechResponse: phrase,
+      displayMarkdown: `🧠 **تم التعلم والحفظ في الذاكرة:**\n\n«${phrase}»`,
+      taught_by: 'المحادثة الحية مع أبو ماجد'
+    });
+
+    return {
+      isTeaching: true,
+      item: saved,
+      responseMessage: `أبشر يا أبو ماجد.. تم حفظ هذه العبارة في ذاكرتي وسأقولها دائماً عند الترحيب وسؤالك! 🧠✨`,
+      speechResponse: `أَبْشِرْ يَا أَبُو مَاجِدْ.. تَمَّ حِفْظُ هَذِهِ الْعِبَارَةِ وَتَعَلُّمُهَا بِنَجَاحْ..`
+    };
+  }
+
+  // Match Pattern 2: "إذا سألتك عن [سعر النرجس] قل: [السعر 600 ريال]"
+  const match2 = clean.match(ifAskSayRegex);
+  if (match2 && match2[1] && match2[2]) {
+    const topic = match2[1].trim();
+    const answer = match2[2].trim();
+    const triggers = [topic, topic.replace(/\s+/g, ''), ...topic.split(' ')].filter(t => t.length > 2);
+    
+    const saved = teachAssistantRule({
+      category: 'policy',
+      title: `قاعدة: ${topic}`,
+      triggers: triggers,
+      speechResponse: answer,
+      displayMarkdown: `🧠 **تم التعلم والحفظ في الذاكرة:**\n\n• **الموضوع:** ${topic}\n• **الإجابة المعتمدة:** ${answer}`,
+      taught_by: 'المحادثة الحية مع أبو ماجد'
+    });
+
+    return {
+      isTeaching: true,
+      item: saved,
+      responseMessage: `أبشر يا أبو ماجد.. تم استيعاب وحفظ قاعدة «${topic}» بنجاح! سأجيب بها فوراً عند السؤال. 🧠💡`,
+      speechResponse: `أَبْشِرْ يَا أَبُو مَاجِدْ.. تَمَّ حِفْظُ قَاعِدَةِ ${topic} فِي الذَّاكِرَةِ بِنَجَاحْ..`
+    };
+  }
+
+  // Match Pattern 3: "تعلم: ..."
+  const match3 = clean.match(learnRegex);
+  if (match3 && match3[1]) {
+    const phrase = match3[1].trim();
+    const words = phrase.split(' ').filter(w => w.length > 2);
+    const saved = teachAssistantRule({
+      category: 'custom_rule',
+      title: `معلومة محفوظة: ${phrase.slice(0, 25)}...`,
+      triggers: words.slice(0, 4),
+      speechResponse: phrase,
+      displayMarkdown: `🧠 **تم حفظ المعلومة في الذاكرة:**\n\n«${phrase}»`,
+      taught_by: 'المحادثة الحية مع أبو ماجد'
+    });
+
+    return {
+      isTeaching: true,
+      item: saved,
+      responseMessage: `أبشر.. تم تسجيل المعلومة وحفظها في الذاكرة المكتسبة بنجاح! 💾✨`,
+      speechResponse: `أَبْشِرْ.. تَمَّ حِفْظُ هَذِهِ الْمَعْلُومَةِ فِي ذَاكِرَتِي..`
+    };
+  }
+
+  return { isTeaching: false };
 }
 
 // Search and answer from both System and Dynamic Knowledge Base

@@ -81,7 +81,13 @@ export async function GET(req: NextRequest) {
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     
-    const rateFactor = rate === '+15%' ? 1.15 : rate === '-15%' ? 0.85 : 1.0;
+    let rateFactor = 1.0;
+    if (rate) {
+      const cleanNum = parseFloat(rate.replace('%', '').trim());
+      if (!isNaN(cleanNum)) {
+        rateFactor = Math.max(0.5, Math.min(2.0, 1.0 + (cleanNum / 100)));
+      }
+    }
     const { audioStream } = tts.toStream(text, { rate: rateFactor });
 
     const chunks: Buffer[] = [];
