@@ -76,8 +76,9 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
     const success = await onAddContainer({
       container_number: containerNumber,
       type: newType,
+      status: 'available',
       daily_rate: newType === 'debris' ? dailyRate : 0,
-      monthly_rate: newType === 'commercial' ? monthlyRate : 0,
+      monthly_rate: newType === 'debris' ? (monthlyRate > 0 ? monthlyRate : 2000) : monthlyRate,
       notes: notes
     });
     setIsSubmitting(false);
@@ -351,7 +352,13 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                 <span style={{ color: '#94a3b8' }}>سعر التأجير:</span>
                 <strong style={{ color: '#ffffff' }}>
                   {userRole === 'admin' || permissions?.can_view_financials !== false ? (
-                    isDebris ? `${container.daily_rate} ر.س / يوم` : `${container.monthly_rate} ر.س / شهر`
+                    isDebris ? (
+                      <span>
+                        {container.daily_rate > 0 ? `${container.daily_rate} ر.س / يوم` : ''}
+                        {container.daily_rate > 0 && container.monthly_rate > 0 ? ' | ' : ''}
+                        {container.monthly_rate > 0 ? `${container.monthly_rate} ر.س / شهر` : ''}
+                      </span>
+                    ) : `${container.monthly_rate} ر.س / شهر`
                   ) : (
                     <span style={{ color: '#94a3b8' }}>*** ر.س 🔒</span>
                   )}
@@ -526,17 +533,32 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
               </div>
 
               {newType === 'debris' ? (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                    السعر اليومي (ر.س):
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="form-input"
-                    value={dailyRate}
-                    onChange={(e) => setDailyRate(Number(e.target.value))}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                      السعر اليومي (ر.س):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      value={dailyRate}
+                      onChange={(e) => setDailyRate(Number(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                      السعر الشهري (ر.س):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      value={monthlyRate}
+                      onChange={(e) => setMonthlyRate(Number(e.target.value))}
+                      placeholder="2000"
+                    />
+                  </div>
                 </div>
               ) : (
                 <div>

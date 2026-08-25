@@ -255,11 +255,19 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                       borderRadius: '6px',
                       fontSize: '0.75rem',
                       fontWeight: 700,
-                      background: contract.contract_type === 'commercial' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                      color: contract.contract_type === 'commercial' ? '#fbbf24' : '#38bdf8',
-                      border: `1px solid ${contract.contract_type === 'commercial' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
+                      background: contract.contract_type === 'commercial' 
+                        ? 'rgba(245, 158, 11, 0.15)' 
+                        : (contract.period_type === 'monthly' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(56, 189, 248, 0.15)'),
+                      color: contract.contract_type === 'commercial' 
+                        ? '#fbbf24' 
+                        : (contract.period_type === 'monthly' ? '#f472b6' : '#38bdf8'),
+                      border: `1px solid ${contract.contract_type === 'commercial' 
+                        ? 'rgba(245, 158, 11, 0.3)' 
+                        : (contract.period_type === 'monthly' ? 'rgba(236, 72, 153, 0.3)' : 'rgba(56, 189, 248, 0.3)')}`
                     }}>
-                      {contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض يومي'}
+                      {contract.contract_type === 'commercial' 
+                        ? 'تجاري' 
+                        : (contract.period_type === 'monthly' ? 'أنقاض شهري 📆' : 'أنقاض يومي 📅')}
                     </span>
                     {contract.status === 'extended' && (
                       <span style={{

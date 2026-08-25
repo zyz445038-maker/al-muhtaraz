@@ -116,7 +116,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
       type: batchType,
       status: 'available',
       daily_rate: batchType === 'debris' ? dailyRate : 0,
-      monthly_rate: batchType === 'commercial' ? monthlyRate : 0,
+      monthly_rate: batchType === 'debris' ? (monthlyRate > 0 ? monthlyRate : 2000) : monthlyRate,
       notes: batchNotes || `دفعة توريد جديدة (${batchType === 'debris' ? 'أنقاض' : 'تجاري'})`
     }));
 
@@ -682,19 +682,51 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
               </div>
 
               {/* Rates */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
-                  {batchType === 'debris' ? 'السعر اليومي الافتراضي (ر.س):' : 'السعر الشهري الافتراضي (ر.س):'}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className="form-input"
-                  value={batchType === 'debris' ? dailyRate : monthlyRate}
-                  onChange={(e) => batchType === 'debris' ? setDailyRate(Number(e.target.value)) : setMonthlyRate(Number(e.target.value))}
-                  required
-                />
-              </div>
+              {batchType === 'debris' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
+                      السعر اليومي الافتراضي (ر.س):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      value={dailyRate}
+                      onChange={(e) => setDailyRate(Number(e.target.value))}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
+                      السعر الشهري الافتراضي (ر.س):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      value={monthlyRate}
+                      onChange={(e) => setMonthlyRate(Number(e.target.value))}
+                      placeholder="2000"
+                      required
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
+                    السعر الشهري الافتراضي (ر.س):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={monthlyRate}
+                    onChange={(e) => setMonthlyRate(Number(e.target.value))}
+                    required
+                  />
+                </div>
+              )}
 
               {/* Preview Box */}
               <div style={{

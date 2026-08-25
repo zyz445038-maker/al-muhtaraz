@@ -40,6 +40,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   contract,
   onConfirmExtension
 }) => {
+  const [extendMode, setExtendMode] = useState<'days' | 'months'>('days');
   const [additionalDays, setAdditionalDays] = useState(1);
   const [additionalMonths, setAdditionalMonths] = useState(1);
   const [baseExtensionCost, setBaseExtensionCost] = useState(150);
@@ -51,21 +52,35 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
   const isDebris = contract?.contract_type === 'debris';
 
+  // Initialize extendMode based on contract's period_type
+  useEffect(() => {
+    if (contract) {
+      if (contract.period_type === 'monthly' || contract.contract_type === 'commercial') {
+        setExtendMode('months');
+      } else {
+        setExtendMode('days');
+      }
+    }
+  }, [contract]);
+
   // Calculate new end date and base cost whenever inputs change
   useEffect(() => {
     if (!contract) return;
 
     const baseEnd = new Date(contract.expected_pickup_time || contract.end_date || new Date());
 
-    if (isDebris) {
-      const dailyRate = contract.container?.daily_rate || 150;
+    if (extendMode === 'days') {
+      const dailyRate = contract.container?.daily_rate > 0 ? contract.container.daily_rate : 150;
       const cost = dailyRate * additionalDays;
       setBaseExtensionCost(cost);
 
       const nextDate = new Date(baseEnd.getTime() + additionalDays * 24 * 60 * 60 * 1000);
       setNewEndDate(nextDate.toISOString().slice(0, 16));
     } else {
-      const monthlyRate = contract.container?.monthly_rate || 3500;
+      let monthlyRate = contract.container?.monthly_rate || 0;
+      if (monthlyRate <= 0) {
+        monthlyRate = contract.container?.daily_rate > 0 ? contract.container.daily_rate * 25 : 2000;
+      }
       const cost = monthlyRate * additionalMonths;
       setBaseExtensionCost(cost);
 
@@ -73,7 +88,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
       nextDate.setMonth(nextDate.getMonth() + additionalMonths);
       setNewEndDate(nextDate.toISOString().slice(0, 16));
     }
-  }, [contract, additionalDays, additionalMonths, isDebris]);
+  }, [contract, additionalDays, additionalMonths, extendMode]);
 
   if (!isOpen || !contract) return null;
 
@@ -192,51 +207,94 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
           
           {/* 1. Duration Extension Picker */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {isDebris ? (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                  عدد الأيام الإضافية المطلوبة:
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {[1, 2, 3, 5, 7, 10, 15].map((num) => (
-                    <button
-                      type="button"
-                      key={num}
-                      onClick={() => setAdditionalDays(num)}
-                      style={{
-                        flex: '1 0 calc(25% - 6px)',
-                        padding: '6px 0',
-                        borderRadius: '8px',
-                        border: `1px solid ${additionalDays === num ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
-                        background: additionalDays === num ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.6)',
-                        color: additionalDays === num ? '#38bdf8' : '#ffffff',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      +{num} يوم
-                    </button>
-                  ))}
+            <div>
+              {/* Mode Toggle for Debris */}
+              {isDebris && (
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setExtendMode('days')}
+                    style={{
+                      flex: 1,
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: extendMode === 'days' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: extendMode === 'days' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                      color: extendMode === 'days' ? '#38bdf8' : '#94a3b8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📅 تمديد بالأيام
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtendMode('months')}
+                    style={{
+                      flex: 1,
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: extendMode === 'months' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                      background: extendMode === 'months' ? 'rgba(236, 72, 153, 0.2)' : 'transparent',
+                      color: extendMode === 'months' ? '#f472b6' : '#94a3b8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📆 تمديد بالأشهر
+                  </button>
                 </div>
-              </div>
-            ) : (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                  الأشهر الإضافية للتجديد:
-                </label>
-                <select
-                  className="form-select"
-                  value={additionalMonths}
-                  onChange={(e) => setAdditionalMonths(Number(e.target.value))}
-                >
-                  <option value={1}>+ شهر واحد (1)</option>
-                  <option value={3}>+ 3 أشهر</option>
-                  <option value={6}>+ 6 أشهر (نصف سنوي)</option>
-                  <option value={12}>+ 12 شهر (سنة كاملة)</option>
-                </select>
-              </div>
-            )}
+              )}
+
+              {extendMode === 'days' ? (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                    عدد الأيام الإضافية المطلوبة:
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[1, 2, 3, 5, 7, 10, 15].map((num) => (
+                      <button
+                        type="button"
+                        key={num}
+                        onClick={() => setAdditionalDays(num)}
+                        style={{
+                          flex: '1 0 calc(25% - 6px)',
+                          padding: '6px 0',
+                          borderRadius: '8px',
+                          border: `1px solid ${additionalDays === num ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: additionalDays === num ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                          color: additionalDays === num ? '#38bdf8' : '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        +{num} يوم
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+                    الأشهر الإضافية للتجديد:
+                  </label>
+                  <select
+                    className="form-select"
+                    value={additionalMonths}
+                    onChange={(e) => setAdditionalMonths(Number(e.target.value))}
+                  >
+                    <option value={1}>+ شهر واحد (1)</option>
+                    <option value={2}>+ شهرين (2)</option>
+                    <option value={3}>+ 3 أشهر</option>
+                    <option value={6}>+ 6 أشهر (نصف سنوي)</option>
+                    <option value={12}>+ 12 شهر (سنة كاملة)</option>
+                  </select>
+                </div>
+              )}
+            </div>
 
             {/* New Pickup Date */}
             <div>
