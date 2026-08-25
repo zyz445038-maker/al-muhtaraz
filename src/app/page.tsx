@@ -46,6 +46,8 @@ import { DevLab } from '@/components/DevLab';
 import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings } from '@/types/officialContract';
+import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
+import { MarketingCustomer } from '@/types/customerMarketing';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -588,6 +590,168 @@ function MainDashboard() {
       handleSendWhatsApp(record.contractData.phoneNumber, msg);
     } else {
       alert('رقم جوال الطرف الثاني غير مسجل أو غير صحيح.');
+    }
+  };
+
+  // ── 👥 CUSTOMER DIRECTORY & MARKETING DATABASE STATE ──
+  const [marketingCustomers, setMarketingCustomers] = useState<MarketingCustomer[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('al_muhtaraz_marketing_customers');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.warn('Error reading stored marketing customers:', e);
+      }
+    }
+    return [
+      {
+        id: 'cust-1',
+        name: 'شركة دار الإعمار والمقاولات',
+        phone: '0555123456',
+        category: 'company',
+        address: 'سكاكا — حي المروج',
+        total_contracts: 4,
+        last_deal_date: '2026-08-20',
+        marketing_opt_in: true,
+        tags: ['مقاول رئيسي', 'حاويات شهرية'],
+        source: 'contract',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'cust-2',
+        name: 'مؤسسة أفق الشمال للتجارة',
+        phone: '0509876543',
+        category: 'company',
+        address: 'سكاكا — شارع الملك فهد',
+        total_contracts: 2,
+        last_deal_date: '2026-08-22',
+        marketing_opt_in: true,
+        tags: ['رخصة ترميم'],
+        source: 'contract',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'cust-3',
+        name: 'محمد بن سالم الرويلي',
+        phone: '0532643000',
+        category: 'individual',
+        address: 'حي الشفاء',
+        total_contracts: 1,
+        last_deal_date: '2026-08-25',
+        marketing_opt_in: true,
+        tags: ['مالك مبنى'],
+        source: 'contract',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ];
+  });
+
+  // Sync to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('al_muhtaraz_marketing_customers', JSON.stringify(marketingCustomers));
+      } catch (e) {
+        console.warn('Error saving marketing customers:', e);
+      }
+    }
+  }, [marketingCustomers]);
+
+  const handleSaveMarketingCustomer = (cust: MarketingCustomer) => {
+    setMarketingCustomers(prev => {
+      const exists = prev.some(c => c.id === cust.id);
+      if (exists) {
+        return prev.map(c => c.id === cust.id ? cust : c);
+      }
+      return [cust, ...prev];
+    });
+  };
+
+  const handleDeleteMarketingCustomer = (id: string) => {
+    setMarketingCustomers(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Auto-sync and extract customers from contracts and official contracts
+  const handleSyncCustomersFromContracts = (): number => {
+    let addedCount = 0;
+    const existingPhones = new Set(marketingCustomers.map(c => c.phone.replace(/[^0-9]/g, '')));
+    const newEntries: MarketingCustomer[] = [];
+
+    // 1. From regular contracts
+    contracts.forEach(cnt => {
+      const cleanPhone = (cnt.customer_phone || '').replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 9 && !existingPhones.has(cleanPhone)) {
+        existingPhones.add(cleanPhone);
+        newEntries.push({
+          id: `sync-cnt-${cnt.id}`,
+          name: cnt.customer_name || 'عميل عقد حاوية',
+          phone: cnt.customer_phone,
+          category: cnt.contract_type === 'commercial' ? 'company' : 'individual',
+          address: cnt.location_name || undefined,
+          total_contracts: 1,
+          last_deal_date: cnt.start_date ? cnt.start_date.split('T')[0] : undefined,
+          marketing_opt_in: true,
+          tags: ['عقد حاوية', cnt.contract_type === 'commercial' ? 'تجاري' : 'يومي'],
+          source: 'contract',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        addedCount++;
+      }
+    });
+
+    // 2. From official municipal contracts
+    officialContractRecords.forEach(off => {
+      const cleanPhone = (off.contractData.phoneNumber || '').replace(/[^0-9]/g, '');
+      if (cleanPhone.length >= 9 && !existingPhones.has(cleanPhone)) {
+        existingPhones.add(cleanPhone);
+        newEntries.push({
+          id: `sync-off-${off.id}`,
+          name: off.contractData.secondPartyName || 'عميل رفع أنقاض موثق',
+          phone: off.contractData.phoneNumber,
+          category: 'company',
+          address: off.contractData.locationDescription || undefined,
+          total_contracts: 1,
+          last_deal_date: off.contractData.contractDate,
+          marketing_opt_in: true,
+          tags: ['عقد أنقاض موثق', 'بلدي'],
+          source: 'official_contract',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        addedCount++;
+      }
+    });
+
+    if (newEntries.length > 0) {
+      setMarketingCustomers(prev => [...newEntries, ...prev]);
+    }
+    return addedCount;
+  };
+
+  // Safe Broadcast Campaign Dispatcher
+  const handleBulkSendCampaign = async (
+    recipients: { name: string; phone: string }[],
+    messageTemplate: string,
+    onProgress: (sent: number, total: number) => void
+  ): Promise<void> => {
+    let sent = 0;
+    for (const recipient of recipients) {
+      if (recipient.phone && isRealCallablePhone(recipient.phone)) {
+        const personalized = messageTemplate.replace(/{الاسم}/g, recipient.name);
+        try {
+          await handleSendWhatsApp(recipient.phone, personalized);
+          sent++;
+          onProgress(sent, recipients.length);
+          // Wait 1.8s between messages to prevent spam detection
+          await new Promise(r => setTimeout(r, 1800));
+        } catch (e) {
+          console.warn('Failed to send campaign message to:', recipient.phone, e);
+        }
+      }
     }
   };
 
@@ -1997,6 +2161,19 @@ function MainDashboard() {
                 onTestConnection={handleTestConnection}
                 onSendWhatsApp={handleSendWhatsApp}
                 onMarkAsSent={handleMarkNotificationSent}
+              />
+            )}
+
+            {/* 👥 CUSTOMERS DIRECTORY & PROMOTIONAL CAMPAIGNS TAB */}
+            {currentTab === 'customers' && (
+              <CustomersDirectoryView
+                customers={marketingCustomers}
+                userRole={currentRole}
+                onSaveCustomer={handleSaveMarketingCustomer}
+                onDeleteCustomer={handleDeleteMarketingCustomer}
+                onSyncCustomersFromContracts={handleSyncCustomersFromContracts}
+                onSendSingleWhatsApp={handleSendWhatsApp}
+                onBulkSendCampaign={handleBulkSendCampaign}
               />
             )}
 

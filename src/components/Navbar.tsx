@@ -240,6 +240,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>محرك الواتساب</span>
             </button>
 
+            <button
+              id="nav-customers-tab"
+              onClick={() => setCurrentTab('customers')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: currentTab === 'customers' ? '1px solid #0ea5e9' : '1px solid rgba(14, 165, 233, 0.3)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 800,
+                background: currentTab === 'customers' ? 'linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(2, 132, 199, 0.15))' : 'rgba(14, 165, 233, 0.08)',
+                color: '#38bdf8',
+                boxShadow: currentTab === 'customers' ? '0 0 15px rgba(14, 165, 233, 0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Users size={17} color="#38bdf8" />
+              <span>دليل العملاء والحملات 📢</span>
+            </button>
+
             {/* Admin only Tabs */}
             {currentRole === 'admin' && (
               <>
@@ -1146,6 +1170,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Smartphone size={18} color="#34d399" />
                   <span>محرك الواتساب وبطاقات العقود</span>
+                </div>
+                <ChevronLeft size={16} color="#64748b" />
+              </button>
+
+              <button
+                onClick={() => handleTabSelect('customers')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: currentTab === 'customers' ? 'rgba(14, 165, 233, 0.2)' : 'transparent',
+                  border: 'none',
+                  color: currentTab === 'customers' ? '#38bdf8' : '#e2e8f0',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'right'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Users size={18} color="#38bdf8" />
+                  <span>دليل العملاء والحملات 📢</span>
                 </div>
                 <ChevronLeft size={16} color="#64748b" />
               </button>
