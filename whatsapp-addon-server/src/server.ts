@@ -21,16 +21,19 @@ import fs from 'fs';
 
 // Serve interactive UI test scanner at root and /scanner
 app.get(['/', '/scanner'], (req, res) => {
-  const filePath = path.join(__dirname, '../test-scanner.html');
+  let filePath = path.join(__dirname, '../test-scanner.html');
+  if (!fs.existsSync(filePath)) {
+    filePath = path.join(process.cwd(), 'test-scanner.html');
+  }
+  
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
+    let html = fs.readFileSync(filePath, 'utf8');
+    const injectedKey = process.env.API_KEY || '';
+    html = html.replace('__SERVER_API_KEY__', injectedKey);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   } else {
-    const rootPath = path.join(process.cwd(), 'test-scanner.html');
-    if (fs.existsSync(rootPath)) {
-      res.sendFile(rootPath);
-    } else {
-      res.send('<h1>WhatsApp Add-on Server is Running</h1><p>Visit /health for API status</p>');
-    }
+    res.send('<h1>WhatsApp Add-on Server is Running</h1><p>API is active</p>');
   }
 });
 
