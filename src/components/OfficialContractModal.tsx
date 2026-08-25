@@ -28,6 +28,7 @@ import {
 } from '@/types/officialContract';
 import { generateContractClause1 } from '@/utils/contractGrammar';
 import confetti from 'canvas-confetti';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface OfficialContractModalProps {
   isOpen: boolean;
@@ -946,6 +947,41 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                         (التوقيع والختم)
                       </div>
                     )}
+                  </div>
+
+                  {/* رمز الـ QR للتوثيق والتحقق الإلكتروني (في المنتصف بين الطرفين) */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    padding: '0 8px',
+                    minWidth: '120px'
+                  }}>
+                    <div style={{
+                      padding: '3px',
+                      background: '#ffffff',
+                      border: '1.5px solid #dc2626',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 8px rgba(220, 38, 38, 0.15)',
+                      display: 'inline-flex'
+                    }}>
+                      <QRCodeSVG
+                        value={`https://almuhtaraz.com/receipt/${approvalNumber || serialNumber}`}
+                        size={78}
+                        level="M"
+                        includeMargin={true}
+                        fgColor="#000000"
+                        bgColor="#ffffff"
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#dc2626', marginTop: '4px', letterSpacing: '0.2px' }}>
+                      رمز التوثيق الإلكتروني
+                    </div>
+                    <div style={{ fontSize: '0.54rem', fontWeight: 700, color: '#64748b' }}>
+                      امسح للتحقق من صحة العقد
+                    </div>
                   </div>
 
                   {/* الطرف الثاني (يسار) */}
