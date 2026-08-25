@@ -1658,20 +1658,8 @@ function MainDashboard() {
               />
             )}
 
-            {/* ✅ WHATSAPP HUB TAB */}
-            {currentTab === 'whatsapp' && (
-              <WhatsAppHub
-                notifications={notifications}
-                onMarkAsSent={handleMarkNotificationSent}
-                onSendWhatsApp={handleSendWhatsApp}
-                gatewaySettings={gatewaySettings}
-                onSaveGatewaySettings={handleSaveGatewaySettings}
-                onTestConnection={handleTestConnection}
-              />
-            )}
-
-
-            {currentTab === 'gateway-settings' && currentRole === 'admin' && (
+            {/* ✅ UNIFIED WHATSAPP CLOUD CENTER TAB */}
+            {(currentTab === 'whatsapp' || currentTab === 'gateway-settings') && (
               <WhatsAppSettings
                 settings={gatewaySettings}
                 notifications={notifications}
