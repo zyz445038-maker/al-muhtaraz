@@ -42,6 +42,7 @@ import { formatDriverWhatsAppMessage } from '@/utils/driverDispatch';
 import { formatCustomerVoucherMessage, formatDriverMissionMessage, formatAdminAlertMessage } from '@/utils/voucherFormatter';
 import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
+import { DevLab } from '@/components/DevLab';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -1825,6 +1826,11 @@ function MainDashboard() {
                 onSendWhatsApp={handleSendWhatsApp}
                 onMarkAsSent={handleMarkNotificationSent}
               />
+            )}
+
+            {/* 🧪 ISOLATED R&D DEV-LAB TAB (ADMIN ONLY) */}
+            {currentTab === 'dev-lab' && currentRole === 'admin' && (
+              <DevLab currentRole={currentRole} />
             )}
           </>
         )}

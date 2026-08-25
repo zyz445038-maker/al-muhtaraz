@@ -336,6 +336,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <CreditCard size={17} />
                   <span>بوابة الدفع</span>
                 </button>
+
+                <button
+                  id="nav-dev-lab-tab"
+                  onClick={() => setCurrentTab('dev-lab')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    borderRadius: '10px',
+                    border: currentTab === 'dev-lab' ? '1px solid #ec4899' : '1px solid rgba(236, 72, 153, 0.3)',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    background: currentTab === 'dev-lab' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.2))' : 'rgba(236, 72, 153, 0.08)',
+                    color: '#f472b6',
+                    boxShadow: currentTab === 'dev-lab' ? '0 0 15px rgba(236, 72, 153, 0.35)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <FlaskConical size={17} color="#f472b6" />
+                  <span>مختبر التطوير (R&D)</span>
+                </button>
               </>
             )}
           </nav>
@@ -1126,6 +1150,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>بوابة الدفع الإلكتروني</span>
                     </div>
                     <ChevronLeft size={16} color="#64748b" />
+                  </button>
+
+                  <button
+                    onClick={() => handleTabSelect('dev-lab')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      background: currentTab === 'dev-lab' ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.2))' : 'rgba(236, 72, 153, 0.08)',
+                      border: '1px solid rgba(236, 72, 153, 0.3)',
+                      color: '#f472b6',
+                      fontSize: '0.9rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      textAlign: 'right'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <FlaskConical size={18} color="#f472b6" />
+                      <span>مختبر التطوير والذكاء (R&D)</span>
+                    </div>
+                    <span style={{ background: '#ec4899', color: '#fff', fontSize: '0.65rem', fontWeight: 900, padding: '1px 5px', borderRadius: '4px' }}>LAB</span>
                   </button>
                 </>
               )}
