@@ -21,8 +21,8 @@ export async function GET(request: Request) {
     }
 
     // 1. Fetch saved WhatsApp Settings
-    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || 'http://localhost:5050';
-    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
+    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || 'https://al-muhtaraz-whatsapp.onrender.com';
+    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
 
     try {
       const { data: settings } = await supabase
@@ -32,13 +32,20 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (settings) {
-        addonServerUrl = customUrl || settings.evolution_server_url || addonServerUrl;
-        addonApiKey = customApiKey || settings.evolution_api_key || addonApiKey;
+        if (settings.evolution_server_url && !settings.evolution_server_url.includes('localhost') && !settings.evolution_server_url.includes('8080')) {
+          addonServerUrl = settings.evolution_server_url;
+        }
+        if (settings.evolution_api_key && settings.evolution_api_key.startsWith('mhk_live')) {
+          addonApiKey = settings.evolution_api_key;
+        }
       }
     } catch (err) {
       console.warn('Could not read settings from db, using defaults:', err);
     }
 
+    if (addonServerUrl.includes('localhost') || addonServerUrl.includes('8080')) {
+      addonServerUrl = 'https://al-muhtaraz-whatsapp.onrender.com';
+    }
     const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
     // Handle logout action

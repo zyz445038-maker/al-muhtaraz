@@ -31,9 +31,8 @@ export async function POST(request: Request) {
 
     // 1. Fetch WhatsApp Gateway Settings
     let mode = requestedMode || 'embedded';
-    let evolutionServerUrl = 'http://localhost:8080';
-    let evolutionInstance = 'muhtaraz-instance';
-    let evolutionApiKey = '123456';
+    let dbServerUrl = '';
+    let dbApiKey = '';
     let autoSendEnabled = true;
 
     try {
@@ -45,9 +44,8 @@ export async function POST(request: Request) {
 
       if (settings) {
         mode = requestedMode || settings.mode || settings.gateway_mode || mode;
-        evolutionServerUrl = settings.evolution_server_url || evolutionServerUrl;
-        evolutionInstance = settings.evolution_instance || settings.evolution_instance_name || evolutionInstance;
-        evolutionApiKey = settings.evolution_api_key || evolutionApiKey;
+        dbServerUrl = settings.evolution_server_url || '';
+        dbApiKey = settings.evolution_api_key || '';
         autoSendEnabled = settings.auto_send_enabled ?? true;
       }
     } catch (err) {
@@ -65,51 +63,59 @@ export async function POST(request: Request) {
     let sendSuccess = false;
     let apiResponse: any = null;
 
-    // 2. Dispatch based on Gateway Mode
-    if (mode === 'embedded' || mode === 'addon' || !mode) {
-      // Try sending through standalone Add-on server first
-      const addonServerUrl = evolutionServerUrl || process.env.WHATSAPP_ADDON_URL || 'http://localhost:5050';
-      const addonApiKey = evolutionApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
-      const cleanServer = addonServerUrl.replace(/\/+$/, '');
+    // Resolve cloud Addon server URL and API key
+    let addonServerUrl = process.env.WHATSAPP_ADDON_URL || dbServerUrl || 'https://al-muhtaraz-whatsapp.onrender.com';
+    if (addonServerUrl.includes('localhost') || addonServerUrl.includes('8080')) {
+      addonServerUrl = 'https://al-muhtaraz-whatsapp.onrender.com';
+    }
+    const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
-      try {
-        const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
-        const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
+    let addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || dbApiKey || 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
+    if (!addonApiKey || addonApiKey === '123456' || addonApiKey.includes('7d9e4a8b1c2f3056e84920ab4c1f')) {
+      addonApiKey = 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
+    }
 
-        const addonPayload = isMedia ? {
-          phone: cleanPhone,
-          message,
-          mediaUrl,
-          mediaBase64,
-          mediaType: mediaType || (location ? 'location' : 'document'),
-          fileName,
-          mimetype,
-          caption: caption || message,
-          location
-        } : {
-          phone: cleanPhone,
-          message
-        };
+    // 2. Dispatch through Cloud Add-on server
+    try {
+      const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
+      const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
 
-        const addonRes = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${addonApiKey}`
-          },
-          body: JSON.stringify(addonPayload)
-        });
+      const addonPayload = isMedia ? {
+        phone: cleanPhone,
+        message,
+        mediaUrl,
+        mediaBase64,
+        mediaType: mediaType || (location ? 'location' : 'document'),
+        fileName,
+        mimetype,
+        caption: caption || message,
+        location
+      } : {
+        phone: cleanPhone,
+        message
+      };
 
-        if (addonRes.ok) {
-          const addonJson = await addonRes.json();
-          if (addonJson.success) {
-            sendSuccess = true;
-            apiResponse = addonJson;
-          }
+      const addonRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${addonApiKey}`
+        },
+        body: JSON.stringify(addonPayload)
+      });
+
+      if (addonRes.ok) {
+        apiResponse = await addonRes.json();
+        if (apiResponse.success) {
+          sendSuccess = true;
         }
-      } catch (addonErr) {
-        console.warn('Addon send failed, falling back to embedded:', addonErr);
+      } else {
+        const errorText = await addonRes.text();
+        console.error('Addon server response error:', addonRes.status, errorText);
       }
+    } catch (addonErr) {
+      console.warn('Failed sending via Addon server:', addonErr);
+    }
 
       // If addon didn't succeed, fallback to embedded engine
       if (!sendSuccess) {
