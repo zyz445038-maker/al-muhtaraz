@@ -1,9 +1,11 @@
 // Enterprise Executive AI Agent Engine for Al-Muhtaraz Containers
-// Features: Multi-Turn Conversational Memory Chain + Direct Contextual Follow-Up Reasoning
-// Direct, factual, clean speech without repeated greetings, emojis, or markdown asterisks
+// Features: Full Multi-Turn Conversational Memory + Deep-Reasoning Knowledge Engine + Dynamic Context
+// Direct, factual, clean speech without repetitive generic greetings, emojis, or punctuation artifacts
 
 import { Contract, Container, Customer, Profile, Receipt } from '@/types';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
+import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
+import { querySystemKnowledge } from '@/utils/aiCopilotKnowledge';
 
 export interface AgentContext {
   contracts: Contract[];
@@ -19,7 +21,7 @@ export interface AgentMemoryState {
   lastFocusedContract?: Contract | null;
   lastFocusedCustomer?: Customer | null;
   lastFocusedContainer?: Container | null;
-  lastFocusedTopic?: 'contract' | 'finance' | 'container' | 'driver' | 'search' | null;
+  lastFocusedTopic?: 'contract' | 'finance' | 'container' | 'driver' | 'search' | 'knowledge' | null;
   lastQuery?: string;
   lastResponse?: string;
   conversationTurns?: { query: string; response: string; timestamp: number }[];
@@ -74,6 +76,25 @@ export class AlMuhtarazExecutiveAgent {
     const rawQuery = userInput.trim();
     const query = this.normalizeQuery(rawQuery);
 
+    if (!query) {
+      return this.generateSmartGreeting();
+    }
+
+    // ─── 0. System & Dynamic Knowledge Base Query (الأولوية القصوى للقواعد والأسعار المخصصة) ───
+    const knowledgeMatch = querySystemKnowledge(rawQuery);
+    if (knowledgeMatch) {
+      this.memory.lastFocusedTopic = 'knowledge';
+      const speech = cleanSpeechText(knowledgeMatch.speechResponse);
+      const res: AgentExecutionResult = {
+        toolExecuted: 'systemKnowledge',
+        speechResponse: speech,
+        displayMarkdown: knowledgeMatch.displayMarkdown,
+        updatedMemory: this.memory
+      };
+      this.recordTurn(rawQuery, speech);
+      return res;
+    }
+
     // ─── 1. Contextual Follow-up Evaluation (الأسئلة التتبعية المعتمدة على الذاكرة السابقة) ───
     const followUpResult = this.checkContextualFollowUp(query, rawQuery);
     if (followUpResult) {
@@ -104,10 +125,12 @@ export class AlMuhtarazExecutiveAgent {
 
     // ─── 3. Financial & Revenue Audit (التقرير المالي والمداخيل) ───
     if (
-      query.includes('دخل') || query.includes('ارباح') || query.includes('أرباح') ||
+      query.includes('دخل') || query.includes('مداخيل') || query.includes('ارباح') || query.includes('أرباح') ||
       query.includes('مبالغ') || query.includes('كاش') || query.includes('تحصيل') ||
       query.includes('كم جمعنا') || query.includes('فلوس') || query.includes('مالية') ||
-      query.includes('تقرير مالي') || query.includes('الحالة المالية')
+      query.includes('تقرير مالي') || query.includes('الحالة المالية') || query.includes('كم جانا') ||
+      query.includes('كم جبنا') || query.includes('كم طلعنا') || query.includes('كم كسبنا') ||
+      query.includes('كم صفينا') || query.includes('كم صفى') || query.includes('سندات القبض')
     ) {
       const res = this.tool_auditLiveFinancials();
       this.recordTurn(rawQuery, res.speechResponse);
@@ -120,7 +143,7 @@ export class AlMuhtarazExecutiveAgent {
       query.includes('بلديه') || query.includes('بلدية') || query.includes('منتهية') ||
       query.includes('منتهي') || query.includes('انتهى') || query.includes('سحب') ||
       query.includes('غرامات') || query.includes('مخالفات') || query.includes('تحذير') ||
-      query.includes('بتنتهي بكره') || query.includes('تنتهي غدا')
+      query.includes('بتنتهي بكره') || query.includes('تنتهي غدا') || query.includes('انذار')
     ) {
       const res = this.tool_auditExpiringContainers();
       this.recordTurn(rawQuery, res.speechResponse);
@@ -130,9 +153,10 @@ export class AlMuhtarazExecutiveAgent {
 
     // ─── 5. Containers Inventory & Stock Availability (المخزون والشواغر) ───
     if (
-      query.includes('حاويات متوفرة') || query.includes('المتوفر') || query.includes('مخزون') ||
-      query.includes('كم حاوية') || query.includes('فاضي') || query.includes('حالة الحاويات') ||
-      query.includes('الاسطول') || query.includes('أسطول') || query.includes('حاويات شاغرة')
+      query.includes('حاويات متوفرة') || query.includes('حاويات شاغرة') || query.includes('المتوفر') ||
+      query.includes('مخزون') || query.includes('كم حاوية') || query.includes('فاضي') || query.includes('فاضية') ||
+      query.includes('حالة الحاويات') || query.includes('الاسطول') || query.includes('أسطول') ||
+      query.includes('كم باقي حاويات') || query.includes('وش عندنا حاويات')
     ) {
       const res = this.tool_auditContainersStock();
       this.recordTurn(rawQuery, res.speechResponse);
@@ -143,8 +167,8 @@ export class AlMuhtarazExecutiveAgent {
     // ─── 6. Search Customer / Contract by Name or Number (البحث المباشر) ───
     if (
       query.includes('ابحث عن') || query.includes('عقد رقم') || query.includes('عقد شركة') ||
-      query.includes('عقد ') || query.includes('جوال عميل') || query.includes('رقم العميل') ||
-      query.includes('موقع الحاوية') || query.includes('حاوية رقم')
+      query.includes('جوال عميل') || query.includes('رقم العميل') || query.includes('موقع الحاوية') ||
+      query.includes('حاوية رقم') || query.includes('بحث عن') || query.includes('عقد ')
     ) {
       const res = this.tool_searchEntity(rawQuery);
       this.recordTurn(rawQuery, res.speechResponse);
@@ -156,7 +180,7 @@ export class AlMuhtarazExecutiveAgent {
     if (
       query.includes('سواق') || query.includes('سائق') || query.includes('سائقين') ||
       query.includes('سواقين') || query.includes('مهام') || query.includes('مشاوير') ||
-      query.includes('طاقم الميدان')
+      query.includes('طاقم الميدان') || query.includes('من شغال') || query.includes('من مداوم')
     ) {
       const res = this.tool_auditDriversFleet();
       this.recordTurn(rawQuery, res.speechResponse);
@@ -164,11 +188,38 @@ export class AlMuhtarazExecutiveAgent {
       return res;
     }
 
-    // ─── 8. Default Direct Executive Response ───
-    const defaultRes = this.tool_generalExecutiveGuidance();
-    this.recordTurn(rawQuery, defaultRes.speechResponse);
-    defaultRes.updatedMemory = this.memory;
-    return defaultRes;
+    // ─── 8. Greetings & Welcoming Intent ───
+    if (
+      query.includes('مرحبا') || query.includes('يا هلا') || query.includes('هلا') ||
+      query.includes('السلام عليكم') || query.includes('صباح الخير') || query.includes('مساء الخير') ||
+      query.includes('كيف حالك') || query.includes('وش اخبارك')
+    ) {
+      return this.generateSmartGreeting();
+    }
+
+    // ─── 9. Deep Reasoning & Semantic RAG Engine Fallback ───
+    const deepResult = processDeepAssistantQuery(rawQuery, {
+      contracts: this.context.contracts || [],
+      containers: this.context.containers || [],
+      customers: this.context.customers || [],
+      staffList: this.context.staffList || [],
+      receipts: this.context.receipts || []
+    });
+
+    if (deepResult && deepResult.displayText) {
+      const speech = cleanSpeechText(deepResult.displayText);
+      const res: AgentExecutionResult = {
+        toolExecuted: 'deepReasoningQuery',
+        speechResponse: speech,
+        displayMarkdown: deepResult.displayText,
+        updatedMemory: this.memory
+      };
+      this.recordTurn(rawQuery, speech);
+      return res;
+    }
+
+    // ─── 10. Intelligent Adaptive Guidance ───
+    return this.generateSmartGreeting();
   }
 
   // ─── CONTEXTUAL MULTI-TURN REASONING ─────────────────────────────────
@@ -180,13 +231,15 @@ export class AlMuhtarazExecutiveAgent {
     // 1. Follow-up on Focused Contract
     if (focusedContract) {
       // A. Follow-up on Contract Amount / Price / Paid / Remaining
-      if (
+      const isPriceQuery = 
         query.includes('كم المبلغ') || query.includes('كم مبلغه') || query.includes('كم سعره') ||
         query.includes('كم قيمته') || query.includes('كم كلف') || query.includes('كم دفع') ||
         query.includes('كم المدفوع') || query.includes('كم باقي') || query.includes('كم المتبقي') ||
         query.includes('كيف سدد') || query.includes('طريقة السداد') || query.includes('كاش ولا شبكة') ||
-        query.includes('سدد كاش') || query.includes('فلوس هذا العقد')
-      ) {
+        query.includes('سدد كاش') || query.includes('فلوس هذا العقد') || query.includes('مبلغ') ||
+        query.includes('سعر') || query.includes('حساب') || query.includes('قيمة');
+
+      if (isPriceQuery) {
         const total = Number(focusedContract.total_cost) || 0;
         const paid = Number(focusedContract.paid_amount) || 0;
         const remaining = Number(focusedContract.remaining_amount ?? (total - paid)) || 0;
@@ -215,12 +268,14 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       // B. Follow-up on Customer Name / Phone
-      if (
+      const isCustomerQuery =
         query.includes('من هو العميل') || query.includes('من العميل') || query.includes('مين راعي العقد') ||
         query.includes('مين المستاجر') || query.includes('مين المستأجر') || query.includes('اسم العميل') ||
         query.includes('رقم جواله') || query.includes('جواله') || query.includes('رقم العميل') ||
-        query.includes('كيف اتواصل معه') || query.includes('بيانات العميل')
-      ) {
+        query.includes('كيف اتواصل معه') || query.includes('بيانات العميل') || query.includes('عميل') ||
+        query.includes('هاتف') || query.includes('جوال');
+
+      if (isCustomerQuery) {
         const name = focusedContract.customer?.name || 'العميل';
         const phone = focusedContract.customer?.phone || 'غير مسجل';
 
@@ -243,11 +298,13 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       // C. Follow-up on Container details / Size / Type
-      if (
+      const isContainerQuery =
         query.includes('اي حاويه') || query.includes('أي حاوية') || query.includes('رقم الحاويه') ||
         query.includes('رقم الحاوية') || query.includes('وين الحاويه') || query.includes('مقاس') ||
-        query.includes('كم مقاسها') || query.includes('نوع العقد') || query.includes('الحاوية اللي فيه')
-      ) {
+        query.includes('كم مقاسها') || query.includes('نوع العقد') || query.includes('الحاوية اللي فيه') ||
+        query.includes('حاوية') || query.includes('حاويه');
+
+      if (isContainerQuery) {
         const cNum = focusedContract.container?.container_number || '-';
         const cType = focusedContract.contract_type || 'أنقاض';
 
@@ -265,11 +322,13 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       // D. Follow-up on Expiration / Dates / Duration
-      if (
+      const isDateQuery =
         query.includes('متى ينتهي') || query.includes('تاريخ الانتهاء') || query.includes('متى يخلص') ||
         query.includes('متى ينسحب') || query.includes('كم مدته') || query.includes('كم يوم') ||
-        query.includes('تاريخ البدايه') || query.includes('تاريخ البداية') || query.includes('متى نزل')
-      ) {
+        query.includes('تاريخ البدايه') || query.includes('تاريخ البداية') || query.includes('متى نزل') ||
+        query.includes('تاريخ') || query.includes('مدة') || query.includes('ينتهي');
+
+      if (isDateQuery) {
         const start = focusedContract.start_date || '-';
         const end = focusedContract.end_date || '-';
         const days = focusedContract.duration_days || 7;
@@ -290,11 +349,13 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       // E. Follow-up on Location / Address
-      if (
+      const isLocationQuery =
         query.includes('وين موقعه') || query.includes('وين موقعها') || query.includes('اي حي') ||
         query.includes('أي حي') || query.includes('وين منزله') || query.includes('الموقع') ||
-        query.includes('العنوان') || query.includes('موقع التنزيل')
-      ) {
+        query.includes('العنوان') || query.includes('موقع التنزيل') || query.includes('وين') ||
+        query.includes('موقع') || query.includes('لوكيشن');
+
+      if (isLocationQuery) {
         const location = focusedContract.location_address || 'حي بالرياض';
         const speech = cleanSpeechText(`موقع تنزيل الحاوية لهذا العقد هو ${location}.`);
         const md = `### 📍 موقع التنزيل للعقد (${focusedContract.contract_number})\n\n` +
@@ -309,10 +370,11 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       // F. Follow-up on Contract Status
-      if (
+      const isStatusQuery =
         query.includes('وش وضعه') || query.includes('حالة العقد') || query.includes('هل هو ساري') ||
-        query.includes('هل انتهى') || query.includes('ساري ولا منتهي')
-      ) {
+        query.includes('هل انتهى') || query.includes('ساري ولا منتهي') || query.includes('وضع العقد');
+
+      if (isStatusQuery) {
         const statusMap: Record<string, string> = {
           active: 'ساري ونشط بالميدان',
           completed: 'مكتمل وتم سحب الحاوية',
@@ -335,7 +397,7 @@ export class AlMuhtarazExecutiveAgent {
     // 2. Follow-up on Financial Topic (إذا كان السؤال السابق عن المالية)
     if (lastTopic === 'finance') {
       const contracts = this.context.contracts || [];
-      if (query.includes('كم كاش') || query.includes('كم الكاش') || query.includes('الكاش منها')) {
+      if (query.includes('كم كاش') || query.includes('كم الكاش') || query.includes('الكاش منها') || query.includes('كاش')) {
         const cashContracts = contracts.filter(c => c.payment_method === 'cash');
         const cashCollected = cashContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
         const speech = cleanSpeechText(`إجمالي مبالغ الكاش المحصلة نقداً ${cashCollected} ريال.`);
@@ -346,7 +408,7 @@ export class AlMuhtarazExecutiveAgent {
         };
       }
 
-      if (query.includes('كم سداد') || query.includes('كم الكتروني') || query.includes('كم شبكه') || query.includes('كم تحويل')) {
+      if (query.includes('كم سداد') || query.includes('كم الكتروني') || query.includes('كم شبكه') || query.includes('كم تحويل') || query.includes('شبكة')) {
         const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer');
         const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
         const speech = cleanSpeechText(`إجمالي السداد الإلكتروني والتحويل البنكي ${electronicCollected} ريال.`);
@@ -357,7 +419,7 @@ export class AlMuhtarazExecutiveAgent {
         };
       }
 
-      if (query.includes('كم باقي') || query.includes('كم المتبقي') || query.includes('الذمم')) {
+      if (query.includes('كم باقي') || query.includes('كم المتبقي') || query.includes('الذمم') || query.includes('متبقي')) {
         const totalRemaining = contracts.reduce((sum, c) => sum + (Number(c.remaining_amount ?? (c.total_cost - c.paid_amount)) || 0), 0);
         const speech = cleanSpeechText(`المبالغ المتبقية للتحصيل كذمم مدينة ${totalRemaining} ريال.`);
         return {
@@ -607,6 +669,7 @@ export class AlMuhtarazExecutiveAgent {
   private tool_searchEntity(rawQuery: string): AgentExecutionResult {
     const cleanQuery = rawQuery
       .replace(/ابحث عن/g, '')
+      .replace(/بحث عن/g, '')
       .replace(/عقد رقم/g, '')
       .replace(/حاوية رقم/g, '')
       .replace(/رقم/g, '')
@@ -686,15 +749,30 @@ export class AlMuhtarazExecutiveAgent {
     };
   }
 
-  // 💡 Tool 6: General Executive Guidance
-  private tool_generalExecutiveGuidance(): AgentExecutionResult {
-    const speech = cleanSpeechText('هلا أبو ماجد أنا تحت أمرك.');
-    const md = `هلا أبو ماجد أنا تحت أمرك.`;
+  // 💡 Smart Dynamic Greeting
+  private generateSmartGreeting(): AgentExecutionResult {
+    const containers = this.context.containers || [];
+    const contracts = this.context.contracts || [];
+    const available = containers.filter(c => c.status === 'available').length;
+    const activeContracts = contracts.filter(c => c.status === 'active').length;
+
+    const speech = cleanSpeechText(
+      `أهلاً يا أبو ماجد.. يتوفر حالياً ${available} حاوية شاغرة في المخزون ، و ${activeContracts} عقود سارية بالميدان. كيف أقدر أخدمك؟`
+    );
+
+    const md = `### ✨ أهلاً وسهلاً يا أبو ماجد 🌟\n\n` +
+      `* **الحاويات الشاغرة بالمخزون:** \`${available}\` حاوية جاهزة للتنزيل 🚛\n` +
+      `* **العقود السارية بالميدان:** \`${activeContracts}\` عقود نشطة 📋\n\n` +
+      `💡 **يمكنك أن تسألني عن:**\n` +
+      `• *«وش آخر عقد مسجل؟»* ثم *«كم مبلغه؟»* أو *«من هو العميل؟»*\n` +
+      `• *«كم الدخل المالي اليوم؟»* أو *«كم الحاويات المتوفرة؟»*\n` +
+      `• *«هل توجد حاويات تنتهي قريباً لتفادي مخالفات البلدية؟»*`;
 
     return {
       toolExecuted: null,
       speechResponse: speech,
-      displayMarkdown: md
+      displayMarkdown: md,
+      updatedMemory: this.memory
     };
   }
 
