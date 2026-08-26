@@ -21,7 +21,7 @@ import {
   Receipt, 
   UserRole 
 } from '@/types/database';
-import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
+import { AlMuhtarazExecutiveAgent, AgentMemoryState } from '@/utils/aiExecutiveAgent';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
@@ -65,6 +65,13 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const accumulatedTextRef = useRef<string>('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const conversationalMemoryRef = useRef<AgentMemoryState>({
+    lastFocusedContract: null,
+    lastFocusedCustomer: null,
+    lastFocusedContainer: null,
+    lastFocusedTopic: null,
+    conversationTurns: []
+  });
 
   // Keep ref synchronized
   useEffect(() => {
@@ -252,23 +259,31 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     playInteractionFeedback('thinking');
 
     try {
-      // 1. Try Executive Agent with Live Tool Calling first
-      const agent = new AlMuhtarazExecutiveAgent({
-        contracts,
-        containers,
-        customers,
-        staffList,
-        receipts,
-        currentUserName: 'أبو ماجد'
-      });
+      // 1. Executive Agent with Live Tool Calling & Conversational Memory Chain
+      const agent = new AlMuhtarazExecutiveAgent(
+        {
+          contracts,
+          containers,
+          customers,
+          staffList,
+          receipts,
+          currentUserName: 'أبو ماجد',
+          memory: conversationalMemoryRef.current
+        },
+        conversationalMemoryRef.current
+      );
 
       const agentResult = await agent.executeUserCommand(cleanQuery);
+
+      if (agentResult.updatedMemory) {
+        conversationalMemoryRef.current = agentResult.updatedMemory;
+      }
 
       setIsThinking(false);
       accumulatedTextRef.current = '';
       playInteractionFeedback('response');
 
-      if (agentResult.toolExecuted) {
+      if (agentResult.speechResponse) {
         const speechClean = cleanSpeechText(agentResult.speechResponse);
         setLastSpeechText(speechClean);
         setLastResponse(agentResult.displayMarkdown);
@@ -298,6 +313,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       setIsThinking(false);
       setLastResponse('لا توجد بيانات مطابقة لهذا السؤال.');
     }
+
   };
 
   // Toggle Voice Dictation Listening

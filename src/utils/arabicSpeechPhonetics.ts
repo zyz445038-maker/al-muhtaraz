@@ -5,12 +5,13 @@
  * phone numbers, quantities, and symbols into pristine spoken Arabic words.
  * 
  * Features:
- * 1. Comprehensive Tafqeet (تفقيط المبالغ المالية والهللات)
+ * 1. Comprehensive Tafqeet (تفقيط المبالغ المالية والهللات بدقة لغوية تامة)
  * 2. Natural Dates pronunciation (نطق التواريخ بالأيام والشهور والسنين بدون أي "شرطة")
  * 3. Contract, Container & Serial IDs classification (أرقام العقود والحاويات)
  * 4. Phone numbers cadence (أرقام الجوال بفواصل صوتية مريحة)
  * 5. Quantity & Gender agreement (العدد والمعدود للحاويات، السائقين، الأيام، العقود)
  * 6. Percentages & Time expressions (النسب المئوية والأوقات)
+ * 7. Unicode & Arabic Thousands/Decimal Separators Normalization (معالجة الفواصل العربية والإنجليزية)
  */
 
 // ─── 1. Core Arabic Number-to-Words (Tafqeet) Engine ──────────────────────────
@@ -70,9 +71,6 @@ export function tafqeetNumber(num: number, isFeminine: boolean = false): string 
   if (isNaN(num)) return '';
   num = Math.floor(Math.abs(num));
   if (num === 0) return 'صفر';
-
-  const ones = isFeminine ? ONES_FEM : ONES_MASC;
-  const teens = isFeminine ? TEENS_FEM : TEENS_MASC;
 
   function convertUnder1000(n: number, isFem: boolean): string {
     let parts: string[] = [];
@@ -146,7 +144,8 @@ export function tafqeetNumber(num: number, isFeminine: boolean = false): string 
 
 /**
  * Converts currency amounts to fluent Saudi Riyal & Halala phrasing
- * e.g., 1500.50 -> ألف وخمسمائة ريال وخمسون هللة
+ * e.g., 3500 -> ثلاثة آلاف وخمسمئة ريال
+ * e.g., 1500.50 -> ألف وخمسمئة ريال وخمسون هللة
  */
 export function tafqeetCurrency(amount: number): string {
   if (isNaN(amount) || amount === 0) return 'صفر ريال';
@@ -162,7 +161,7 @@ export function tafqeetCurrency(amount: number): string {
   } else if (riyals >= 3 && riyals <= 10) {
     riyalText = `${tafqeetNumber(riyals, false)} ريالات`;
   } else if (riyals > 10) {
-    riyalText = `${tafqeetNumber(riyals, false)} ريالاً`;
+    riyalText = `${tafqeetNumber(riyals, false)} ريال`;
   }
 
   let halalaText = '';
@@ -196,7 +195,7 @@ export function formatSpokenDate(yearStr: string, monthStr: string, dayStr: stri
     ? (HIJRI_MONTHS[month] || `شهر ${tafqeetNumber(month, false)}`) 
     : (GREGORIAN_MONTHS[month] || `شهر ${tafqeetNumber(month, false)}`);
   
-  if (year) {
+  if (year && !isNaN(year)) {
     const yearSpoken = tafqeetNumber(year, false);
     const suffix = isHijri ? 'هجرية' : '';
     return `${daySpoken} من ${monthName} لعام ${yearSpoken} ${suffix}`.trim();
@@ -231,13 +230,16 @@ export function formatSpokenPhoneNumber(phone: string): string {
  * Formats contract / container code or alphanumeric serials for speech
  */
 export function formatSpokenSerialOrCode(code: string): string {
+  if (!code) return '';
+  const cleanCode = code.trim();
+  
   // If it's a simple integer (e.g. 105 or 42)
-  if (/^\d{1,6}$/.test(code)) {
-    return tafqeetNumber(parseInt(code, 10), false);
+  if (/^\d{1,6}$/.test(cleanCode)) {
+    return tafqeetNumber(parseInt(cleanCode, 10), false);
   }
 
   // If it has hyphens/letters e.g. 2024-0012 or C-44
-  const parts = code.split(/[\-\_\/\s]+/);
+  const parts = cleanCode.split(/[\-\_\/\s]+/);
   return parts.map(part => {
     if (/^\d+$/.test(part)) {
       if (part.length <= 4) {
@@ -260,16 +262,24 @@ export function normalizeArabicSpeechPhonetics(rawText: string): string {
 
   let text = rawText;
 
-  // 1. Unify Arabic-Indic digits (٠-٩) to standard (0-9)
+  // 1. Strip invisible Unicode directional marks
+  text = text.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '');
+
+  // 2. Unify Arabic-Indic digits (٠-٩) to standard (0-9)
   const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
   arabicDigits.forEach((d, idx) => {
     text = text.replace(new RegExp(d, 'g'), idx.toString());
   });
 
-  // Remove comma thousands separators in numbers: 1,500 -> 1500
-  text = text.replace(/(\d+),(\d{3})/g, '$1$2');
+  // 3. Remove Arabic/English thousands separators:
+  // e.g. 3٬500 or 3,500 or 10,000,000 or 3 500
+  text = text.replace(/(\d+)[\u066C,](?=\d{3}\b)/g, '$1');
+  text = text.replace(/(\d+)[\u066C,](?=\d{3}\b)/g, '$1');
+  
+  // 4. Convert Arabic decimal separator (٫ U+066B) to standard dot:
+  text = text.replace(/(\d+)[\u066B](\d+)/g, '$1.$2');
 
-  // 2. Dates Normalization (YYYY-MM-DD, DD/MM/YYYY, YYYY/MM/DD, DD-MM-YYYY)
+  // 5. Dates Normalization (YYYY-MM-DD, DD/MM/YYYY, YYYY/MM/DD, DD-MM-YYYY)
   // Gregorian Full Dates (e.g., 2026-08-26, 2026/08/26, 26/08/2026, 26-08-2026)
   text = text.replace(/\b(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](0?[1-9]|[12]\d|3[01])\b/g, (_, y, m, d) => {
     return formatSpokenDate(y, m, d, false);
@@ -291,25 +301,25 @@ export function normalizeArabicSpeechPhonetics(rawText: string): string {
     return formatSpokenDate('', m, d, false);
   });
 
-  // 3. Saudi Phone Numbers (+9665xxxxxxxx, 05xxxxxxxx, 9665xxxxxxxx)
+  // 6. Saudi Phone Numbers (+9665xxxxxxxx, 05xxxxxxxx, 9665xxxxxxxx)
   text = text.replace(/(?:\+?966|0)5\d{8}\b/g, match => {
     return `رقم الجوال ${formatSpokenPhoneNumber(match)}`;
   });
 
-  // 4. Monetary Amounts & Currencies
-  // e.g. "1500 ريال", "1500 ر.س", "1500.50 SAR", "المبلغ 750", "إجمالي 1200", "الدخل 5000"
-  text = text.replace(/(\d+(?:\.\d{1,2})?)\s*(?:ريال|ريالاً|ريالات|ر\.س|ر\.س\.|SAR|sar)/gi, (_, amt) => {
+  // 7. Monetary Amounts & Currencies
+  // Handles: 3500 ريال, 3500 ر.س, 3500.50 SAR, 1500 ر.س.
+  text = text.replace(/(\d+(?:\.\d{1,2})?)\s*(?:ريالاً|ريالات|ريال|ر\.س\.|ر\.س|SAR|sar)/gi, (_, amt) => {
     return tafqeetCurrency(parseFloat(amt));
   });
 
-  // Patterns like "المبلغ: 1500" or "الإجمالي: 2500" or "المحصل: 300"
+  // Patterns like "المبلغ: 3500" or "الإجمالي: 3500" or "المحصل: 300"
   text = text.replace(/(المبلغ|الإجمالي|إجمالي|المدفوع|المتبقي|الدخل|التحصيل|سداد|قيمة|تكلفة)\s*[:\-]?\s*(\d+(?:\.\d{1,2})?)(?!\s*حاوي|\s*سائق|\s*يوم|\s*عقد|\s*ساعة)/g, (_, label, amt) => {
     return `${label} ${tafqeetCurrency(parseFloat(amt))}`;
   });
 
-  // 5. Quantities & Counters with proper Arabic feminine/masculine matching
+  // 8. Quantities & Counters with proper Arabic feminine/masculine matching
   // Containers (حاوية / حاويات - مؤنث)
-  text = text.replace(/\b(\d+)\s*(حاوية|حاويات|حاويه|حاوي)/g, (_, n, word) => {
+  text = text.replace(/\b(\d+)\s*(حاوية|حاويات|حاويه|حاوي)/g, (_, n) => {
     const num = parseInt(n, 10);
     if (num === 0) return 'صفر حاوية';
     if (num === 1) return 'حاوية واحدة';
@@ -356,31 +366,30 @@ export function normalizeArabicSpeechPhonetics(rawText: string): string {
     return `${tafqeetNumber(num, true)} ساعة`;
   });
 
-  // 6. Contract Numbers, Container Numbers & ID Codes
+  // 9. Contract Numbers, Container Numbers & ID Codes
   // "العقد (102)" or "عقد رقم 102" or "العقد رقم CNT-2024"
   text = text.replace(/(العقد|عقد|الحاوية|حاوية|سند|فاتورة|سجل)\s*(?:رقم|كود|رمز)?\s*[\(\[]?([A-Za-z0-9\-_]+)[\)\]]?/g, (match, entity, code) => {
-    // If code is pure digits or alphanumeric code
     const spokenCode = formatSpokenSerialOrCode(code);
     return `${entity} رقم ${spokenCode}`;
   });
 
-  // 7. Percentages (e.g. 85% -> خمسة وثمانون بالمئة)
+  // 10. Percentages (e.g. 85% -> خمسة وثمانون بالمئة)
   text = text.replace(/(\d+(?:\.\d+)?)\s*%/g, (_, n) => {
     const num = parseFloat(n);
     return `${tafqeetNumber(Math.floor(num), false)} بالمئة`;
   });
 
-  // 8. General Remaining Standalone Numbers (Convert any leftover digit clusters to full spoken words)
+  // 11. General Remaining Standalone Numbers (Convert any leftover digit clusters to full spoken words)
   text = text.replace(/\b\d+\b/g, match => {
     const num = parseInt(match, 10);
     return tafqeetNumber(num, false);
   });
 
-  // 9. Remove any remaining slashes, hyphens, and math symbols so the TTS NEVER says "شرطة"
+  // 12. Remove any remaining slashes, hyphens, and math symbols so the TTS NEVER says "شرطة"
   text = text.replace(/[\/\-\_\\]+/g, ' ، ');
   text = text.replace(/[\+\=\<\>\|\~\^]/g, ' ');
   
-  // 10. Clean multiple spaces and ensure natural pauses
+  // 13. Clean multiple spaces and ensure natural pauses
   text = text.replace(/\s+/g, ' ').trim();
 
   return text;
