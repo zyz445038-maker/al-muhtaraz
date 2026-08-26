@@ -28,7 +28,8 @@ import {
   User,
   Lightbulb,
   Mic,
-  MicOff
+  MicOff,
+  Share2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
