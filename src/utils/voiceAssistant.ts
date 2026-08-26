@@ -1,63 +1,14 @@
 // Voice Assistant Engine: Ultra-Reliable Unlocked Audio Pipeline for All Browsers
 import { querySystemKnowledge } from './aiCopilotKnowledge';
 import { diacritizeArabicSpeech } from './arabicDiacritizer';
+import { tafqeetNumber, tafqeetCurrency } from './arabicSpeechPhonetics';
+import { cleanSpeechText } from './speechSanitizer';
 
 // ─── 1. Arabic Number to Words Converter ───────────────────────────────────────
 export function numberToArabicWords(num: number): string {
-  if (num === 0) return 'صفر';
-  if (isNaN(num)) return '';
-
-  const ones = ['', 'واحد', 'اثنين', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة'];
-  const teens = ['عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
-  const tens = ['', 'عشرة', 'عشرين', 'ثلاثين', 'أربعين', 'خمسين', 'ستين', 'سبعين', 'ثمانين', 'تسعين'];
-  const hundreds = ['', 'مئة', 'مئتان', 'ثلاثمئة', 'أربعمئة', 'خمسمئة', 'ستمئة', 'سبعمئة', 'ثمانمئة', 'تسعمئة'];
-
-  function convertChunk(n: number): string {
-    let result = '';
-    const h = Math.floor(n / 100);
-    const remainder = n % 100;
-
-    if (h > 0) {
-      result += hundreds[h];
-    }
-
-    if (remainder > 0) {
-      if (result !== '') result += ' و';
-      if (remainder <= 10) {
-        result += ones[remainder];
-      } else if (remainder < 20) {
-        result += teens[remainder - 10];
-      } else {
-        const t = Math.floor(remainder / 10);
-        const o = remainder % 10;
-        if (o > 0) {
-          result += ones[o] + ' و' + tens[t];
-        } else {
-          result += tens[t];
-        }
-      }
-    }
-    return result;
-  }
-
-  const thousands = Math.floor(num / 1000);
-  const remaining = num % 1000;
-  let finalResult = '';
-
-  if (thousands > 0) {
-    if (thousands === 1) finalResult += 'ألف';
-    else if (thousands === 2) finalResult += 'ألفان';
-    else if (thousands >= 3 && thousands <= 10) finalResult += convertChunk(thousands) + ' آلاف';
-    else finalResult += convertChunk(thousands) + ' ألف';
-  }
-
-  if (remaining > 0) {
-    if (finalResult !== '') finalResult += ' و';
-    finalResult += convertChunk(remaining);
-  }
-
-  return finalResult;
+  return tafqeetNumber(num, false);
 }
+
 
 // ─── 2. Advanced Arabic Semantic Normalizer ───────────────────────────────────
 function normalizeArabicText(text: string): string {
@@ -219,8 +170,11 @@ export function stopSpeaking(): void {
   }
 }
 
-export async function speakSaudiFemaleVoice(text: string, voiceKey: string = 'zariyah'): Promise<void> {
-  if (typeof window === 'undefined' || !text.trim()) return;
+export async function speakSaudiFemaleVoice(rawText: string, voiceKey: string = 'zariyah'): Promise<void> {
+  if (typeof window === 'undefined' || !rawText.trim()) return;
+
+  const text = cleanSpeechText(rawText);
+  if (!text) return;
 
   stopSpeaking();
   unlockAudio();
