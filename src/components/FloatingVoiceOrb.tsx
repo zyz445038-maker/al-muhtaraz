@@ -8,23 +8,22 @@ import {
   Sparkles, 
   Bot, 
   Send, 
-  TrendingUp, 
-  Truck, 
-  Package, 
-  ShieldCheck,
-  Loader2
+  Volume2,
+  VolumeX,
+  Loader2,
+  Play,
+  RotateCcw
 } from 'lucide-react';
 import { 
   Contract, 
   Container, 
-  Customer,
-  Profile,
+  Customer, 
+  Profile, 
   Receipt, 
   UserRole 
 } from '@/types/database';
-import { 
-  processDeepAssistantQuery 
-} from '@/utils/aiCopilotBrain';
+import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
+import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 
 interface FloatingVoiceOrbProps {
@@ -52,20 +51,112 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [autoSpeak, setAutoSpeak] = useState<boolean>(true);
+  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
   const [transcript, setTranscript] = useState<string>('');
   const [manualInput, setManualInput] = useState<string>('');
-  const [lastSpeechText, setLastSpeechText] = useState<string>('أَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
-  const [lastResponse, setLastResponse] = useState<string>('أهلاً بك يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.');
+  
+  const [lastSpeechText, setLastSpeechText] = useState<string>('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
+  const [lastResponse, setLastResponse] = useState<string>('أهلاً وسهلاً يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.');
   
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
   const accumulatedTextRef = useRef<string>('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // Keep ref synchronized
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  // 🔊 Native Device Speech Fallback
+  const playNativeDeviceSpeech = (text: string, voiceKey: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ar-SA';
+      utterance.rate = 1.0;
+      utterance.pitch = voiceKey === 'hamed' ? 0.95 : 1.15;
+
+      const voices = window.speechSynthesis.getVoices();
+      const arabicVoice = voices.find(v => 
+        v.lang.startsWith('ar') || 
+        v.name.includes('Arabic') || 
+        v.name.includes('Saudi') || 
+        v.name.includes('Maged') || 
+        v.name.includes('Laila') || 
+        v.name.includes('Tarik')
+      );
+      if (arabicVoice) {
+        utterance.voice = arabicVoice;
+      }
+
+      utterance.onstart = () => setIsPlayingAudio(true);
+      utterance.onend = () => setIsPlayingAudio(false);
+      utterance.onerror = () => setIsPlayingAudio(false);
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Native speech error:', e);
+      setIsPlayingAudio(false);
+    }
+  };
+
+  // 🎙️ Main Neural Voice Player
+  const handlePlayVoice = (textToPlay: string, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
+    if (!textToPlay || !textToPlay.trim()) return;
+    const voice = voiceOverride || selectedVoice;
+    
+    // Stop any ongoing native speech
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${voice}&rate=0%&t=${Date.now()}`;
+
+    if (!audioPlayerRef.current) {
+      audioPlayerRef.current = new Audio();
+    }
+
+    const audio = audioPlayerRef.current;
+    audio.src = streamUrl;
+
+    audio.onplay = () => setIsPlayingAudio(true);
+    audio.onended = () => setIsPlayingAudio(false);
+    audio.onerror = () => {
+      console.warn('Neural TTS stream fallback to native speech synthesizer');
+      playNativeDeviceSpeech(textToPlay, voice);
+    };
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => setIsPlayingAudio(true))
+        .catch((err) => {
+          console.warn('Audio auto-play restricted, falling back to native synthesizer:', err);
+          playNativeDeviceSpeech(textToPlay, voice);
+        });
+    }
+  };
+
+  // Stop all audio
+  const handleStopAudio = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.currentTime = 0;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingAudio(false);
+  };
 
   // Initialize Speech Recognition with continuous stream & long-phrase tolerance
   useEffect(() => {
@@ -73,7 +164,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = true; // ✅ Do not stop on brief pauses
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = 'ar-SA';
 
@@ -102,11 +193,10 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
           silenceTimerRef.current = setTimeout(() => {
             if (currentFullText.length > 2 && isListeningRef.current) {
-              // User has finished speaking after 4.5s of silence
               handleProcessVoiceInput(currentFullText);
               stopListeningSession();
             }
-          }, 4500);
+          }, 4000);
         };
 
         recognition.onerror = (event: any) => {
@@ -117,7 +207,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         };
 
         recognition.onend = () => {
-          // If the user hasn't explicitly stopped listening, keep session alive
           if (isListeningRef.current) {
             try {
               recognition.start();
@@ -148,17 +237,43 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     } catch (e) {}
   };
 
-  // Process Real-time Deep Reasoning Query with interactive typing & audio feedback
-  const handleProcessVoiceInput = (inputText: string) => {
+  // Process Real-time Query with Executive Agent & Live Speech
+  const handleProcessVoiceInput = async (inputText: string) => {
     const cleanQuery = inputText.trim();
     if (!cleanQuery) return;
 
     stopListeningSession();
+    handleStopAudio();
     setIsThinking(true);
-    playInteractionFeedback('thinking'); // 🎵 Play soft thinking chime
+    playInteractionFeedback('thinking');
 
-    // Simulate natural thinking/typing reaction (350ms)
-    setTimeout(() => {
+    try {
+      // 1. Try Executive Agent with Live Tool Calling first
+      const agent = new AlMuhtarazExecutiveAgent({
+        contracts,
+        containers,
+        customers,
+        staffList,
+        receipts,
+        currentUserName: 'أبو ماجد'
+      });
+
+      const agentResult = await agent.executeUserCommand(cleanQuery);
+
+      setIsThinking(false);
+      accumulatedTextRef.current = '';
+      playInteractionFeedback('response');
+
+      if (agentResult.toolExecuted) {
+        setLastSpeechText(agentResult.speechResponse);
+        setLastResponse(agentResult.displayMarkdown);
+        if (autoSpeak && agentResult.speechResponse) {
+          handlePlayVoice(agentResult.speechResponse);
+        }
+        return;
+      }
+
+      // 2. Fallback to Deep Reasoning Knowledge Base
       const { displayText } = processDeepAssistantQuery(cleanQuery, {
         contracts,
         containers,
@@ -167,12 +282,16 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         receipts
       });
 
-      setIsThinking(false);
       setLastSpeechText(displayText);
       setLastResponse(displayText);
-      playInteractionFeedback('response'); // 🎵 Play crisp answer completion chime
-      accumulatedTextRef.current = '';
-    }, 450);
+      if (autoSpeak && displayText) {
+        handlePlayVoice(displayText);
+      }
+    } catch (err) {
+      console.error('Voice processing error:', err);
+      setIsThinking(false);
+      setLastResponse('أبشر يا أبو ماجد.. أنا تحت أمرك.');
+    }
   };
 
   // Toggle Voice Dictation Listening
@@ -184,6 +303,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         stopListeningSession();
       }
     } else {
+      handleStopAudio();
       setTranscript('');
       accumulatedTextRef.current = '';
       isListeningRef.current = true;
@@ -193,6 +313,16 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       } catch (err) {
         console.warn('Recognition start error:', err);
       }
+    }
+  };
+
+  // When Orb is opened, trigger greeting speech if autoSpeak is on
+  const handleOpenOrb = () => {
+    setIsOpen(true);
+    if (autoSpeak) {
+      setTimeout(() => {
+        handlePlayVoice(lastSpeechText);
+      }, 300);
     }
   };
 
@@ -234,7 +364,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       <div className="floating-voice-orb-container">
         {!isOpen && (
           <button
-            onClick={() => setIsOpen(true)}
+            onClick={handleOpenOrb}
             style={{
               width: '62px',
               height: '62px',
@@ -249,7 +379,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               animation: 'floatOrbPulse 3.5s infinite ease-in-out',
               position: 'relative'
             }}
-            title="مساعد المدير الذكي (خاص بالإدارة)"
+            title="مساعد المدير الذكي الصوتي (خاص بالإدارة)"
           >
             <Bot size={28} strokeWidth={2.4} />
             
@@ -274,18 +404,18 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         {/* 🌟 Conversation Pop-up Card */}
         {isOpen && (
           <div style={{
-            width: '380px',
+            width: '400px',
             maxWidth: 'calc(100vw - 32px)',
-            background: 'linear-gradient(165deg, rgba(15, 23, 42, 0.96) 0%, rgba(5, 8, 17, 0.98) 100%)',
+            background: 'linear-gradient(165deg, rgba(15, 23, 42, 0.98) 0%, rgba(5, 8, 17, 0.99) 100%)',
             border: '1px solid rgba(245, 158, 11, 0.4)',
             borderRadius: '24px',
-            padding: '22px 20px',
-            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(245, 158, 11, 0.2)',
+            padding: '20px',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 158, 11, 0.25)',
             animation: 'fadeIn 0.2s ease',
             fontFamily: 'system-ui, -apple-system, sans-serif'
           }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
                   width: '36px',
@@ -301,46 +431,138 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 </div>
                 <div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>مساعد المحترز الذكي</span>
+                    <span>مساعد المحترز التنفيذي</span>
                     <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>👑</span>
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: isListening ? '#38bdf8' : isThinking ? '#fbbf24' : '#34d399', fontWeight: 700 }}>
-                    {isListening ? '🎙️ يستمع لك.. تحدث براحتك' : isThinking ? '⚡ جاري التحليل وصياغة الرد...' : '✨ جاهز لخدمتك يا أبو ماجد'}
+                  <div style={{ fontSize: '0.74rem', color: isListening ? '#38bdf8' : isThinking ? '#fbbf24' : isPlayingAudio ? '#ec4899' : '#34d399', fontWeight: 700 }}>
+                    {isListening ? '🎙️ يستمع لك.. تحدث براحتك' : isThinking ? '⚡ جاري التحليل وصياغة الرد...' : isPlayingAudio ? '🔊 يتحدث الآن...' : '✨ جاهز لخدمتك يا أبو ماجد'}
                   </div>
                 </div>
               </div>
 
-              {/* Close button */}
-              <button
-                onClick={() => {
-                  stopListeningSession();
-                  setIsOpen(false);
-                }}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  width: '30px',
-                  height: '30px',
-                  color: '#94a3b8',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <X size={16} />
-              </button>
+              {/* Action buttons (Audio toggle & Close) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() => setAutoSpeak(!autoSpeak)}
+                  style={{
+                    background: autoSpeak ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                    border: autoSpeak ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    width: '30px',
+                    height: '30px',
+                    color: autoSpeak ? '#34d399' : '#94a3b8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  title={autoSpeak ? 'النطق التلقائي مفعل' : 'النطق التلقائي معطل'}
+                >
+                  {autoSpeak ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    stopListeningSession();
+                    handleStopAudio();
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    width: '30px',
+                    height: '30px',
+                    color: '#94a3b8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Voice Switcher Strip inside Orb */}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '12px', background: 'rgba(0,0,0,0.35)', padding: '5px 8px', borderRadius: '12px' }}>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>الصوت:</span>
+              {[
+                { id: 'zariyah', label: '🌸 زارية' },
+                { id: 'hamed', label: '👔 حامد' },
+                { id: 'fatima', label: '✨ فاطمة' }
+              ].map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setSelectedVoice(v.id as any);
+                    handlePlayVoice(lastSpeechText, v.id as any);
+                  }}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: selectedVoice === v.id ? 'linear-gradient(135deg, #f59e0b, #ec4899)' : 'transparent',
+                    color: selectedVoice === v.id ? '#050811' : '#cbd5e1',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {v.label}
+                </button>
+              ))}
+
+              {isPlayingAudio ? (
+                <button
+                  onClick={handleStopAudio}
+                  style={{
+                    marginRight: 'auto',
+                    padding: '3px 8px',
+                    borderRadius: '8px',
+                    border: '1px solid #ef4444',
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#f87171',
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  إيقاف الصوت ⏹️
+                </button>
+              ) : (
+                <button
+                  onClick={() => handlePlayVoice(lastSpeechText)}
+                  style={{
+                    marginRight: 'auto',
+                    padding: '3px 8px',
+                    borderRadius: '8px',
+                    border: '1px solid #10b981',
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: '#34d399',
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Play size={10} />
+                  <span>استماع</span>
+                </button>
+              )}
             </div>
 
             {/* Conversation Box */}
             <div style={{
-              background: 'rgba(0, 0, 0, 0.45)',
+              background: 'rgba(0, 0, 0, 0.5)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '14px',
-              marginBottom: '14px',
-              minHeight: '120px',
+              marginBottom: '12px',
+              minHeight: '130px',
               maxHeight: '260px',
               overflowY: 'auto',
               display: 'flex',
@@ -377,7 +599,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                   fontWeight: 700
                 }}>
                   <Loader2 size={16} className="animate-spin" />
-                  <span>المساعد يحلل البيانات ويكتب الإجابة...</span>
+                  <span>المساعد يحلل البيانات ويجلب الأرقام الحية...</span>
                   <div style={{ display: 'flex', gap: '3px', marginRight: 'auto' }}>
                     <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24', animation: 'typingDots 1.4s infinite ease-in-out' }}></span>
                     <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fbbf24', animation: 'typingDots 1.4s infinite ease-in-out', animationDelay: '0.2s' }}></span>
@@ -410,7 +632,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 type="text"
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                placeholder="أو اكتب طلبك بالتفصيل هنا..."
+                placeholder="اكتب أمرك أو سؤالك هنا..."
                 style={{
                   flex: 1,
                   padding: '9px 12px',
@@ -467,54 +689,57 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 }}
               >
                 {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                <span>{isListening ? 'اضغط لإرسال السؤال الآن ⚡' : 'اضغط هنا وتحدث بصوتك 🎙️'}</span>
+                <span>{isListening ? 'اضغط لإرسال السؤال وسماع الإجابة ⚡' : 'اضغط هنا وتحدث بصوتك 🎙️'}</span>
               </button>
 
               {/* Quick Chips */}
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button
-                  onClick={() => handleProcessVoiceInput('كم الحاويات الشاغرة')}
+                  onClick={() => handleProcessVoiceInput('كم دخلنا اليوم كاش')}
                   style={{
                     background: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '12px',
                     padding: '4px 10px',
-                    color: '#94a3b8',
+                    color: '#fbbf24',
                     fontSize: '0.75rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: 700
                   }}
                 >
-                  📦 الحاويات الشاغرة
+                  💵 كم دخلنا كاش اليوم؟
                 </button>
 
                 <button
-                  onClick={() => handleProcessVoiceInput('كم دخل اليوم كاش')}
+                  onClick={() => handleProcessVoiceInput('وش الحاويات المنتهية')}
                   style={{
                     background: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '12px',
                     padding: '4px 10px',
-                    color: '#94a3b8',
+                    color: '#f87171',
                     fontSize: '0.75rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: 700
                   }}
                 >
-                  💰 دخل اليوم
+                  ⚠️ الحاويات المنتهية
                 </button>
 
                 <button
-                  onClick={() => handleProcessVoiceInput('العقود المنتهية غدا')}
+                  onClick={() => handleProcessVoiceInput('كم حاوية متوفرة للتأجير')}
                   style={{
                     background: 'rgba(255, 255, 255, 0.05)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '12px',
                     padding: '4px 10px',
-                    color: '#94a3b8',
+                    color: '#38bdf8',
                     fontSize: '0.75rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: 700
                   }}
                 >
-                  ⚠️ عقود تنتهي غداً
+                  📦 الحاويات المتوفرة
                 </button>
               </div>
             </div>
