@@ -43,9 +43,16 @@ import {
 } from '@/utils/aiCopilotKnowledge';
 import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
 import { SocialMediaAIHub } from '@/components/SocialMediaAIHub';
+import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
+import { Contract, Container, Customer, Profile, Receipt } from '@/types';
 
 interface DevLabProps {
   currentRole: string;
+  contracts?: Contract[];
+  containers?: Container[];
+  customers?: Customer[];
+  staffList?: Profile[];
+  receipts?: Receipt[];
 }
 
 interface ChatMessage {
@@ -57,7 +64,14 @@ interface ChatMessage {
   time: string;
 }
 
-export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
+export const DevLab: React.FC<DevLabProps> = ({ 
+  currentRole, 
+  contracts = [], 
+  containers = [], 
+  customers = [], 
+  staffList = [], 
+  receipts = [] 
+}) => {
   // Navigation Tabs inside DevLab
   const [activeLabTab, setActiveLabTab] = useState<'social_ai' | 'chat' | 'education' | 'voice_studio' | 'discord'>('social_ai');
 
@@ -276,7 +290,7 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
     setChatInput('');
     setIsReplying(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       // 1. Check if user is teaching the assistant directly in conversation
       const teachingResult = parseConversationalTeaching(userMsg);
 
@@ -302,13 +316,40 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         return;
       }
 
-      // 2. Check System & Learned Knowledge Base
+      // 2. ⚡ Autonomous AI Executive Agent (Live Tool Execution from Database)
+      const agent = new AlMuhtarazExecutiveAgent({
+        contracts,
+        containers,
+        customers,
+        staffList,
+        receipts,
+        currentUserName: 'أبو ماجد'
+      });
+      const agentResult = await agent.executeUserCommand(userMsg);
+
+      if (agentResult.toolExecuted) {
+        const replyMsg: ChatMessage = {
+          id: 'reply-' + Date.now(),
+          sender: 'assistant',
+          text: agentResult.displayMarkdown,
+          speechText: agentResult.speechResponse,
+          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        };
+        setChatMessages(prev => [...prev, replyMsg]);
+        setIsReplying(false);
+        if (agentResult.speechResponse) {
+          handlePlayVoice(agentResult.speechResponse);
+        }
+        return;
+      }
+
+      // 3. Check System & Learned Knowledge Base
       const knowledgeMatch = querySystemKnowledge(userMsg);
       if (knowledgeMatch) {
         const replyMsg: ChatMessage = {
           id: 'reply-' + Date.now(),
           sender: 'assistant',
-          text: knowledgeMatch.speechResponse,
+          text: knowledgeMatch.displayMarkdown || knowledgeMatch.speechResponse,
           speechText: knowledgeMatch.speechResponse,
           time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
         };
@@ -318,14 +359,14 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
         return;
       }
 
-      // 3. Fallback to standard intelligent response
+      // 4. Fallback to standard intelligent response
       const standardResponse = formatSaudiCheerResponse(userMsg, {
-        availableCount: 4,
-        totalIncome: 1800,
-        cashIncome: 600,
-        electronicIncome: 1200,
+        availableCount: containers.filter(c => c.status === 'available').length || 4,
+        totalIncome: contracts.reduce((s, c) => s + (Number(c.paid_amount) || 0), 0) || 1800,
+        cashIncome: contracts.filter(c => c.payment_method === 'cash').reduce((s, c) => s + (Number(c.paid_amount) || 0), 0) || 600,
+        electronicIncome: contracts.filter(c => c.payment_method !== 'cash').reduce((s, c) => s + (Number(c.paid_amount) || 0), 0) || 1200,
         expiringCount: 0,
-        activeCount: 12
+        activeCount: contracts.filter(c => c.status === 'active').length || 12
       });
 
       const replyMsg: ChatMessage = {

@@ -2204,7 +2204,14 @@ function MainDashboard() {
 
             {/* 🧪 ISOLATED R&D DEV-LAB TAB (ADMIN ONLY) */}
             {currentTab === 'dev-lab' && currentRole === 'admin' && (
-              <DevLab currentRole={currentRole} />
+              <DevLab 
+                currentRole={currentRole} 
+                contracts={contracts}
+                containers={containers}
+                customers={customers}
+                staffList={staffList}
+                receipts={receipts}
+              />
             )}
           </>
         )}
