@@ -21,15 +21,36 @@ import {
   Flame,
   Music,
   Compass,
-  ArrowUpRight
+  ArrowUpRight,
+  Settings,
+  Globe,
+  Save,
+  Link,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export type SocialPlatform = 'twitter' | 'snapchat' | 'tiktok' | 'whatsapp' | 'instagram' | 'linkedin' | 'facebook';
+export type SocialPlatform = 'snapchat' | 'tiktok' | 'twitter' | 'whatsapp' | 'instagram' | 'linkedin' | 'facebook';
 
 export type MarketingTone = 'saudi_friendly' | 'b2b_formal' | 'promo_urgent' | 'creative_catchy';
 
 export type CampaignTheme = 'quick_delivery' | 'building_permits' | 'weekend_sale' | 'contractors_bulk' | 'free_quotes' | 'custom';
+
+export interface SocialAccountsConfig {
+  snapchatUrl: string;
+  snapchatHandle: string;
+  tiktokUrl: string;
+  tiktokHandle: string;
+  twitterUrl: string;
+  twitterHandle: string;
+  whatsappGroupUrl: string;
+  instagramUrl: string;
+  instagramHandle: string;
+  linkedinUrl: string;
+  googleMapsUrl: string;
+  websiteUrl: string;
+}
 
 interface SocialPreset {
   id: CampaignTheme;
@@ -38,6 +59,21 @@ interface SocialPreset {
   icon: string;
   defaultPrompt: string;
 }
+
+const DEFAULT_ACCOUNTS: SocialAccountsConfig = {
+  snapchatUrl: 'https://www.snapchat.com/add/almuhtaraz',
+  snapchatHandle: '@almuhtaraz',
+  tiktokUrl: 'https://www.tiktok.com/@almuhtaraz_sa',
+  tiktokHandle: '@almuhtaraz_sa',
+  twitterUrl: 'https://x.com/almuhtaraz_sa',
+  twitterHandle: '@almuhtaraz_sa',
+  whatsappGroupUrl: 'https://chat.whatsapp.com/almuhtaraz',
+  instagramUrl: 'https://instagram.com/almuhtaraz_sa',
+  instagramHandle: '@almuhtaraz_sa',
+  linkedinUrl: 'https://linkedin.com/company/almuhtaraz',
+  googleMapsUrl: 'https://maps.google.com/?q=المحترز+للحاويات+الرياض',
+  websiteUrl: 'https://almuhtaraz.com'
+};
 
 const CAMPAIGN_PRESETS: SocialPreset[] = [
   {
@@ -94,7 +130,30 @@ export const SocialMediaAIHub: React.FC = () => {
   const [isDispatchingWebhook, setIsDispatchingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  // 🔗 Social Accounts Configuration State
+  const [isAccountsSettingsOpen, setIsAccountsSettingsOpen] = useState(false);
+  const [accountsConfig, setAccountsConfig] = useState<SocialAccountsConfig>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('al_muhtaraz_social_accounts');
+        if (stored) return { ...DEFAULT_ACCOUNTS, ...JSON.parse(stored) };
+      } catch (e) {}
+    }
+    return DEFAULT_ACCOUNTS;
+  });
+  const [savedAccountsSuccess, setSavedAccountsSuccess] = useState(false);
+
   const flyerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Save Social Accounts Config
+  const handleSaveAccountsConfig = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('al_muhtaraz_social_accounts', JSON.stringify(accountsConfig));
+    }
+    setSavedAccountsSuccess(true);
+    setTimeout(() => setSavedAccountsSuccess(false), 2500);
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+  };
 
   // Generate 4K Canvas Promotional Flyer
   const generateFlyerCanvas = () => {
@@ -211,7 +270,7 @@ export const SocialMediaAIHub: React.FC = () => {
     ctx.font = 'bold 22px "Cairo", sans-serif';
     ctx.fillText('الرياض — المملكة العربية السعودية | خدمة سريعة على مدار 24 ساعة', width / 2, 940);
     ctx.fillStyle = '#f59e0b';
-    ctx.fillText('almuhtaraz.com | #المحترز_للحاويات', width / 2, 980);
+    ctx.fillText(`${accountsConfig.websiteUrl.replace('https://', '')} | #المحترز_للحاويات`, width / 2, 980);
 
     setCanvasImageUrl(canvas.toDataURL('image/png'));
   };
@@ -219,7 +278,7 @@ export const SocialMediaAIHub: React.FC = () => {
   // Generate Flyer Canvas on change
   useEffect(() => {
     generateFlyerCanvas();
-  }, [promoTitle, promoBody, phoneContact, selectedTheme]);
+  }, [promoTitle, promoBody, phoneContact, selectedTheme, accountsConfig]);
 
   // AI Content Generator Simulation
   const handleGenerateAIContent = async (themeOverride?: CampaignTheme) => {
@@ -236,7 +295,7 @@ export const SocialMediaAIHub: React.FC = () => {
       if (marketingTone === 'saudi_friendly') {
         title = '⚡ تبي حاوية الحين؟ حنا أسرع من البرق في الرياض!';
         body = 'عندك ترميم أو هدم ومستعجل على الحاوية؟ 🏗️\nسائقين المحترز جاهزين يوصلون لك في أقل من ساعتين لأي حي بالرياض.\n\n✨ حاويات نظيفة 20 ياردة\n✨ عقود رسمية موثقة\n✨ سداد كاش أو مدى فوري\n\n📲 كلمنا واتساب أو سناب وفالك طيب: ' + phoneContact;
-        tags = '#حاويات_الرياض #توصيل_سريع #سناب_شات_الرياض #تيك_توك_السعودية #أنقاض_الرياض #المحترز_للحاويات';
+        tags = '#حاويات_الرياض #توصيل_سريع #سناب_الرياض #تيك_توك_السعودية #أنقاض_الرياض #المحترز_للحاويات';
       } else if (marketingTone === 'b2b_formal') {
         title = 'خدمات التوريد الفوري لحاويات الأنقاض بالرياض';
         body = 'تعلن شركة المحترز للحاويات عن جاهزية أسطولها لتوريد حاويات مخلفات البناء والترميم لجميع المواقع والمشاريع خلال ساعتين، مع إصدار عقود إلكترونية موثقة وسندات مالية رسمية.\n\nللحجز والتنسيق المباشر: ' + phoneContact;
@@ -301,7 +360,7 @@ export const SocialMediaAIHub: React.FC = () => {
         await navigator.share({
           title: promoTitle,
           text: fullContent,
-          url: 'https://almuhtaraz.com'
+          url: accountsConfig.websiteUrl || 'https://almuhtaraz.com'
         });
       } catch (e) {}
     } else {
@@ -315,7 +374,7 @@ export const SocialMediaAIHub: React.FC = () => {
 
     switch (platform) {
       case 'snapchat':
-        url = `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent('https://almuhtaraz.com')}`;
+        url = accountsConfig.snapchatUrl || `https://www.snapchat.com/add/${accountsConfig.snapchatHandle.replace('@', '')}`;
         break;
       case 'tiktok':
         url = `https://www.tiktok.com/upload?caption=${fullContent}`;
@@ -327,11 +386,15 @@ export const SocialMediaAIHub: React.FC = () => {
         url = `https://api.whatsapp.com/send?text=${fullContent}`;
         break;
       case 'linkedin':
-        url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://almuhtaraz.com')}&summary=${fullContent}`;
+        url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(accountsConfig.websiteUrl || 'https://almuhtaraz.com')}&summary=${fullContent}`;
         break;
       case 'facebook':
-        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://almuhtaraz.com')}&quote=${fullContent}`;
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(accountsConfig.websiteUrl || 'https://almuhtaraz.com')}&quote=${fullContent}`;
         break;
+      case 'instagram':
+        handleCopyText();
+        window.open(accountsConfig.instagramUrl || 'https://instagram.com', '_blank');
+        return;
       default:
         handleCopyText();
         alert(`تم نسخ نص الحملة بنجاح! يمكنك الآن لصقه ونشره في تطبيق ${platform}`);
@@ -365,6 +428,7 @@ export const SocialMediaAIHub: React.FC = () => {
         hashtags: hashtags.split(' '),
         contact: phoneContact,
         scheduled_for: scheduledTime,
+        company_accounts: accountsConfig,
         timestamp: new Date().toISOString()
       };
 
@@ -435,7 +499,28 @@ export const SocialMediaAIHub: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIsAccountsSettingsOpen(!isAccountsSettingsOpen)}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: isAccountsSettingsOpen ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                color: isAccountsSettingsOpen ? '#fbbf24' : '#ffffff',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Settings size={16} />
+              <span>إدارة روابط صفحات المؤسسة ⚙️</span>
+              {isAccountsSettingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
             <button
               onClick={() => handleGenerateAIContent()}
               disabled={isGeneratingAI}
@@ -460,6 +545,135 @@ export const SocialMediaAIHub: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* ── ⚙️ COLLAPSIBLE SOCIAL ACCOUNTS CONFIGURATION DRAWER ── */}
+        {isAccountsSettingsOpen && (
+          <div style={{
+            marginTop: '20px',
+            padding: '20px',
+            borderRadius: '16px',
+            background: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>
+                <Link size={18} />
+                <span>ربط حسابات وصفحات السوشيال ميديا الرسمية لمؤسسة المحترز:</span>
+              </div>
+
+              <button
+                onClick={handleSaveAccountsConfig}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: '#ffffff',
+                  fontSize: '0.8rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                <Save size={14} />
+                <span>{savedAccountsSuccess ? 'تم حفظ الحسابات بنجاح ✓' : 'حفظ بيانات الحسابات'}</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+              {/* Snapchat */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#fffc00', fontWeight: 800, marginBottom: '4px' }}>
+                  👻 رابط صفحة سناب شات (Snapchat Profile):
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.snapchatUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, snapchatUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* TikTok */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#00f2fe', fontWeight: 800, marginBottom: '4px' }}>
+                  🎵 رابط حساب تيك توك (TikTok Page):
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.tiktokUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, tiktokUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* Twitter / X */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#38bdf8', fontWeight: 800, marginBottom: '4px' }}>
+                  𝕏 رابط حساب إكس / تويتر (X Profile):
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.twitterUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, twitterUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* WhatsApp Community */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#34d399', fontWeight: 800, marginBottom: '4px' }}>
+                  💬 رابط مجتمع / قناة الواتساب:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.whatsappGroupUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, whatsappGroupUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* Instagram */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#f472b6', fontWeight: 800, marginBottom: '4px' }}>
+                  📸 رابط انستغرام (Instagram):
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.instagramUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, instagramUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+
+              {/* Website */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#cbd5e1', fontWeight: 800, marginBottom: '4px' }}>
+                  🌐 رابط الموقع الرسمي للمؤسسة:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={accountsConfig.websiteUrl}
+                  onChange={(e) => setAccountsConfig({ ...accountsConfig, websiteUrl: e.target.value })}
+                  style={{ fontSize: '0.8rem', direction: 'ltr', textAlign: 'left' }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Campaign Preset Chips */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
@@ -737,7 +951,7 @@ export const SocialMediaAIHub: React.FC = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 900, fontSize: '0.85rem', color: '#fffc00', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>المحترز للحاويات | سناب سبوتلايت</span>
+                      <span>المحترز للحاويات ({accountsConfig.snapchatHandle || '@almuhtaraz'})</span>
                       <span style={{ background: '#fffc00', color: '#000', borderRadius: '50%', padding: '0 4px', fontSize: '0.65rem' }}>⭐</span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>إعلان ممول بالرياض • Spotlight</div>
@@ -840,7 +1054,7 @@ export const SocialMediaAIHub: React.FC = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>@almuhtaraz_containers</span>
+                      <span>{accountsConfig.tiktokHandle || '@almuhtaraz_sa'}</span>
                       <span style={{ color: '#00f2fe', fontSize: '0.8rem' }}>✓</span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>حساب أعمال معتمد • تيك توك السعودية</div>
@@ -928,7 +1142,7 @@ export const SocialMediaAIHub: React.FC = () => {
                       <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>✓</span>
                     </div>
                     <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                      @almuhtaraz_sa • الآن
+                      {accountsConfig.twitterHandle || '@almuhtaraz_sa'} • الآن
                     </div>
                   </div>
                 </div>
