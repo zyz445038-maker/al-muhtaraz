@@ -90,7 +90,7 @@ export const SocialMediaAIHub: React.FC = () => {
   const [copiedText, setCopiedText] = useState(false);
   const [canvasImageUrl, setCanvasImageUrl] = useState<string | null>(null);
   const [scheduledTime, setScheduledTime] = useState('18:00');
-  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('/api/social/webhook');
   const [isDispatchingWebhook, setIsDispatchingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -1081,13 +1081,72 @@ export const SocialMediaAIHub: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Webhook Presets */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700 }}>اختر مفتاح ويب هوك جاهز:</span>
+          
+          <button
+            onClick={() => setWebhookUrl('/api/social/webhook')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              border: webhookUrl === '/api/social/webhook' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: webhookUrl === '/api/social/webhook' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+              color: webhookUrl === '/api/social/webhook' ? '#38bdf8' : '#cbd5e1',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            ⚡ ويب هوك المحترز السحابي المعتمد (داخلي)
+          </button>
+
+          <button
+            onClick={() => setWebhookUrl('https://discord.com/api/webhooks/1541716427071819858/t30PNmg-72eTI9p5NnwPzDZGz6wm1B4DNWgPvHcQrMuNrnCQQSeb0bT5iyiKYH2ya3W1')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              border: webhookUrl.includes('discord.com') ? '1px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: webhookUrl.includes('discord.com') ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+              color: webhookUrl.includes('discord.com') ? '#818cf8' : '#cbd5e1',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            🎮 ويب هوك ديسكورد المباشر
+          </button>
+
+          <button
+            onClick={() => {
+              window.open('https://webhook.site', '_blank');
+            }}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#f59e0b',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>🌐 توليد مفتاح خارجي مجاني (Webhook.site)</span>
+            <ExternalLink size={12} />
+          </button>
+        </div>
+
         <div style={{ display: 'flex', gap: '10px' }}>
           <input
-            type="url"
+            type="text"
             className="form-input"
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
-            placeholder="https://hooks.zapier.com/hooks/catch/... أو رابط Webhook مخصص"
+            placeholder="https://al-muhtaraz.vercel.app/api/social/webhook أو رابط Zapier"
             style={{ fontSize: '0.85rem', direction: 'ltr', textAlign: 'left' }}
           />
 
