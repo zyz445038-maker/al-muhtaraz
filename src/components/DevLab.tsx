@@ -145,8 +145,8 @@ export const DevLab: React.FC<DevLabProps> = ({
     return 1.0;
   };
 
-  // Native Device Speech Synthesis
-  const playNativeDeviceSpeech = (text: string, voiceKey: string) => {
+  // 🔊 Native Device Speech Fallback (Strictly Female Voice)
+  const playNativeDeviceSpeech = (text: string, voiceKey: 'zariyah' | 'fatima' | 'salma' = selectedVoice) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setErrorMessage('متصفحك لا يدعم مشغل الصوت المدمج');
       return;
@@ -160,19 +160,33 @@ export const DevLab: React.FC<DevLabProps> = ({
     utterance.rate = baseSpeed;
 
     if (voiceMood === 'cheerful') {
-      utterance.pitch = voiceKey === 'hamed' ? 1.0 : 1.35;
+      utterance.pitch = 1.35;
       utterance.rate = baseSpeed * 1.08;
     } else if (voiceMood === 'formal') {
-      utterance.pitch = voiceKey === 'hamed' ? 0.80 : 1.0;
+      utterance.pitch = 1.1;
       utterance.rate = baseSpeed * 0.95;
     } else {
-      utterance.pitch = voiceKey === 'hamed' ? 0.88 : 1.15;
+      utterance.pitch = 1.25;
     }
 
     const voices = window.speechSynthesis.getVoices();
-    const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.name.includes('Arabic') || v.name.includes('Saudi') || v.name.includes('Maged') || v.name.includes('Laila') || v.name.includes('Tarik'));
-    if (arabicVoice) {
-      utterance.voice = arabicVoice;
+    const isMaleVoice = (vName: string) => {
+      const n = vName.toLowerCase();
+      return n.includes('hamed') || n.includes('maged') || n.includes('naayf') || n.includes('tarik') || n.includes('male') || n.includes('shakir');
+    };
+
+    const arabicFemaleVoice = voices.find(v => 
+      (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE')) &&
+      !isMaleVoice(v.name) &&
+      (v.name.toLowerCase().includes('zariyah') || 
+       v.name.toLowerCase().includes('laila') || 
+       v.name.toLowerCase().includes('salma') || 
+       v.name.toLowerCase().includes('fatima') || 
+       v.name.toLowerCase().includes('female'))
+    ) || voices.find(v => v.lang.startsWith('ar') && !isMaleVoice(v.name));
+
+    if (arabicFemaleVoice) {
+      utterance.voice = arabicFemaleVoice;
     }
 
     utterance.onstart = () => {
@@ -186,7 +200,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   };
 
   // Generate & Play Voice with active rate & mood
-  const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
+  const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'fatima' | 'salma') => {
     const cleanedText = cleanSpeechText(textToPlay);
     if (!cleanedText || !cleanedText.trim()) return;
     const voiceToUse = voiceOverride || selectedVoice;
@@ -444,16 +458,17 @@ export const DevLab: React.FC<DevLabProps> = ({
     setIsSendingDiscord(true);
     setDiscordStatus(null);
 
-    const voiceTitle = selectedVoice === 'zariyah' ? '🌸 زاريّة (المساعد الصوتي)' : selectedVoice === 'hamed' ? '👔 حامد (المشرف التنفيذي)' : '✨ فاطمة (المعلقة الإعلانية)';
+    const voiceTitle = selectedVoice === 'zariyah' ? '🌸 زاريّة (المساعد الصوتي)' : selectedVoice === 'salma' ? '🌺 سلمى (المساعد الهادئ)' : '✨ فاطمة (المعلقة الإعلانية)';
     const moodTitle = voiceMood === 'cheerful' ? '😄 مرح وحيوي' : voiceMood === 'formal' ? '👔 رسمي رزين' : '🌸 ودود دافئ';
 
     const payload = {
       username: `غرفة عمليات المحترز | ${voiceTitle}`,
-      avatar_url: selectedVoice === 'hamed' ? 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' : 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png',
+      avatar_url: selectedVoice === 'salma' ? 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png' : 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png',
       embeds: [{
         title: '📢 بيان/تسجيل معتمد من المدير العام (أبو ماجد)',
         description: inputText,
-        color: selectedVoice === 'hamed' ? 0xf59e0b : selectedVoice === 'zariyah' ? 0xec4899 : 0x38bdf8,
+        color: selectedVoice === 'salma' ? 0x0284c7 : selectedVoice === 'zariyah' ? 0xec4899 : 0x38bdf8,
+
         fields: [
           { name: '🎙️ المعلق الصوتي', value: voiceTitle, inline: true },
           { name: '🎭 طابع النبرة', value: moodTitle, inline: true },
@@ -674,8 +689,9 @@ export const DevLab: React.FC<DevLabProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
                 <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#ffffff' }}>
-                  محادثة المساعد المباشرة ({selectedVoice === 'zariyah' ? '🌸 زاريّة' : selectedVoice === 'hamed' ? '👔 حامد' : '✨ فاطمة'})
+                  محادثة المساعد المباشرة ({selectedVoice === 'zariyah' ? '🌸 زاريّة' : selectedVoice === 'salma' ? '🌺 سلمى' : '✨ فاطمة'})
                 </span>
+
               </div>
 
               {/* Quick speed selector inside chat */}
@@ -721,22 +737,23 @@ export const DevLab: React.FC<DevLabProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedVoice('hamed');
-                  handlePlayVoice('مَرْحَباً بِأَبُو مَاجِدْ.. مَعَكَ صَوْتُ حَامِدَ السُّعُودِيِّ التَّنْفِيذِيِّ.. أَنَا جَاهِزٌ لِلتَّدْقِيقِ الْمَالِيِّ وَمُتَابَعَةِ الْعُقُودِ..', 'hamed');
+                  setSelectedVoice('salma');
+                  handlePlayVoice('أهلاً بك يا أبو ماجد.. معك المساعد الذكي لمؤسسة المحترز للحاويات..', 'salma');
                 }}
                 style={{
                   padding: '4px 10px',
                   borderRadius: '8px',
-                  border: selectedVoice === 'hamed' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: selectedVoice === 'hamed' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  color: selectedVoice === 'hamed' ? '#38bdf8' : '#cbd5e1',
+                  border: selectedVoice === 'salma' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: selectedVoice === 'salma' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  color: selectedVoice === 'salma' ? '#38bdf8' : '#cbd5e1',
                   fontSize: '0.75rem',
                   fontWeight: 800,
                   cursor: 'pointer'
                 }}
               >
-                👔 صوت حامد (سعودي تنفيذي)
+                🌺 صوت سلمى (طبيعي)
               </button>
+
 
               <button
                 type="button"
@@ -1372,13 +1389,13 @@ export const DevLab: React.FC<DevLabProps> = ({
                 </button>
 
                 <button
-                  onClick={() => setSelectedVoice('hamed')}
+                  onClick={() => setSelectedVoice('salma')}
                   style={{
                     padding: '10px 12px',
                     borderRadius: '14px',
-                    border: selectedVoice === 'hamed' ? '2px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.1)',
-                    background: selectedVoice === 'hamed' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.2))' : 'rgba(0, 0, 0, 0.3)',
-                    color: selectedVoice === 'hamed' ? '#fbbf24' : '#94a3b8',
+                    border: selectedVoice === 'salma' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: selectedVoice === 'salma' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.2))' : 'rgba(0, 0, 0, 0.3)',
+                    color: selectedVoice === 'salma' ? '#38bdf8' : '#94a3b8',
                     fontWeight: 800,
                     fontSize: '0.82rem',
                     cursor: 'pointer',
@@ -1386,11 +1403,12 @@ export const DevLab: React.FC<DevLabProps> = ({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>👔 حامد</span>
-                    <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>ذكر 🇸🇦</span>
+                    <span>🌺 سلمى</span>
+                    <span style={{ fontSize: '0.65rem', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '6px' }}>أنثى 🇸🇦</span>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>صوت رجالي تنفيذي فخم</div>
+                  <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '2px' }}>نبرة هادئة ومتقنة</div>
                 </button>
+
 
                 <button
                   onClick={() => setSelectedVoice('fatima')}

@@ -194,17 +194,32 @@ export async function speakSaudiFemaleVoice(rawText: string, voiceKey: string = 
     console.warn('Direct stream fallback to device speech synthesis:', err);
   }
 
-  // Device Speech Fallback
+  // Device Speech Fallback (Strictly Female Voice - No Male Fallback)
   if ('speechSynthesis' in window) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
-    utterance.pitch = voiceKey === 'hamed' ? 0.85 : 1.2;
+    utterance.pitch = 1.25;
     utterance.rate = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    const arabicVoice = voices.find(v => v.lang.startsWith('ar') || v.name.includes('Arabic') || v.name.includes('Saudi') || v.name.includes('Maged') || v.name.includes('Laila'));
-    if (arabicVoice) {
-      utterance.voice = arabicVoice;
+    const isMaleVoice = (vName: string) => {
+      const n = vName.toLowerCase();
+      return n.includes('hamed') || n.includes('maged') || n.includes('naayf') || n.includes('tarik') || n.includes('male') || n.includes('shakir');
+    };
+
+    const arabicFemaleVoice = voices.find(v => 
+      (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE')) &&
+      !isMaleVoice(v.name) &&
+      (v.name.toLowerCase().includes('zariyah') || 
+       v.name.toLowerCase().includes('laila') || 
+       v.name.toLowerCase().includes('salma') || 
+       v.name.toLowerCase().includes('fatima') || 
+       v.name.toLowerCase().includes('zeina') || 
+       v.name.toLowerCase().includes('female'))
+    ) || voices.find(v => v.lang.startsWith('ar') && !isMaleVoice(v.name));
+
+    if (arabicFemaleVoice) {
+      utterance.voice = arabicFemaleVoice;
     }
 
     window.speechSynthesis.speak(utterance);

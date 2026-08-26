@@ -78,7 +78,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // 🔊 Native Device Speech Fallback (Strictly Female Saudi/Arabic Voice)
+  // 🔊 Native Device Speech Fallback (Strictly Female Saudi/Arabic Voice - Blacklists Hamed and all male voices)
   const playNativeDeviceSpeech = (text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setIsPlayingAudio(false);
@@ -90,20 +90,28 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ar-SA';
       utterance.rate = 1.0;
-      utterance.pitch = 1.2; // High feminine pitch for Zariyah tone
+      utterance.pitch = 1.25; // High feminine pitch for Zariyah tone
 
       const voices = window.speechSynthesis.getVoices();
+      
+      // Strictly female voices only - exclude any male voice like Hamed, Maged, Naayf, Tarik
+      const isMaleVoice = (vName: string) => {
+        const n = vName.toLowerCase();
+        return n.includes('hamed') || n.includes('maged') || n.includes('naayf') || n.includes('tarik') || n.includes('male') || n.includes('shakir') || n.includes('david');
+      };
+
       const femaleArabicVoice = voices.find(v => 
         (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE') || v.lang.includes('EG')) &&
+        !isMaleVoice(v.name) &&
         (v.name.toLowerCase().includes('zariyah') || 
          v.name.toLowerCase().includes('laila') || 
          v.name.toLowerCase().includes('salma') || 
-         v.name.toLowerCase().includes('fatima') ||
-         v.name.toLowerCase().includes('female') ||
-         v.name.toLowerCase().includes('zeina') ||
-         v.name.toLowerCase().includes('hoda') ||
+         v.name.toLowerCase().includes('fatima') || 
+         v.name.toLowerCase().includes('female') || 
+         v.name.toLowerCase().includes('zeina') || 
+         v.name.toLowerCase().includes('hoda') || 
          v.name.toLowerCase().includes('mona'))
-      ) || voices.find(v => v.lang.startsWith('ar'));
+      ) || voices.find(v => (v.lang.startsWith('ar') || v.lang.includes('SA')) && !isMaleVoice(v.name));
 
       if (femaleArabicVoice) {
         utterance.voice = femaleArabicVoice;
@@ -119,6 +127,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       setIsPlayingAudio(false);
     }
   };
+
 
   // 🎙️ Main Neural Voice Player (Exclusively Zariyah)
   const handlePlayVoice = (textToPlay: string) => {
@@ -338,15 +347,11 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     }
   };
 
-  // When Orb is opened, trigger greeting speech if autoSpeak is on
+  // When Orb is opened, open silently without auto-triggering audio
   const handleOpenOrb = () => {
     setIsOpen(true);
-    if (autoSpeak) {
-      setTimeout(() => {
-        handlePlayVoice(lastSpeechText);
-      }, 250);
-    }
   };
+
 
   return (
     <>
