@@ -185,8 +185,9 @@ export const DevLab: React.FC<DevLabProps> = ({
   };
 
   // Generate & Play Voice with active rate & mood
-  const handlePlayVoice = (textToPlay: string = inputText) => {
+  const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
     if (!textToPlay.trim()) return;
+    const voiceToUse = voiceOverride || selectedVoice;
     setIsLoadingAudio(true);
     setErrorMessage(null);
 
@@ -194,27 +195,33 @@ export const DevLab: React.FC<DevLabProps> = ({
       window.speechSynthesis.cancel();
     }
 
-    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${selectedVoice}&rate=${encodeURIComponent(speechRate)}&mood=${voiceMood}&t=${Date.now()}`;
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${voiceToUse}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
 
-    if (audioRef.current) {
-      audioRef.current.src = streamUrl;
-      audioRef.current.playbackRate = getRateMultiplier(speechRate);
-      audioRef.current.load();
-      
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            setIsLoadingAudio(false);
-          })
-          .catch((err) => {
-            console.warn('Cloud stream notice, playing native device speech:', err);
-            playNativeDeviceSpeech(textToPlay, selectedVoice);
-          });
-      }
-    } else {
-      playNativeDeviceSpeech(textToPlay, selectedVoice);
+    const audioObj = audioRef.current || new Audio();
+    audioObj.src = streamUrl;
+    audioObj.playbackRate = getRateMultiplier(speechRate);
+    
+    audioObj.onplay = () => {
+      setIsPlaying(true);
+      setIsLoadingAudio(false);
+    };
+    audioObj.onended = () => setIsPlaying(false);
+    audioObj.onerror = () => {
+      console.warn('Falling back to native browser speech synthesizer for voice:', voiceToUse);
+      playNativeDeviceSpeech(textToPlay, voiceToUse);
+    };
+
+    const playPromise = audioObj.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          setIsPlaying(true);
+          setIsLoadingAudio(false);
+        })
+        .catch((err) => {
+          console.warn('Audio play restricted or failed, falling back to native speech:', err);
+          playNativeDeviceSpeech(textToPlay, voiceToUse);
+        });
     }
   };
 
@@ -683,6 +690,71 @@ export const DevLab: React.FC<DevLabProps> = ({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Quick Live Voice Test Strip */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 800 }}>🔊 اختبر الصوت الحي الآن:</span>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVoice('zariyah');
+                  handlePlayVoice('أَهْلاً بِأَبُو مَاجِدْ.. مَعَكَ صَوْتُ زَارِيَةَ السُّعُودِيِّ.. كَيْفَ أَقْدِرْ أَخْدِمَكْ الْيَوْمْ؟', 'zariyah');
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  border: selectedVoice === 'zariyah' ? '1px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: selectedVoice === 'zariyah' ? 'rgba(236, 72, 153, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  color: selectedVoice === 'zariyah' ? '#f472b6' : '#cbd5e1',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                🌸 صوت زارية (سعودي أنثى)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVoice('hamed');
+                  handlePlayVoice('مَرْحَباً بِأَبُو مَاجِدْ.. مَعَكَ صَوْتُ حَامِدَ السُّعُودِيِّ التَّنْفِيذِيِّ.. أَنَا جَاهِزٌ لِلتَّدْقِيقِ الْمَالِيِّ وَمُتَابَعَةِ الْعُقُودِ..', 'hamed');
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  border: selectedVoice === 'hamed' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: selectedVoice === 'hamed' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  color: selectedVoice === 'hamed' ? '#38bdf8' : '#cbd5e1',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                👔 صوت حامد (سعودي تنفيذي)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVoice('fatima');
+                  handlePlayVoice('أَهْلاً بِكُمْ فِي مُؤَسَّسَةِ الْمُحْتَرِزِ لِتَأْجِيرِ الْحَاوِيَاتِ وَرَفْعِ الأَنْقَاضِ بِالرِّيَاضِ..', 'fatima');
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  border: selectedVoice === 'fatima' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: selectedVoice === 'fatima' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  color: selectedVoice === 'fatima' ? '#d8b4fe' : '#cbd5e1',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                ✨ صوت فاطمة (إعلاني)
+              </button>
             </div>
 
             {/* Chat Messages Log */}
