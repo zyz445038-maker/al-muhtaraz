@@ -58,6 +58,25 @@ export function formatCustomerVoucherMessage(params: {
   const startDateClean = formatCleanArabicDate(contract.start_date);
   const endDateClean = formatCleanArabicDate(contract.end_date);
 
+  if (contract.is_free) {
+    return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
+━━━━━━━━━━━━━━━━━━
+🧾 *سند وعقد تأجير إلكتروني معتمد*
+━━━━━━━━━━━━━━━━━━
+👤 *العميل:* ${customer.name}
+📄 *رقم العقد:* ${contract.contract_number}
+🔖 *رقم السند:* ${receiptNumber}
+🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
+⏱️ *المدة:* ${durationText}
+📅 *تاريخ البدء:* ${startDateClean}
+🏁 *تاريخ الانتهاء:* ${endDateClean}
+📍 *الموقع:* ${contract.location_address || 'الموقع المحدد بالعقد'}
+━━━━━━━━━━━━━━━━━━
+✅ *تم توثيق واعتماد العقد رسمياً في سجلات المحترز.*
+📞 *للتمديد أو الاستفسار:* 0500000001
+🙏 *شكراً لثقتكم واختياركم المحترز للحاويات.*`;
+  }
+
   return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
 ━━━━━━━━━━━━━━━━━━
 🧾 *سند قبض وتوثيق عقد إلكتروني*

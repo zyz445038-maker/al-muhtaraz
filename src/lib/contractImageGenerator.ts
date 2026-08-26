@@ -15,6 +15,7 @@ export interface GenerateContractCardParams {
   endDate: string;
   locationAddress?: string;
   verificationUrl?: string;
+  isFree?: boolean;
 }
 
 /**
@@ -86,11 +87,12 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.fillText('📄 سند وعقد تأجير إلكتروني معتمد 📄', width / 2, 157);
 
   // 4. Main Financial Amount Box
+  const isFree = params.isFree || (params.totalCost === 0 && params.paidAmount === 0 && params.remainingAmount === 0);
   const isPaidFull = params.remainingAmount === 0;
   const isPartial = params.paidAmount > 0 && params.remainingAmount > 0;
   
   const amountGrad = ctx.createLinearGradient(40, 200, width - 80, 320);
-  if (isPaidFull) {
+  if (isFree || isPaidFull) {
     amountGrad.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
     amountGrad.addColorStop(1, 'rgba(5, 150, 105, 0.25)');
   } else if (isPartial) {
@@ -104,26 +106,28 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.fillStyle = amountGrad;
   roundRect(ctx, 40, 200, width - 80, 140, 16);
   ctx.fill();
-  ctx.strokeStyle = isPaidFull ? '#10b981' : isPartial ? '#f59e0b' : '#3b82f6';
+  ctx.strokeStyle = isFree || isPaidFull ? '#10b981' : isPartial ? '#f59e0b' : '#3b82f6';
   ctx.lineWidth = 2;
   ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '700 18px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('المبلغ الإجمالي للعقد', width / 2, 235);
+  ctx.fillText(isFree ? 'سند وعقد تأجير معتمد' : 'المبلغ الإجمالي للعقد', width / 2, 235);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 48px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(`${params.totalCost.toLocaleString('ar-SA')} ريال سعودي`, width / 2, 290);
+  ctx.fillText(isFree ? '—' : `${params.totalCost.toLocaleString('ar-SA')} ريال سعودي`, width / 2, 290);
 
   ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-  ctx.fillStyle = isPaidFull ? '#34d399' : isPartial ? '#fbbf24' : '#60a5fa';
-  const payStatusText = isPaidFull 
-    ? '✓ تم السداد بالكامل رسمياً' 
-    : isPartial 
-      ? `دفعة مسددة: ${params.paidAmount} ر.س | المتبقي: ${params.remainingAmount} ر.س` 
-      : 'آجل / في انتظار السداد';
+  ctx.fillStyle = isFree || isPaidFull ? '#34d399' : isPartial ? '#fbbf24' : '#60a5fa';
+  const payStatusText = isFree
+    ? '✓ معتمد وموثق رسمياً بسجلات المحترز'
+    : isPaidFull 
+      ? '✓ تم السداد بالكامل رسمياً' 
+      : isPartial 
+        ? `دفعة مسددة: ${params.paidAmount} ر.س | المتبقي: ${params.remainingAmount} ر.س` 
+        : 'آجل / في انتظار السداد';
   ctx.fillText(payStatusText, width / 2, 324);
 
   // 5. Contract Info Grid (Two Columns)

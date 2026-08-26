@@ -308,6 +308,20 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                         ممدد 🔄
                       </span>
                     )}
+                    {(contract.is_free || contract.payment_method === 'free') && (
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35))',
+                        color: '#34d399',
+                        border: '1px solid rgba(16, 185, 129, 0.5)',
+                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.25)'
+                      }}>
+                        🎁 مجاناً
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
                     حاوية: <strong style={{ color: '#ffffff' }}>{contract.container?.container_number || 'غير محددة'}</strong>
@@ -496,13 +510,21 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                 <div>
                   <span style={{ color: '#94a3b8' }}>التكلفة:</span>{' '}
                   <strong>
-                    {userRole === 'admin' || permissions?.can_view_financials !== false ? `${contract.total_cost} ر.س` : <span style={{ color: '#94a3b8' }}>*** 🔒</span>}
+                    {contract.is_free || contract.payment_method === 'free' ? (
+                      <span style={{ color: '#34d399' }}>— (مجاناً)</span>
+                    ) : userRole === 'admin' || permissions?.can_view_financials !== false ? (
+                      `${contract.total_cost} ر.س`
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>*** 🔒</span>
+                    )}
                   </strong>
                 </div>
                 <div>
                   <span style={{ color: '#94a3b8' }}>المتبقي:</span>{' '}
                   <strong>
-                    {userRole === 'admin' || permissions?.can_view_financials !== false ? (
+                    {contract.is_free || contract.payment_method === 'free' ? (
+                      <span style={{ color: '#34d399' }}>—</span>
+                    ) : userRole === 'admin' || permissions?.can_view_financials !== false ? (
                       <span style={{ color: remainingAmount > 0 ? '#f87171' : '#34d399' }}>
                         {remainingAmount} ر.س
                       </span>

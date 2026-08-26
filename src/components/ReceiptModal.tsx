@@ -222,9 +222,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     win.document.close();
   };
 
+  const isFree = contract?.is_free || contract?.payment_method === 'free';
+
   const handleShare = () => {
     if (contract.customer?.phone && onSendWhatsAppReceipt) {
-      const msg = `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\n💰 المبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
+      const msg = isFree
+        ? `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند تأجير الحاوية المعتمد رقم (${receiptNumber}) الخاص بعقد رقم (${contract.contract_number}).\nالحاوية: ${contract.container?.container_number || '-'}\nالفترة: ${startDate} إلى ${endDate}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
+        : `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\n💰 المبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
       onSendWhatsAppReceipt(contract.customer.phone, msg);
     }
   };
@@ -464,23 +468,29 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       )}
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
-                    <td style={{ ...rowLabel, borderLeftColor: '#bbf7d0' }}>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: isFree ? '#f8fafc' : '#f0fdf4' }}>
+                    <td style={{ ...rowLabel, borderLeftColor: isFree ? '#e2e8f0' : '#bbf7d0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <DollarSign size={13} /> مبلغ وقدره:
                       </span>
                     </td>
                     <td style={rowValue}>
-                      <span style={{
-                        fontSize: '1.3rem', fontWeight: 900, color: '#059669',
-                        background: '#dcfce7', padding: '2px 12px', borderRadius: '6px',
-                        display: 'inline-block', marginBottom: '4px'
-                      }}>
-                        {paidAmount.toLocaleString('ar-SA')} ر.س
-                      </span>
-                      <div style={{ fontSize: '0.78rem', color: '#374151', fontStyle: 'italic' }}>
-                        ({arabicWords})
-                      </div>
+                      {isFree ? (
+                        <span style={{ color: '#94a3b8', fontSize: '1.1rem', fontWeight: 800 }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{
+                            fontSize: '1.3rem', fontWeight: 900, color: '#059669',
+                            background: '#dcfce7', padding: '2px 12px', borderRadius: '6px',
+                            display: 'inline-block', marginBottom: '4px'
+                          }}>
+                            {paidAmount.toLocaleString('ar-SA')} ر.س
+                          </span>
+                          <div style={{ fontSize: '0.78rem', color: '#374151', fontStyle: 'italic' }}>
+                            ({arabicWords})
+                          </div>
+                        </>
+                      )}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
@@ -490,28 +500,32 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </span>
                     </td>
                     <td style={rowValue}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        padding: '4px 12px', borderRadius: '6px', fontWeight: 700,
-                        background: '#f1f5f9', border: '1px solid #cbd5e1'
-                      }}>
-                        {methodInfo.icon} {methodInfo.label}
-                      </span>
+                      {isFree ? (
+                        <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 700 }}>—</span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          padding: '4px 12px', borderRadius: '6px', fontWeight: 700,
+                          background: '#f1f5f9', border: '1px solid #cbd5e1'
+                        }}>
+                          {methodInfo.icon} {methodInfo.label}
+                        </span>
+                      )}
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: remaining > 0 || contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
+                  <tr style={{ borderBottom: (!isFree && remaining > 0) || contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
                     <td style={rowLabel}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <FileText size={13} /> سداداً عن:
                       </span>
                     </td>
                     <td style={{ ...rowValue, lineHeight: 1.6 }}>
-                      قيمة تأجير حاوية ({contractType}) رقم ({contract.container?.container_number || '-'})
+                      {isFree ? 'تأجير حاوية' : 'قيمة تأجير حاوية'} ({contractType}) رقم ({contract.container?.container_number || '-'})
                       {contract.location_address && <span> بموقع ({contract.location_address})</span>}
                       {' '}للفترة من ({startDate}) إلى ({endDate}).
                     </td>
                   </tr>
-                  {remaining > 0 && (
+                  {!isFree && remaining > 0 && (
                     <tr style={{ borderBottom: contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
                       <td style={rowLabel}>ملاحظات مالية:</td>
                       <td style={rowValue}>

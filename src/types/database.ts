@@ -56,7 +56,7 @@ export interface Customer {
 export type ContractPeriodType = 'daily' | 'monthly' | 'semi_annual' | 'annual';
 export type ContractStatus = 'active' | 'completed' | 'cancelled' | 'extended';
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid';
-export type PaymentMethod = 'apple_pay' | 'mada' | 'credit_card' | 'cash' | 'pos' | 'bank_transfer';
+export type PaymentMethod = 'apple_pay' | 'mada' | 'credit_card' | 'cash' | 'pos' | 'bank_transfer' | 'free';
 
 export interface Contract {
   id: string;
@@ -78,6 +78,7 @@ export interface Contract {
   remaining_amount: number;
   payment_status: PaymentStatus;
   payment_method?: PaymentMethod;
+  is_free?: boolean; // عقد مجاني / إهداء
   receipt_number?: string;
   status: ContractStatus;
   created_by_employee_id?: string;

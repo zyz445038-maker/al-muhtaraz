@@ -541,24 +541,31 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           <div className="receipt-body">
 
             {/* Amount Box */}
-            <div className="amount-box">
-              <div style={{ fontSize: '0.85rem', color: '#374151', marginBottom: '6px', fontWeight: 800 }}>
-                المبلغ المقبوض والمسدد
-              </div>
-              <div>
-                <span className="amount-number">{data.paidAmount.toLocaleString('ar-SA')}</span>
-                <span className="amount-sar">ر.س</span>
-              </div>
-              <div className="amount-words">({toArabicWords(data.paidAmount)})</div>
-              <div className="payment-badge">{paymentLabel(data.paymentMethod)}</div>
-            </div>
+            {(() => {
+              const isFree = data.paymentMethod === 'free' || (data.paidAmount === 0 && data.totalCost === 0);
+              return (
+                <>
+                  <div className="amount-box">
+                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '6px', fontWeight: 800 }}>
+                      {isFree ? 'سند تأجير رسمي معتمد' : 'المبلغ المقبوض والمسدد'}
+                    </div>
+                    <div>
+                      <span className="amount-number">{isFree ? '—' : data.paidAmount.toLocaleString('ar-SA')}</span>
+                      {!isFree && <span className="amount-sar">ر.س</span>}
+                    </div>
+                    {!isFree && <div className="amount-words">({toArabicWords(data.paidAmount)})</div>}
+                    <div className="payment-badge">{isFree ? 'معتمد رسمي ✓' : paymentLabel(data.paymentMethod)}</div>
+                  </div>
 
-            {/* Partial Warning */}
-            {isPartial && (
-              <div className="partial-warning">
-                ⚠️ دفعة جزئية على الحساب — إجمالي العقد: {data.totalCost.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp; المتبقي: {remaining.toLocaleString('ar-SA')} ر.س
-              </div>
-            )}
+                  {/* Partial Warning */}
+                  {isPartial && !isFree && (
+                    <div className="partial-warning">
+                      ⚠️ دفعة جزئية على الحساب — إجمالي العقد: {data.totalCost.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp; المتبقي: {remaining.toLocaleString('ar-SA')} ر.س
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Info Grid */}
             <div className="info-grid">

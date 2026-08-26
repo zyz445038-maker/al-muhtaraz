@@ -284,6 +284,21 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                     </button>
                   )}
 
+                  {container.status === 'rented' && (activeContract?.is_free || activeContract?.payment_method === 'free') && (
+                    <span style={{
+                      padding: '4px 9px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35))',
+                      color: '#34d399',
+                      border: '1px solid rgba(16, 185, 129, 0.5)',
+                      boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)'
+                    }}>
+                      🎁 مجاناً
+                    </span>
+                  )}
+
                   <span style={{
                     padding: '4px 10px',
                     borderRadius: '8px',

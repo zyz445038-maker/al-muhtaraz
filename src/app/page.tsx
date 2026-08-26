@@ -1431,13 +1431,14 @@ function MainDashboard() {
     const assignedStaff = staffList.find(s => s.id === contractData.assigned_employee_id) || staffList[1];
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const isCash = contractData.payment_choice === 'cash';
-    const isSadad = contractData.payment_choice === 'sadad';
-    const totalCost = Number(contractData.total_cost) || 0;
-    const paidAmount = Number(contractData.paid_amount ?? (isCash ? totalCost : 0));
-    const remainingAmount = Number(contractData.remaining_amount ?? Math.max(0, totalCost - paidAmount));
-    const paymentStatus: PaymentStatus = remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid');
-    const paymentMethod: PaymentMethod = isCash ? 'cash' : (isSadad ? 'mada' : 'cash');
+    const isFree = !!contractData.is_free;
+    const isCash = !isFree && contractData.payment_choice === 'cash';
+    const isSadad = !isFree && contractData.payment_choice === 'sadad';
+    const totalCost = isFree ? 0 : (Number(contractData.total_cost) || 0);
+    const paidAmount = isFree ? 0 : Number(contractData.paid_amount ?? (isCash ? totalCost : 0));
+    const remainingAmount = isFree ? 0 : Number(contractData.remaining_amount ?? Math.max(0, totalCost - paidAmount));
+    const paymentStatus: PaymentStatus = isFree ? 'paid' : (remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid'));
+    const paymentMethod: PaymentMethod = isFree ? 'free' : (isCash ? 'cash' : (isSadad ? 'mada' : 'cash'));
 
     const newContract: Contract = {
       id: `contract-${Date.now()}`,
@@ -1461,7 +1462,8 @@ function MainDashboard() {
       remaining_amount: remainingAmount,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
-      receipt_number: (isCash || paidAmount > 0) ? receiptNumber : undefined,
+      is_free: isFree,
+      receipt_number: (isFree || isCash || paidAmount > 0) ? receiptNumber : undefined,
       status: 'active',
       notes: contractData.notes,
       created_at: new Date().toISOString(),
@@ -1475,21 +1477,21 @@ function MainDashboard() {
     setContracts(prev => [newContract, ...prev]);
     setContainers(prev => prev.map(c => c.id === contractData.container_id ? { ...c, status: 'rented' } : c));
 
-    // If Cash or partial down payment: Create Receipt immediately
-    if (isCash || paidAmount > 0) {
+    // If Free, Cash or partial down payment: Create Receipt immediately
+    if (isFree || isCash || paidAmount > 0) {
       const newReceipt: Receipt = {
         id: `rcp-${Date.now()}`,
         receipt_number: receiptNumber,
         contract_id: newContract.id,
         customer_id: customerObj.id,
         customer_name: customerObj.name,
-        amount: paidAmount > 0 ? paidAmount : totalCost,
-        payment_method: isCash ? 'cash' : 'mada',
+        amount: isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost),
+        payment_method: isFree ? 'free' : (isCash ? 'cash' : 'mada'),
         contract_number: newContract.contract_number,
         container_number: containerObj?.container_number,
         container_type: newContract.contract_type,
         issued_at: new Date().toISOString(),
-        notes: `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`,
+        notes: isFree ? 'عقد تأجير معتمد' : `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`,
         created_at: new Date().toISOString()
       };
       setReceipts(prev => [newReceipt, ...prev]);
@@ -1530,7 +1532,7 @@ function MainDashboard() {
     const newInApp: InAppNotification = {
       id: `inapp-${Date.now()}`,
       contract_id: newContract.id,
-      title: `📝 عقد جديد (${newContract.contract_number}) - ${isCash ? 'مدفوع كاش 💵' : isSadad ? 'سداد إلكتروني 💳' : 'آجل ⏳'}`,
+      title: `📝 عقد جديد (${newContract.contract_number}) - ${isFree ? 'عقد مجاني 🎁' : isCash ? 'مدفوع كاش 💵' : isSadad ? 'سداد إلكتروني 💳' : 'آجل ⏳'}`,
       message: `تم توثيق عقد للعميل ${customerObj.name} بالحاوية (${containerObj?.container_number || '-'}). المسؤول: ${assignedStaff?.full_name || 'سائق'}.`,
       type: 'contract_created',
       is_read: false,

@@ -25,7 +25,8 @@ import {
   Plus,
   Minus,
   Sparkles,
-  Sliders
+  Sliders,
+  Gift
 } from 'lucide-react';
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
@@ -115,15 +116,18 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [baseCost, setBaseCost] = useState(150);
   const [discountAmount, setDiscountAmount] = useState(0); // خصم
   const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
+  const [isFreeContract, setIsFreeContract] = useState(false); // عقد مجاني / إهداء
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   // Derived Financial Amounts
-  const totalCost = Math.max(0, baseCost - (discountAmount || 0));
-  const effectivePaidAmount = paymentChoice === 'cash'
-    ? (downPayment > 0 ? downPayment : totalCost)
-    : (downPayment > 0 ? downPayment : 0);
-  const remainingAmount = Math.max(0, totalCost - effectivePaidAmount);
+  const totalCost = isFreeContract ? 0 : Math.max(0, baseCost - (discountAmount || 0));
+  const effectivePaidAmount = isFreeContract
+    ? 0
+    : (paymentChoice === 'cash'
+      ? (downPayment > 0 ? downPayment : totalCost)
+      : (downPayment > 0 ? downPayment : 0));
+  const remainingAmount = isFreeContract ? 0 : Math.max(0, totalCost - effectivePaidAmount);
 
   // Helper: Apply Date Preset
   const applyDatePreset = (preset: 'today' | 'tomorrow' | 'after_tomorrow') => {
@@ -300,14 +304,18 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     setIsSaving(true);
     const contractNumber = `CTR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const finalTotalCost = Math.max(0, baseCost - discountAmount);
-    const finalPaid = effectivePaidAmount;
-    const finalRemaining = Math.max(0, finalTotalCost - finalPaid);
+    const finalTotalCost = isFreeContract ? 0 : Math.max(0, baseCost - discountAmount);
+    const finalPaid = isFreeContract ? 0 : effectivePaidAmount;
+    const finalRemaining = isFreeContract ? 0 : Math.max(0, finalTotalCost - finalPaid);
 
     let notesWithFinancials = notes;
     const financialNotes = [];
-    if (discountAmount > 0) financialNotes.push(`خصم: ${discountAmount} ر.س`);
-    if (downPayment > 0) financialNotes.push(`دفعة على الحساب: ${downPayment} ر.س`);
+    if (isFreeContract) {
+      financialNotes.push('🎁 عقد مجاني (بدون مقابل)');
+    } else {
+      if (discountAmount > 0) financialNotes.push(`خصم: ${discountAmount} ر.س`);
+      if (downPayment > 0) financialNotes.push(`دفعة على الحساب: ${downPayment} ر.س`);
+    }
     if (financialNotes.length > 0) {
       notesWithFinancials = notesWithFinancials ? `${notesWithFinancials} | ${financialNotes.join(' - ')}` : financialNotes.join(' - ');
     }
@@ -331,7 +339,8 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       total_cost: finalTotalCost,
       paid_amount: finalPaid,
       remaining_amount: finalRemaining,
-      payment_choice: paymentChoice,
+      payment_choice: isFreeContract ? 'free' : paymentChoice,
+      is_free: isFreeContract,
       notes: notesWithFinancials
     };
 
@@ -349,6 +358,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       setPaymentChoice('cash');
       setDiscountAmount(0);
       setDownPayment(0);
+      setIsFreeContract(false);
     }
   };
 
@@ -1162,14 +1172,55 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
           {/* 6. Pricing & Financial Calculation Strip (إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي + خصم) */}
           <div style={{
             background: 'rgba(15, 23, 42, 0.85)',
-            border: '1px solid rgba(245, 158, 11, 0.25)',
+            border: isFreeContract ? '2px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.25)',
             borderRadius: '16px',
             padding: '16px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '14px'
+            gap: '14px',
+            transition: 'all 0.2s ease'
           }}>
             
+            {/* Header with Free Toggle */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <DollarSign size={18} color={isFreeContract ? '#34d399' : '#fbbf24'} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: isFreeContract ? '#34d399' : '#fbbf24' }}>
+                  6. الحسابات المالية وطريقة السداد
+                </span>
+              </div>
+
+              {/* Free Contract Toggle Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFreeContract(!isFreeContract);
+                  if (!isFreeContract) {
+                    setDiscountAmount(0);
+                    setDownPayment(0);
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  border: isFreeContract ? '2px solid #10b981' : '1px solid rgba(255, 255, 255, 0.15)',
+                  background: isFreeContract ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.25))' : 'rgba(255, 255, 255, 0.05)',
+                  color: isFreeContract ? '#34d399' : '#94a3b8',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  boxShadow: isFreeContract ? '0 0 15px rgba(16, 185, 129, 0.35)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Gift size={16} color={isFreeContract ? '#34d399' : '#94a3b8'} />
+                <span>{isFreeContract ? '🎁 عقد مجاني مفعّل (تصفير المبالغ)' : '🎁 تعيين كعقد مجاني'}</span>
+              </button>
+            </div>
+
             {/* Top 4-Column Row: إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي */}
             <div style={{
               display: 'grid',
@@ -1190,14 +1241,18 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
                   إجمالي المبلغ
                 </div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#fbbf24' }}>
-                  {totalCost} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isFreeContract ? '#34d399' : '#fbbf24' }}>
+                  {isFreeContract ? '—' : `${totalCost} ر.س`}
                 </div>
-                {discountAmount > 0 && (
+                {isFreeContract ? (
+                  <div style={{ fontSize: '0.68rem', color: '#34d399', marginTop: '2px' }}>
+                    (عقد مجاني)
+                  </div>
+                ) : discountAmount > 0 ? (
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8', textDecoration: 'line-through', marginTop: '2px' }}>
                     الأصل: {baseCost} ر.س
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* 2. دفعة على الحساب */}
@@ -1218,6 +1273,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                     type="number"
                     min="0"
                     max={totalCost}
+                    disabled={isFreeContract}
                     className="form-input"
                     style={{
                       height: '32px',
@@ -1225,19 +1281,20 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                       fontSize: '0.95rem',
                       fontWeight: 800,
                       textAlign: 'center',
-                      color: '#38bdf8',
+                      color: isFreeContract ? '#94a3b8' : '#38bdf8',
                       borderColor: 'rgba(56, 189, 248, 0.4)',
                       background: 'rgba(56, 189, 248, 0.08)',
-                      width: '100%'
+                      width: '100%',
+                      opacity: isFreeContract ? 0.6 : 1
                     }}
-                    value={downPayment === 0 ? '' : downPayment}
-                    placeholder="0"
+                    value={isFreeContract ? '' : (downPayment === 0 ? '' : downPayment)}
+                    placeholder={isFreeContract ? '—' : '0'}
                     onChange={(e) => {
                       const val = Math.max(0, Math.min(totalCost, Number(e.target.value) || 0));
                       setDownPayment(val);
                     }}
                   />
-                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ر.س</span>
+                  {!isFreeContract && <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ر.س</span>}
                 </div>
               </div>
 
@@ -1255,127 +1312,156 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   المبلغ المدفوع
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#34d399' }}>
-                  {effectivePaidAmount} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                  {isFreeContract ? '—' : `${effectivePaidAmount} ر.س`}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة مسددة' : 'آجل / رابط'}
+                  {isFreeContract ? 'بدون مقابل' : (paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة مسددة' : 'آجل / رابط')}
                 </div>
               </div>
 
               {/* 4. المبلغ المتبقي */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
-                border: `1px solid ${remainingAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
+                border: `1px solid ${isFreeContract ? 'rgba(16, 185, 129, 0.35)' : remainingAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
                 borderRadius: '12px',
                 padding: '10px 6px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center'
               }}>
-                <div style={{ fontSize: '0.76rem', color: remainingAmount > 0 ? '#f87171' : '#34d399', marginBottom: '4px', fontWeight: 700 }}>
+                <div style={{ fontSize: '0.76rem', color: isFreeContract ? '#34d399' : remainingAmount > 0 ? '#f87171' : '#34d399', marginBottom: '4px', fontWeight: 700 }}>
                   المبلغ المتبقي
                 </div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: remainingAmount > 0 ? '#f87171' : '#34d399' }}>
-                  {remainingAmount} <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>ر.س</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isFreeContract ? '#34d399' : remainingAmount > 0 ? '#f87171' : '#34d399' }}>
+                  {isFreeContract ? '—' : `${remainingAmount} ر.س`}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: remainingAmount > 0 ? '#fca5a5' : '#86efac', marginTop: '2px' }}>
-                  {remainingAmount > 0 ? 'متبقي للتحصيل' : 'مسدد بالكامل ✅'}
+                <div style={{ fontSize: '0.68rem', color: isFreeContract ? '#86efac' : remainingAmount > 0 ? '#fca5a5' : '#86efac', marginTop: '2px' }}>
+                  {isFreeContract ? 'لا يوجد متبقي' : (remainingAmount > 0 ? 'متبقي للتحصيل' : 'مسدد بالكامل ✅')}
                 </div>
               </div>
             </div>
 
             {/* Bottom Row: خصم */}
-            <div style={{
-              background: 'rgba(30, 41, 59, 0.4)',
-              border: '1px dashed rgba(255, 255, 255, 0.15)',
-              borderRadius: '12px',
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#e2e8f0' }}>
-                  خصم:
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '130px' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max={baseCost}
-                    className="form-input"
-                    style={{
-                      height: '32px',
-                      padding: '2px 8px',
-                      fontSize: '0.92rem',
-                      fontWeight: 700,
-                      textAlign: 'center',
-                      color: '#fbbf24',
-                      background: 'rgba(245, 158, 11, 0.08)',
-                      borderColor: 'rgba(245, 158, 11, 0.3)'
-                    }}
-                    value={discountAmount === 0 ? '' : discountAmount}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const val = Math.max(0, Math.min(baseCost, Number(e.target.value) || 0));
-                      setDiscountAmount(val);
-                    }}
-                  />
-                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>ر.س</span>
+            {!isFreeContract && (
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.4)',
+                border: '1px dashed rgba(255, 255, 255, 0.15)',
+                borderRadius: '12px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#e2e8f0' }}>
+                    خصم:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '130px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max={baseCost}
+                      className="form-input"
+                      style={{
+                        height: '32px',
+                        padding: '2px 8px',
+                        fontSize: '0.92rem',
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        color: '#fbbf24',
+                        background: 'rgba(245, 158, 11, 0.08)',
+                        borderColor: 'rgba(245, 158, 11, 0.3)'
+                      }}
+                      value={discountAmount === 0 ? '' : discountAmount}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(baseCost, Number(e.target.value) || 0));
+                        setDiscountAmount(val);
+                      }}
+                    />
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>ر.س</span>
+                  </div>
+                </div>
+
+                {/* Quick Discount Chips */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {[0, 20, 50, 100].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setDiscountAmount(amt)}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        border: `1px solid ${discountAmount === amt ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                        background: discountAmount === amt ? 'rgba(245, 158, 11, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                        color: discountAmount === amt ? '#fbbf24' : '#94a3b8',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {amt === 0 ? 'بدون خصم' : `خصم ${amt} ر.س`}
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              {/* Quick Discount Chips */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {[0, 20, 50, 100].map(amt => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setDiscountAmount(amt)}
-                    style={{
-                      padding: '3px 10px',
-                      borderRadius: '6px',
-                      border: `1px solid ${discountAmount === amt ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
-                      background: discountAmount === amt ? 'rgba(245, 158, 11, 0.2)' : 'rgba(15, 23, 42, 0.5)',
-                      color: discountAmount === amt ? '#fbbf24' : '#94a3b8',
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {amt === 0 ? 'بدون خصم' : `خصم ${amt} ر.س`}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
           </div>
 
           {/* 7. Mandatory Payment Method Matrices (تحت القيمة الإجمالية والمتبقي وقبل التوثيق) */}
           <div style={{
             background: 'rgba(15, 23, 42, 0.9)',
-            border: '2px solid rgba(245, 158, 11, 0.35)',
+            border: isFreeContract ? '2px solid rgba(16, 185, 129, 0.35)' : '2px solid rgba(245, 158, 11, 0.35)',
             borderRadius: '16px',
             padding: '16px 20px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <label style={{ fontSize: '0.92rem', fontWeight: '800', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <DollarSign size={18} />
-                <span>طريقة وآلية السداد المعتمدة للعقد (حدد قبل التوثيق):</span>
+              <label style={{ fontSize: '0.92rem', fontWeight: '800', color: isFreeContract ? '#34d399' : '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isFreeContract ? <Gift size={18} /> : <DollarSign size={18} />}
+                <span>{isFreeContract ? 'حالة السداد للعقد:' : 'طريقة وآلية السداد المعتمدة للعقد (حدد قبل التوثيق):'}</span>
               </label>
-              <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', fontWeight: 700 }}>
-                مطلوب
+              <span style={{
+                fontSize: '0.75rem',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: isFreeContract ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                color: isFreeContract ? '#34d399' : '#fbbf24',
+                fontWeight: 700
+              }}>
+                {isFreeContract ? 'مجاني ✓' : 'مطلوب'}
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-              
-              {/* Choice 1: Cash */}
-              <div
-                onClick={() => handlePaymentChoiceChange('cash')}
+            {isFreeContract ? (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: '#34d399'
+              }}>
+                <Gift size={24} />
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.92rem' }}>عقد مجاني / إهداء بدون مقابل</div>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
+                    تم تصفير المبالغ ولن تضاف للإيرادات، وستظهر خانة المبالغ بالفاتورة فارغة دون ذكر أي مبالغ.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                
+                {/* Choice 1: Cash */}
+                <div
+                  onClick={() => handlePaymentChoiceChange('cash')}
                 style={{
                   padding: '12px 14px',
                   borderRadius: '12px',
@@ -1440,6 +1526,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               </div>
 
             </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -1459,7 +1546,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               disabled={isSaving}
               style={{ minWidth: '220px', padding: '10px 24px', fontSize: '0.95rem' }}
             >
-              {isSaving ? 'جارٍ توثيق العقد...' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وسند فوري' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
+              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وسند فوري' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
             </button>
           </div>
 
