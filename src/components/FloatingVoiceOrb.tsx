@@ -25,6 +25,7 @@ import {
 import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 
 interface FloatingVoiceOrbProps {
   userRole: UserRole;
@@ -57,8 +58,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [transcript, setTranscript] = useState<string>('');
   const [manualInput, setManualInput] = useState<string>('');
   
-  const [lastSpeechText, setLastSpeechText] = useState<string>('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
-  const [lastResponse, setLastResponse] = useState<string>('أهلاً وسهلاً يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.');
+  const [lastSpeechText, setLastSpeechText] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
+  const [lastResponse, setLastResponse] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
   
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
@@ -111,7 +112,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
   // 🎙️ Main Neural Voice Player
   const handlePlayVoice = (textToPlay: string, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
-    if (!textToPlay || !textToPlay.trim()) return;
+    const cleanedText = cleanSpeechText(textToPlay);
+    if (!cleanedText || !cleanedText.trim()) return;
     const voice = voiceOverride || selectedVoice;
     
     // Stop any ongoing native speech
@@ -119,7 +121,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       window.speechSynthesis.cancel();
     }
 
-    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${voice}&rate=0%&t=${Date.now()}`;
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=${voice}&rate=0%&t=${Date.now()}`;
 
     if (!audioPlayerRef.current) {
       audioPlayerRef.current = new Audio();
@@ -132,7 +134,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     audio.onended = () => setIsPlayingAudio(false);
     audio.onerror = () => {
       console.warn('Neural TTS stream fallback to native speech synthesizer');
-      playNativeDeviceSpeech(textToPlay, voice);
+      playNativeDeviceSpeech(cleanedText, voice);
     };
 
     const playPromise = audio.play();
@@ -141,7 +143,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         .then(() => setIsPlayingAudio(true))
         .catch((err) => {
           console.warn('Audio auto-play restricted, falling back to native synthesizer:', err);
-          playNativeDeviceSpeech(textToPlay, voice);
+          playNativeDeviceSpeech(cleanedText, voice);
         });
     }
   };
@@ -282,10 +284,11 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         receipts
       });
 
-      setLastSpeechText(displayText);
+      const speechClean = cleanSpeechText(displayText);
+      setLastSpeechText(speechClean);
       setLastResponse(displayText);
-      if (autoSpeak && displayText) {
-        handlePlayVoice(displayText);
+      if (autoSpeak && speechClean) {
+        handlePlayVoice(speechClean);
       }
     } catch (err) {
       console.error('Voice processing error:', err);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -7,11 +8,13 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, voice = 'ar-SA-ZariyahNeural', rate = '+0%' } = body;
+    const { text: rawText, voice = 'ar-SA-ZariyahNeural', rate = '+0%' } = body;
 
-    if (!text || !text.trim()) {
+    if (!rawText || !rawText.trim()) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
+
+    const text = cleanSpeechText(rawText);
 
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);

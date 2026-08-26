@@ -1,8 +1,8 @@
 // Enterprise Executive AI Agent Engine for Al-Muhtaraz Containers
-// Implements Tool Calling & Agentic Function Execution (Vercel AI SDK / LangChain Pattern)
+// Direct, factual, clean speech without repeated greetings, emojis, or markdown asterisks
 
 import { Contract, Container, Customer, Profile, Receipt } from '@/types';
-import { diacritizeArabicSpeech } from '@/utils/arabicDiacritizer';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 
 export interface AgentContext {
   contracts: Contract[];
@@ -88,7 +88,7 @@ export class AlMuhtarazExecutiveAgent {
       return this.tool_auditDriversFleet();
     }
 
-    // 6. Default Fallback with Smart Executive Assistance
+    // 6. Default Direct Guidance
     return this.tool_generalExecutiveGuidance(userInput);
   }
 
@@ -109,15 +109,17 @@ export class AlMuhtarazExecutiveAgent {
     const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer');
     const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
 
-    const speech = `أَهْلاً بِأَبُو مَاجِدْ.. إِجْمَالِيُّ الْمَبَالِغِ الْمُحَصَّلَةِ حَتَّى الآنْ هُوَ ${totalCollected.toLocaleString()} رِيَالْ.. مِنْهَا ${cashCollected.toLocaleString()} رِيَالْ كَاشْ.. وَالْمُتَبَقِّي لِلْتَّحْصِيلِ هُوَ ${totalRemaining.toLocaleString()} رِيَالْ..`;
+    // Direct, factual, clean speech without greetings, without emojis, without asterisks
+    const speech = cleanSpeechText(
+      `إجمالي المبالغ المحصلة ${totalCollected.toLocaleString()} ريال ، منها ${cashCollected.toLocaleString()} ريال كاش ، والمتبقي للتحصيل ${totalRemaining.toLocaleString()} ريال.`
+    );
 
-    const md = `### 💵 التقرير المالي الحي المباشر من النظام 📊\n\n` +
+    const md = `### 💵 التقرير المالي المباشر 📊\n\n` +
       `* **إجمالي المبالغ المحصلة فعلياً:** \`${totalCollected.toLocaleString()} ر.س\`\n` +
       `* **مقبوضات الكاش (نقداً بالموقع):** \`${cashCollected.toLocaleString()} ر.س\` (${cashContracts.length} عقود)\n` +
       `* **مقبوضات السداد والتحويل البنكي:** \`${electronicCollected.toLocaleString()} ر.س\` (${electronicContracts.length} عقود)\n` +
       `* **المبالغ المتبقية للتحصيل (ذمم مدينة):** \`${totalRemaining.toLocaleString()} ر.س\`\n` +
-      `* **إجمالي قيمة كافة العقود:** \`${totalGrossRevenue.toLocaleString()} ر.س\`\n\n` +
-      `*تم تدقيق ومطابقة السجلات المحاسبية وسندات القبض في أجزاء من الثانية ✅.*`;
+      `* **إجمالي قيمة كافة العقود:** \`${totalGrossRevenue.toLocaleString()} ر.س\``;
 
     return {
       toolExecuted: 'auditLiveFinancials',
@@ -145,26 +147,21 @@ export class AlMuhtarazExecutiveAgent {
       return diffHours <= 48;
     });
 
-    const alreadyExpired = criticalContracts.filter(c => new Date(c.end_date).getTime() < now);
-    const expiringSoon = criticalContracts.filter(c => new Date(c.end_date).getTime() >= now);
+    const speech = cleanSpeechText(
+      criticalContracts.length === 0
+        ? 'جميع الحاويات في الميدان سارية الصلاحية ولا توجد أي مخالفات بلدية.'
+        : `يوجد عدد ${criticalContracts.length} حاويات بحاجة للتمديد أو السحب لتفادي مخالفات الأمانة.`
+    );
 
-    let speech = '';
+    let md = `### ⚠️ فحص الرقابة والبلدية 🏛️\n\n`;
     if (criticalContracts.length === 0) {
-      speech = 'أَبْشِرْ يَا أَبُو مَاجِدْ.. جَمِيعُ الْحَاوِيَاتِ فِي الْمَيْدَانِ سَلِيمَةٌ وَسَارِيَةُ الصَّلاَحِيَّةِ، وَلاَ تُوجَدُ أَيُّ مُخَالَفَاتٍ بَلَدِيَّةٍ..';
+      md += `🟢 **الوضع الميداني سليم:** جميع الحاويات المؤجرة سارية الصلاحية ولا توجد حاويات متأخرة.\n`;
     } else {
-      speech = `تَنْبِيهٌ يَا أَبُو مَاجِدْ.. هُنَاكَ عَدَدُ ${criticalContracts.length} حَاوِيَاتٍ بِحَاجَةٍ لِلْتَّمْدِيدِ أَوْ السَّحْبِ لِتَفَادِي غَرَامَاتِ الأَمَانَةِ..`;
-    }
-
-    let md = `### ⚠️ فحص الرقابة وحماية البلدية والأمانة 🏛️\n\n`;
-    if (criticalContracts.length === 0) {
-      md += `🟢 **الوضع الميداني ممتاز 100%:** جميع الحاويات المؤجرة سارية الصلاحية ولا يوجد أي حاوية متأخرة.\n`;
-    } else {
-      md += `⚠️ **يوجد (${criticalContracts.length}) حاويات تتطلب الإجراء الفوري لتفادي غرامات البلدية:**\n\n`;
+      md += `⚠️ **يوجد (${criticalContracts.length}) حاويات تتطلب الإجراء الفوري:**\n\n`;
       criticalContracts.slice(0, 5).forEach((c, idx) => {
         const isExp = new Date(c.end_date).getTime() < now;
-        md += `${idx + 1}. **العقد (${c.contract_number})** — العميل: **${c.customer?.name || 'العميل'}** — الحاوية: **(${c.container?.container_number || '-'})** [${isExp ? '🔴 منتهية اليوم' : '🟡 تنتهي خلال 24 ساعة'}]\n`;
+        md += `${idx + 1}. **العقد (${c.contract_number})** — العميل: **${c.customer?.name || 'العميل'}** — الحاوية: **(${c.container?.container_number || '-'})** [${isExp ? 'منتهية' : 'تنتهي قريباً'}]\n`;
       });
-      md += `\n*يمكنك تمديد العقد أو توجيه السائق لسحب الحاوية فوراً بنقرة واحدة.*`;
     }
 
     return {
@@ -187,15 +184,16 @@ export class AlMuhtarazExecutiveAgent {
     const rented = containers.filter(c => c.status === 'rented');
     const maintenance = containers.filter(c => c.status === 'maintenance');
 
-    const speech = `أَبْشِرْ يَا أَبُو مَاجِدْ.. إِجْمَالِيُّ الأُسْطُولِ ${containers.length} حَاوِيَةً.. يَتَوَفَّرُ مِنْهَا حَالِيّاً ${available.length} حَاوِيَةً جَاهِزَةً لِلْتَّأْجِيرِ.. وَعَدَدُ ${rented.length} حَاوِيَةً فِي الْمَيْدَانِ..`;
+    const speech = cleanSpeechText(
+      `إجمالي الأسطول ${containers.length} حاوية ، يتوفر منها ${available.length} حاوية شاغرة جاهزة للتأجير ، و ${rented.length} حاوية مؤجرة في الميدان.`
+    );
 
-    const md = `### 📦 تقرير أسطول ومخزون الحاويات الميداني 🏗️\n\n` +
+    const md = `### 📦 تقرير أسطول ومخزون الحاويات 🏗️\n\n` +
       `* **إجمالي أسطول المؤسسة:** \`${containers.length}\` حاوية\n` +
-      `* **🟢 الحاويات المتاحة للتأجير الفوري:** \`${available.length}\` حاوية جاهزة للتحميل\n` +
-      `* **🔵 الحاويات المؤجرة في الميدان:** \`${rented.length}\` حاوية قيد الاستخدام\n` +
-      `* **🟠 الحاويات تحت الصيانة:** \`${maintenance.length}\` حاوية\n` +
-      `* **نسبة تشغيل الأسطول:** \`${containers.length > 0 ? Math.round((rented.length / containers.length) * 100) : 0}%\`\n\n` +
-      `*جاهزون لتلبية أي طلب جديد وتوصيله خلال ساعتين بالرياض ⚡.*`;
+      `* **الحاويات المتاحة للتأجير:** \`${available.length}\` حاوية\n` +
+      `* **الحاويات المؤجرة في الميدان:** \`${rented.length}\` حاوية\n` +
+      `* **الحاويات تحت الصيانة:** \`${maintenance.length}\` حاوية\n` +
+      `* **نسبة تشغيل الأسطول:** \`${containers.length > 0 ? Math.round((rented.length / containers.length) * 100) : 0}%\``;
 
     return {
       toolExecuted: 'auditContainersStock',
@@ -214,7 +212,6 @@ export class AlMuhtarazExecutiveAgent {
   private tool_searchEntity(query: string): AgentExecutionResult {
     const cleanQuery = query.replace('ابحث عن', '').replace('عقد رقم', '').replace('رقم', '').trim();
     const contracts = this.context.contracts || [];
-    const customers = this.context.customers || [];
 
     const foundContract = contracts.find(c => 
       c.contract_number.toLowerCase().includes(cleanQuery) ||
@@ -223,14 +220,16 @@ export class AlMuhtarazExecutiveAgent {
     );
 
     if (foundContract) {
-      const speech = `وَجَدْتُ الْعَقْدَ رَقْمَ (${foundContract.contract_number}) بِاسْمِ (${foundContract.customer?.name || 'العميل'}).. الْحَاوِيَةُ هِيَ (${foundContract.container?.container_number || '-'}) وَحَالَةُ الْعَقْدِ سَارِيَةٌ..`;
-      const md = `### 🔍 نتيجة البحث عن العقد: (${foundContract.contract_number}) 📋\n\n` +
+      const speech = cleanSpeechText(
+        `العقد رقم ${foundContract.contract_number} باسم ${foundContract.customer?.name || 'العميل'} ، الحاوية ${foundContract.container?.container_number || '-'} ، والمبلغ الإجمالي ${foundContract.total_cost} ريال.`
+      );
+
+      const md = `### 🔍 نتيجة البحث: (${foundContract.contract_number}) 📋\n\n` +
         `* **العميل:** ${foundContract.customer?.name || '-'} (${foundContract.customer?.phone || '-'})\n` +
         `* **الحاوية:** ${foundContract.container?.container_number || '-'} (${foundContract.contract_type || 'أنقاض'})\n` +
         `* **فترة الإيجار:** من ${foundContract.start_date} إلى ${foundContract.end_date}\n` +
         `* **المبلغ الإجمالي:** ${foundContract.total_cost} ر.س | **المدفوع:** ${foundContract.paid_amount} ر.س\n` +
-        `* **موقع التنزيل:** ${foundContract.location_address || 'حي بالرياض'}\n` +
-        `* **السائق المسؤول:** ${foundContract.assigned_employee?.full_name || 'غير محدد'}`;
+        `* **موقع التنزيل:** ${foundContract.location_address || 'حي بالرياض'}`;
 
       return {
         toolExecuted: 'searchEntity',
@@ -247,8 +246,8 @@ export class AlMuhtarazExecutiveAgent {
 
     return {
       toolExecuted: 'searchEntity',
-      speechResponse: 'لَمْ أَعْثُرْ عَلَى سِجِلٍّ مُطَابِقٍ لِبَحْثِكَ يَا أَبُو مَاجِدْ، يُمْكِنُكَ كِتَابَةُ رَقْمِ الْعَقْدِ أَوْ اسْمِ الْعَمِيلِ بِدِقَّةٍ..',
-      displayMarkdown: `🔍 لم يتم العثور على سجل مطابق لعبارة البحث: **"${cleanQuery}"**.\n\nتأكد من كتابة رقم العقد (مثال: \`CNT-2026-001\`) أو رقم جوال العميل.`
+      speechResponse: 'لم يتم العثور على سجل مطابق لرقم العقد أو اسم العميل.',
+      displayMarkdown: `🔍 لم يتم العثور على سجل مطابق للبحث: **"${cleanQuery}"**.`
     };
   }
 
@@ -258,13 +257,15 @@ export class AlMuhtarazExecutiveAgent {
     const contracts = this.context.contracts || [];
     const drivers = staffList.filter(s => s.role === 'employee');
 
-    const speech = `أَبْشِرْ يَا أَبُو مَاجِدْ.. لَدَيْنَا عَدَدُ ${drivers.length} سَائِقِينَ مُسَجَّلِينَ فِي الْمَنْظُومَةِ، وَجَمِيعُهُمْ جَاهِزُونَ لِتَنْفِيذِ مَهَامِّ التَّوْصِيلِ وَالسَّحْبِ..`;
+    const speech = cleanSpeechText(
+      `عدد السائقين المسجلين ${drivers.length} سائقين ، وجميعهم متاحون للمهام الميدانية.`
+    );
 
     let md = `### 🚛 تقرير السائقين والمهام الميدانية 📍\n\n`;
     md += `* **إجمالي طاقم السائقين:** \`${drivers.length}\` سائقين معتمدين\n\n`;
     drivers.forEach((d, idx) => {
       const activeMissions = contracts.filter(c => c.assigned_employee_id === d.id && c.status === 'active').length;
-      md += `${idx + 1}. **${d.full_name}** — الجوال: \`${d.phone || 'غير مسجل'}\` — المهام الميدانية النشطة: **(${activeMissions} مهام)**\n`;
+      md += `${idx + 1}. **${d.full_name}** — الجوال: \`${d.phone || 'غير مسجل'}\` — المهام النشطة: **(${activeMissions})**\n`;
     });
 
     return {
@@ -275,16 +276,10 @@ export class AlMuhtarazExecutiveAgent {
     };
   }
 
-  // 💡 Tool 6: General Executive Guidance
+  // 💡 Tool 6: General Executive Guidance (Strictly: هلا أبو ماجد أنا تحت أمرك)
   private tool_generalExecutiveGuidance(userInput: string): AgentExecutionResult {
-    const speech = 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا مُسَاعِدُكَ التَّنْفِيذِيُّ، يُمْكِنُنِي إِعْطَاؤُكَ تَقَارِيرَ الدَّخْلِ، وَفَحْصَ مُخَالَفَاتِ الْبَلَدِيَّةِ، وَمُتَابَعَةَ السَّائِقِينَ وَالْمَخْزُونِ فَوْراً..';
-    const md = `### 🌟 المساعد التنفيذي لمؤسسة المحترز للحاويات 💎\n\n` +
-      `أهلاً بك يا أبو ماجد، أنا مربوط مباشرة بقاعدة بيانات المؤسسة ويمكنني تنفيذ الأوامر التالية بصوتك أو كتابتك فوراً:\n\n` +
-      `1. 💵 **"كم دخلنا اليوم كاش؟"** ⬅️ تدقيق المبالغ المحصلة والمتبقية فوراً.\n` +
-      `2. ⚠️ **"وش الحاويات المنتهية؟"** ⬅️ فحص الحاويات المتأخرة لتفادي غرامات البلدية.\n` +
-      `3. 📦 **"كم حاوية متوفرة للتأجير؟"** ⬅️ حصر مخزون الحاويات الجاهزة بالرياض.\n` +
-      `4. 🔍 **"ابحث عن العقد رقم..."** ⬅️ إظهار بيانات أي عقد أو عميل وموقعه بالخريطة.\n` +
-      `5. 🚛 **"حالة السائقين"** ⬅️ حصر طاقم السائقين وتوزيع المهام الميدانية.`;
+    const speech = 'هلا أبو ماجد أنا تحت أمرك.';
+    const md = `هلا أبو ماجد أنا تحت أمرك.`;
 
     return {
       toolExecuted: null,

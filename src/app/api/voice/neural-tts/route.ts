@@ -35,18 +35,21 @@ export const NEURAL_VOICES = {
   }
 };
 
-const RENDER_CLOUD_URL = 'https://al-muhtaraz-whatsapp.onrender.com';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const text = searchParams.get('text');
+    const rawText = searchParams.get('text');
     const voiceKey = (searchParams.get('voice') || 'zariyah') as keyof typeof NEURAL_VOICES;
     const rate = searchParams.get('rate') || '+0%';
 
-    if (!text || text.trim().length === 0) {
+    if (!rawText || rawText.trim().length === 0) {
       return NextResponse.json({ error: 'Text parameter is required' }, { status: 400 });
     }
+
+    // Clean all markdown, asterisks, emojis, and symbols so TTS never reads out punctuation
+    const text = cleanSpeechText(rawText);
 
     const selectedVoice = NEURAL_VOICES[voiceKey] || NEURAL_VOICES.zariyah;
     const voiceId = selectedVoice.id;

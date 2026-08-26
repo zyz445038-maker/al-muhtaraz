@@ -44,6 +44,7 @@ import {
 import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
 import { SocialMediaAIHub } from '@/components/SocialMediaAIHub';
 import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 import { Contract, Container, Customer, Profile, Receipt } from '@/types';
 
 interface DevLabProps {
@@ -77,7 +78,7 @@ export const DevLab: React.FC<DevLabProps> = ({
 
   // ─── Voice Studio States ─────────────────────────
   const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
-  const [inputText, setInputText] = useState('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
+  const [inputText, setInputText] = useState('هلا أبو ماجد أنا تحت أمرك');
   const [speechRate, setSpeechRate] = useState<string>('0%');
   const [voiceMood, setVoiceMood] = useState<'cheerful' | 'formal' | 'friendly'>('cheerful');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -90,8 +91,8 @@ export const DevLab: React.FC<DevLabProps> = ({
     {
       id: 'welcome-msg',
       sender: 'assistant',
-      text: 'أهلاً وسهلاً يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.',
-      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.',
+      text: 'هلا أبو ماجد أنا تحت أمرك',
+      speechText: 'هلا أبو ماجد أنا تحت أمرك',
       time: 'الآن'
     }
   ]);
@@ -186,7 +187,8 @@ export const DevLab: React.FC<DevLabProps> = ({
 
   // Generate & Play Voice with active rate & mood
   const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
-    if (!textToPlay.trim()) return;
+    const cleanedText = cleanSpeechText(textToPlay);
+    if (!cleanedText || !cleanedText.trim()) return;
     const voiceToUse = voiceOverride || selectedVoice;
     setIsLoadingAudio(true);
     setErrorMessage(null);
@@ -195,7 +197,7 @@ export const DevLab: React.FC<DevLabProps> = ({
       window.speechSynthesis.cancel();
     }
 
-    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(textToPlay)}&voice=${voiceToUse}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=${voiceToUse}&rate=${encodeURIComponent(speechRate)}&t=${Date.now()}`;
 
     const audioObj = audioRef.current || new Audio();
     audioObj.src = streamUrl;
@@ -208,7 +210,7 @@ export const DevLab: React.FC<DevLabProps> = ({
     audioObj.onended = () => setIsPlaying(false);
     audioObj.onerror = () => {
       console.warn('Falling back to native browser speech synthesizer for voice:', voiceToUse);
-      playNativeDeviceSpeech(textToPlay, voiceToUse);
+      playNativeDeviceSpeech(cleanedText, voiceToUse);
     };
 
     const playPromise = audioObj.play();
@@ -219,8 +221,8 @@ export const DevLab: React.FC<DevLabProps> = ({
           setIsLoadingAudio(false);
         })
         .catch((err) => {
-          console.warn('Audio play restricted or failed, falling back to native speech:', err);
-          playNativeDeviceSpeech(textToPlay, voiceToUse);
+          console.warn('Audio auto-play restricted, falling back to native synthesizer:', err);
+          playNativeDeviceSpeech(cleanedText, voiceToUse);
         });
     }
   };
