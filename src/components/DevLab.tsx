@@ -41,6 +41,7 @@ import {
   parseConversationalTeaching
 } from '@/utils/aiCopilotKnowledge';
 import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
+import { SocialMediaAIHub } from '@/components/SocialMediaAIHub';
 
 interface DevLabProps {
   currentRole: string;
@@ -57,7 +58,7 @@ interface ChatMessage {
 
 export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
   // Navigation Tabs inside DevLab
-  const [activeLabTab, setActiveLabTab] = useState<'chat' | 'education' | 'voice_studio' | 'discord'>('chat');
+  const [activeLabTab, setActiveLabTab] = useState<'social_ai' | 'chat' | 'education' | 'voice_studio' | 'discord'>('social_ai');
 
   // ─── Voice Studio States ─────────────────────────
   const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
@@ -493,6 +494,27 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
             
             {/* 💬 TAB: LIVE CHAT & LEARNING */}
             <button
+              onClick={() => setActiveLabTab('social_ai')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                background: activeLabTab === 'social_ai' ? 'linear-gradient(135deg, #ec4899, #8b5cf6)' : 'transparent',
+                color: activeLabTab === 'social_ai' ? '#fff' : '#94a3b8',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: activeLabTab === 'social_ai' ? '0 0 15px rgba(236, 72, 153, 0.4)' : 'none'
+              }}
+            >
+              <Share2 size={16} />
+              <span>منظومة السوشيال ميديا 📢</span>
+            </button>
+
+            <button
               onClick={() => setActiveLabTab('chat')}
               style={{
                 padding: '8px 16px',
@@ -574,6 +596,11 @@ export const DevLab: React.FC<DevLabProps> = ({ currentRole }) => {
           </div>
         </div>
       </div>
+
+      {/* ─── 📢 TAB: SOCIAL MEDIA & MULTI-PLATFORM PROMO AI HUB ─── */}
+      {activeLabTab === 'social_ai' && (
+        <SocialMediaAIHub />
+      )}
 
       {/* ─── 💬 TAB 0: LIVE CONVERSATION & INSTANT LEARNING ─── */}
       {activeLabTab === 'chat' && (
