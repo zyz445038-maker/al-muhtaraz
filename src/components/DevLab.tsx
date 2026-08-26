@@ -77,7 +77,7 @@ export const DevLab: React.FC<DevLabProps> = ({
 
   // ─── Voice Studio States ─────────────────────────
   const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
-  const [inputText, setInputText] = useState('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَبْشِرْ، كَيْفَ أَقْدِرْ أَخْدِمَكْ الْيَوْمْ؟');
+  const [inputText, setInputText] = useState('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
   const [speechRate, setSpeechRate] = useState<string>('0%');
   const [voiceMood, setVoiceMood] = useState<'cheerful' | 'formal' | 'friendly'>('cheerful');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -90,8 +90,8 @@ export const DevLab: React.FC<DevLabProps> = ({
     {
       id: 'welcome-msg',
       sender: 'assistant',
-      text: 'أهلاً وسهلاً بأبو ماجد.. أنا جاهز للتحدث معك صوتياً والتعلم منك! يمكنك الضغط على المايك 🎙️ والتحدث مباشرة، أو تلقيني قواعد وعبارات جديدة.',
-      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا جَاهِزٌ لِلتَّحَدُّثِ مَعَكَ صَوْتِيّاً وَالتَّعَلُّمِ مِنْكْ..',
+      text: 'أهلاً وسهلاً يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.',
+      speechText: 'أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.',
       time: 'الآن'
     }
   ]);

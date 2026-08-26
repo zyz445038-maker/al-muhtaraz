@@ -492,13 +492,13 @@ export function processDeepAssistantQuery(
   const todayTotal = receipts.filter(r => (r.issued_at || r.created_at || '').startsWith(todayStr)).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   return {
-    displayText: `👑 **أبشر يا أبو ماجد! أنا معك وفاهم كل تفاصيل المؤسسة:**\n\n` +
+    displayText: `👑 **أبشر يا أبو ماجد! أنا تحت أمرك وجاهز لتنفيذ أي طلب فوراً:**\n\n` +
       `سألت عن: *"${rawQuery}"*\n\n` +
       `📊 **الموقف العام للنظام الآن:**\n` +
       `• **العقود النشطة في الميدان:** (${activeCount}) عقد 📋\n` +
       `• **الحاويات الشاغرة بالمستودع:** (${availCount}) حاوية 📦\n` +
       `• **تحصيل اليوم:** ${todayTotal.toLocaleString('ar-SA')} ر.س 💰\n\n` +
-      `💡 *تقدر تسألني عن أي تفصيل محدد مثل: "آخر عقد"، "الحاوية رقم 5"، "أكثر عميل دفع"، أو "عقود تنتهي غداً". آمرني وش ودك تعرف بالتحديد؟* ✨`,
+      `👑 *أنا تحت أمرك يا أبو ماجد.. تفضل وأبشر.* ✨`,
     category: 'general'
   };
 

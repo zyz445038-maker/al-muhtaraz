@@ -54,8 +54,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [manualInput, setManualInput] = useState<string>('');
-  const [lastSpeechText, setLastSpeechText] = useState<string>('يا هلا والله يا أبو ماجد، أنا معك وجاهز لأي استفسار!');
-  const [lastResponse, setLastResponse] = useState<string>('يا هلا والله ومسهلا يا أبو ماجد 🌸 اسألني عن أي تفصيل في العقود، الحاويات، كبار العملاء، المبالغ المتبقية، أو المستودع!');
+  const [lastSpeechText, setLastSpeechText] = useState<string>('أَهْلاً بِأَبُو مَاجِدْ.. أَنَا تَحْتَ أَمْرِكْ، تَفَضَّلْ وَأَبْشِرْ.');
+  const [lastResponse, setLastResponse] = useState<string>('أهلاً بك يا أبو ماجد.. أنا تحت أمرك، تفضل وأبشر.');
   
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
