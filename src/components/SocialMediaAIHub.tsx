@@ -7,35 +7,25 @@ import {
   Send, 
   Copy, 
   Download, 
-  ImageIcon, 
-  RefreshCw, 
   CheckCircle2, 
   Bot, 
-  Sliders, 
   Clock, 
-  TrendingUp, 
   Zap, 
-  Globe, 
-  Eye, 
   ExternalLink,
   Smartphone,
-  Hash,
-  Layers,
   Heart,
   MessageCircle,
   Repeat,
   Bookmark,
   Check,
-  Building2,
-  Phone,
   Flame,
-  Award,
-  Calendar,
-  Volume2
+  Music,
+  Compass,
+  ArrowUpRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export type SocialPlatform = 'twitter' | 'instagram' | 'tiktok' | 'snapchat' | 'whatsapp' | 'linkedin' | 'google' | 'facebook';
+export type SocialPlatform = 'twitter' | 'snapchat' | 'tiktok' | 'whatsapp' | 'instagram' | 'linkedin' | 'facebook';
 
 export type MarketingTone = 'saudi_friendly' | 'b2b_formal' | 'promo_urgent' | 'creative_catchy';
 
@@ -89,13 +79,13 @@ const CAMPAIGN_PRESETS: SocialPreset[] = [
 
 export const SocialMediaAIHub: React.FC = () => {
   // State
-  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('twitter');
+  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('snapchat');
   const [selectedTheme, setSelectedTheme] = useState<CampaignTheme>('quick_delivery');
   const [marketingTone, setMarketingTone] = useState<MarketingTone>('saudi_friendly');
   const [promoTitle, setPromoTitle] = useState('المحترز للحاويات — بالرياض وين ما كنت!');
   const [promoBody, setPromoBody] = useState('شغالين في ترميم أو بناء؟ 🏗️\nلا تشيل هم الأنقاض! نوفر لك حاويات 20 ياردة نظيفة وبأسرع وقت خلال ساعتين مع عقود بلدية رسمية موثقة.\n\n📞 احجز حاويتك الآن بضغطة زر عبر الواتساب: 0554450385');
   const [phoneContact, setPhoneContact] = useState('0554450385');
-  const [hashtags, setHashtags] = useState('#حاويات_الرياض #تأجير_حاويات #أنقاض_بناء #مقاولات_الرياض #المحترز_للحاويات #بلدية_الرياض');
+  const [hashtags, setHashtags] = useState('#حاويات_الرياض #تأجير_حاويات #أنقاض_بناء #سناب_الرياض #تيك_توك_السعودية #المحترز_للحاويات');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [canvasImageUrl, setCanvasImageUrl] = useState<string | null>(null);
@@ -245,8 +235,8 @@ export const SocialMediaAIHub: React.FC = () => {
     if (theme === 'quick_delivery') {
       if (marketingTone === 'saudi_friendly') {
         title = '⚡ تبي حاوية الحين؟ حنا أسرع من البرق في الرياض!';
-        body = 'عندك ترميم أو هدم ومستعجل على الحاوية؟ 🏗️\nسائقين المحترز جاهزين يوصلون لك في أقل من ساعتين لأي حي بالرياض.\n\n✨ حاويات نظيفة 20 ياردة\n✨ عقود رسمية موثقة\n✨ سداد كاش أو مدى فوري\n\n📲 كلمنا واتساب وفالك طيب: ' + phoneContact;
-        tags = '#حاويات_الرياض #توصيل_سريع #ترميم_منازل #أنقاض_الرياض #المحترز_للحاويات';
+        body = 'عندك ترميم أو هدم ومستعجل على الحاوية؟ 🏗️\nسائقين المحترز جاهزين يوصلون لك في أقل من ساعتين لأي حي بالرياض.\n\n✨ حاويات نظيفة 20 ياردة\n✨ عقود رسمية موثقة\n✨ سداد كاش أو مدى فوري\n\n📲 كلمنا واتساب أو سناب وفالك طيب: ' + phoneContact;
+        tags = '#حاويات_الرياض #توصيل_سريع #سناب_شات_الرياض #تيك_توك_السعودية #أنقاض_الرياض #المحترز_للحاويات';
       } else if (marketingTone === 'b2b_formal') {
         title = 'خدمات التوريد الفوري لحاويات الأنقاض بالرياض';
         body = 'تعلن شركة المحترز للحاويات عن جاهزية أسطولها لتوريد حاويات مخلفات البناء والترميم لجميع المواقع والمشاريع خلال ساعتين، مع إصدار عقود إلكترونية موثقة وسندات مالية رسمية.\n\nللحجز والتنسيق المباشر: ' + phoneContact;
@@ -254,16 +244,16 @@ export const SocialMediaAIHub: React.FC = () => {
       } else {
         title = '⚡ حاويتك واصلة لموقعك بأقل من ساعتين!';
         body = 'سرعة لا تضاهى في نقل ورفع مخلفات البناء والترميم بكافة أحياء الرياض. اطلب الآن واكسب الوقت!\n\nللتواصل الفوري: ' + phoneContact;
-        tags = '#عروض_الرياض #حاويات_فورية #بناء #ترميم #المحترز';
+        tags = '#عروض_الرياض #سناب #تيك_توك #حاويات_فورية #بناء #ترميم #المحترز';
       }
     } else if (theme === 'building_permits') {
       title = '🏛️ عقد رفع أنقاض إلكتروني موثق ومعتمد للبلدية';
       body = 'تبي تطلع رخصة بناء أو ترميم وتحتاج عقد حاوية معتمد؟ 📄\nنوفر لك عقد إلكتروني موثق مطابق لاشتراطات البلديات والأمانة مع كيوار تحقق رسمي وخدمة سريعة.\n\n📞 اطلب عقدك المعتمد فوراً: ' + phoneContact;
-      tags = '#رخص_بناء #بلدية_الرياض #عقود_أنقاض #توثيق_إلكتروني #المحترز_للحاويات';
+      tags = '#رخص_بناء #بلدية_الرياض #عقود_أنقاض #توثيق_إلكتروني #سناب_الرياض #المحترز_للحاويات';
     } else if (theme === 'weekend_sale') {
       title = '🏷️ خصومات نهاية الأسبوع على حاويات الأنقاض!';
       body = 'عرض خاص بمناسبة الويكند! 🔥\nاستأجر حاوية 20 ياردة واستفد من أفضل سعر بالرياض مع التوصيل والسحب في الوقت المحدد.\n\nلا تفوت العرض وتواصل معنا الآن: ' + phoneContact;
-      tags = '#عروض_الويكند #خصومات_الرياض #حاويات_أنقاض #تخفيضات #المحترز';
+      tags = '#عروض_الويكند #خصومات_الرياض #تيك_توك #سناب #حاويات_أنقاض #تخفيضات #المحترز';
     } else if (theme === 'contractors_bulk') {
       title = '🏗️ شراكات استراتيجية وعقود سنوية لشركات المقاولات';
       body = 'نقدم لشركات المقاولات والتطوير العقاري حلولاً متكاملة لإدارة مخلفات البناء وتوفير أسطول حاويات بأسعار تفضيلية وعقود مرنة ودعم لوجستي على مدار الساعة.\n\nقسم الشركات والتعاقدات: ' + phoneContact;
@@ -271,7 +261,7 @@ export const SocialMediaAIHub: React.FC = () => {
     } else {
       title = '✨ المحترز للحاويات — خيارك الأول والموثوق بالرياض';
       body = 'خدمات تأجير ونقل حاويات الأنقاض والمخلفات بأعلى معايير الجودة والسرعة، وبأفضل الأسعار المنافسة.\n\nتواصل معنا: ' + phoneContact;
-      tags = '#حاويات_الرياض #المحترز #نقل_أنقاض';
+      tags = '#حاويات_الرياض #المحترز #نقل_أنقاض #سناب #تيك_توك';
     }
 
     setPromoTitle(title);
@@ -324,6 +314,12 @@ export const SocialMediaAIHub: React.FC = () => {
     let url = '';
 
     switch (platform) {
+      case 'snapchat':
+        url = `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent('https://almuhtaraz.com')}`;
+        break;
+      case 'tiktok':
+        url = `https://www.tiktok.com/upload?caption=${fullContent}`;
+        break;
       case 'twitter':
         url = `https://twitter.com/intent/tweet?text=${fullContent}`;
         break;
@@ -396,7 +392,7 @@ export const SocialMediaAIHub: React.FC = () => {
       
       {/* ── 1. HEADER ── */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.18) 0%, rgba(168, 85, 247, 0.15) 50%, rgba(15, 23, 42, 0.9) 100%)',
+        background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.18) 0%, rgba(255, 252, 0, 0.08) 50%, rgba(15, 23, 42, 0.9) 100%)',
         border: '1px solid rgba(236, 72, 153, 0.35)',
         borderRadius: '20px',
         padding: '24px',
@@ -408,7 +404,7 @@ export const SocialMediaAIHub: React.FC = () => {
               width: '48px',
               height: '48px',
               borderRadius: '14px',
-              background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+              background: 'linear-gradient(135deg, #ec4899, #f59e0b)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -423,7 +419,7 @@ export const SocialMediaAIHub: React.FC = () => {
                   منظومة الترويج والنشر على السوشيال ميديا 📢
                 </h2>
                 <span style={{
-                  background: 'linear-gradient(135deg, #ec4899, #d946ef)',
+                  background: 'linear-gradient(135deg, #ec4899, #f59e0b)',
                   color: '#ffffff',
                   borderRadius: '20px',
                   padding: '2px 10px',
@@ -434,7 +430,7 @@ export const SocialMediaAIHub: React.FC = () => {
                 </span>
               </div>
               <p style={{ fontSize: '0.86rem', color: '#cbd5e1', margin: '4px 0 0 0' }}>
-                توليد منشورات تسويقية ذكية باللهجة السعودية، تصميم وتصدير بروشورات 4K، والنشر الفوري على كافة المنصات بضغطة زر واحدة.
+                توليد ونشر الحملات الإعلانية على سناب شات، تيك توك، تويتر، واتساب، ولينكد إن مع تصميم بروشورات 4K جاهزة للتحميل.
               </p>
             </div>
           </div>
@@ -447,7 +443,7 @@ export const SocialMediaAIHub: React.FC = () => {
                 padding: '10px 20px',
                 borderRadius: '12px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                background: 'linear-gradient(135deg, #ec4899, #f59e0b)',
                 color: '#ffffff',
                 fontSize: '0.9rem',
                 fontWeight: 900,
@@ -657,7 +653,7 @@ export const SocialMediaAIHub: React.FC = () => {
 
         </div>
 
-        {/* RIGHT COLUMN: Live Multi-Platform Visual Mockups */}
+        {/* RIGHT COLUMN: Live Multi-Platform Visual Mockups (Snapchat / TikTok / X / WhatsApp / Instagram / LinkedIn) */}
         <div className="glass-panel" style={{
           padding: '22px',
           borderRadius: '18px',
@@ -674,12 +670,14 @@ export const SocialMediaAIHub: React.FC = () => {
               معاينة حية للمنصة:
             </div>
             
-            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', maxWidth: '300px' }}>
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', maxWidth: '340px', paddingBottom: '4px' }}>
               {[
-                { id: 'twitter', label: '𝕏 تويتر' },
-                { id: 'whatsapp', label: '💬 واتساب' },
-                { id: 'instagram', label: '📸 انستغرام' },
-                { id: 'linkedin', label: '💼 لينكد إن' }
+                { id: 'snapchat', label: '👻 سناب شات', color: '#fffc00', textColor: '#000000' },
+                { id: 'tiktok', label: '🎵 تيك توك', color: '#000000', textColor: '#ffffff' },
+                { id: 'twitter', label: '𝕏 تويتر', color: '#000000', textColor: '#ffffff' },
+                { id: 'whatsapp', label: '💬 واتساب', color: '#25d366', textColor: '#ffffff' },
+                { id: 'instagram', label: '📸 انستغرام', color: '#e1306c', textColor: '#ffffff' },
+                { id: 'linkedin', label: '💼 لينكد إن', color: '#0077b5', textColor: '#ffffff' }
               ].map(p => (
                 <button
                   key={p.id}
@@ -688,11 +686,14 @@ export const SocialMediaAIHub: React.FC = () => {
                     padding: '4px 10px',
                     borderRadius: '8px',
                     border: 'none',
-                    background: selectedPlatform === p.id ? 'linear-gradient(135deg, #ec4899, #8b5cf6)' : 'rgba(255, 255, 255, 0.08)',
-                    color: '#ffffff',
+                    background: selectedPlatform === p.id 
+                      ? (p.id === 'snapchat' ? '#fffc00' : 'linear-gradient(135deg, #ec4899, #8b5cf6)') 
+                      : 'rgba(255, 255, 255, 0.08)',
+                    color: selectedPlatform === p.id && p.id === 'snapchat' ? '#000000' : '#ffffff',
                     fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   {p.label}
@@ -702,83 +703,273 @@ export const SocialMediaAIHub: React.FC = () => {
           </div>
 
           {/* 📱 Mockup Card Container */}
-          <div style={{
-            background: selectedPlatform === 'twitter' ? '#000000' : selectedPlatform === 'whatsapp' ? '#0b141a' : '#1e293b',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            borderRadius: '16px',
-            padding: '16px',
-            color: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.5)'
-          }}>
-            
-            {/* Header info */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: selectedPlatform === 'twitter' ? '50%' : '10px',
-                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 900,
-                  fontSize: '1.2rem',
-                  color: '#050811'
-                }}>
-                  🏗️
+          {selectedPlatform === 'snapchat' && (
+            /* 👻 SNAPCHAT SPOTLIGHT / AD / STORY MOCKUP */
+            <div style={{
+              background: 'linear-gradient(180deg, #090e17 0%, #030712 100%)',
+              border: '2px solid #fffc00',
+              borderRadius: '20px',
+              padding: '16px',
+              color: '#ffffff',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 8px 30px rgba(255, 252, 0, 0.2)'
+            }}>
+              {/* Snapchat Top Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 252, 0, 0.2)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: '#fffc00',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#000000',
+                    fontWeight: 900,
+                    fontSize: '1.2rem'
+                  }}>
+                    👻
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: '0.85rem', color: '#fffc00', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>المحترز للحاويات | سناب سبوتلايت</span>
+                      <span style={{ background: '#fffc00', color: '#000', borderRadius: '50%', padding: '0 4px', fontSize: '0.65rem' }}>⭐</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>إعلان ممول بالرياض • Spotlight</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span>المحترز للحاويات</span>
-                    <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>✓</span>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                    @almuhtaraz_sa • الآن
-                  </div>
+
+                <button
+                  onClick={() => handleOpenPlatformDirect('snapchat')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: '#fffc00',
+                    color: '#000000',
+                    fontSize: '0.75rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 10px rgba(255, 252, 0, 0.4)'
+                  }}
+                >
+                  <span>نشر في سناب</span>
+                  <ExternalLink size={12} />
+                </button>
+              </div>
+
+              {/* Snapchat Visual Card Preview */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '14px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ fontSize: '1rem', fontWeight: 900, color: '#fffc00' }}>
+                  {promoTitle}
+                </div>
+                <div style={{ fontSize: '0.85rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: '#f1f5f9' }}>
+                  {promoBody}
+                </div>
+                <div style={{ color: '#fffc00', fontSize: '0.78rem', fontWeight: 700 }}>
+                  {hashtags}
                 </div>
               </div>
 
-              <button
-                onClick={() => handleOpenPlatformDirect(selectedPlatform)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#ec4899',
-                  color: '#ffffff',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <span>نشر مباشر</span>
-                <ExternalLink size={12} />
-              </button>
+              {/* Snapchat Swipe-Up CTA Bar */}
+              <div style={{
+                background: 'rgba(255, 252, 0, 0.15)',
+                border: '1px solid #fffc00',
+                borderRadius: '12px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#fffc00', fontSize: '0.8rem', fontWeight: 900 }}>
+                  <ArrowUpRight size={16} />
+                  <span>اسحب الشاشة لطلب الحاوية فوراً 📲</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: '#ffffff', fontWeight: 700 }}>{phoneContact}</span>
+              </div>
             </div>
+          )}
 
-            {/* Post Content */}
-            <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: '#f1f5f9' }}>
-              <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '6px' }}>{promoTitle}</div>
-              <div>{promoBody}</div>
-              <div style={{ color: '#38bdf8', marginTop: '8px', fontSize: '0.8rem' }}>{hashtags}</div>
+          {selectedPlatform === 'tiktok' && (
+            /* 🎵 TIKTOK VIDEO FEED MOCKUP */
+            <div style={{
+              background: '#010101',
+              border: '2px solid #00f2fe',
+              borderRadius: '20px',
+              padding: '16px',
+              color: '#ffffff',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 8px 30px rgba(0, 242, 254, 0.2)'
+            }}>
+              {/* TikTok Top Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #00f2fe, #fe0979)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    fontWeight: 900,
+                    fontSize: '1.2rem'
+                  }}>
+                    🎵
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>@almuhtaraz_containers</span>
+                      <span style={{ color: '#00f2fe', fontSize: '0.8rem' }}>✓</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>حساب أعمال معتمد • تيك توك السعودية</div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleOpenPlatformDirect('tiktok')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #00f2fe, #fe0979)',
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>نشر في تيك توك</span>
+                  <ExternalLink size={12} />
+                </button>
+              </div>
+
+              {/* TikTok Video Overlay Content */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontWeight: 900, color: '#00f2fe', fontSize: '0.95rem' }}>{promoTitle}</div>
+                  <div style={{ fontSize: '0.82rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#e2e8f0' }}>{promoBody}</div>
+                  <div style={{ color: '#00f2fe', fontSize: '0.75rem', fontWeight: 700 }}>{hashtags}</div>
+                  
+                  {/* Sound Bar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '0.75rem', marginTop: '6px' }}>
+                    <Music size={14} color="#fe0979" />
+                    <span>صوت أصلي - المحترز للحاويات بالرياض 🎵</span>
+                  </div>
+                </div>
+
+                {/* TikTok Right Action Column */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ textAlign: 'center' }}><div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fe0979' }}><Heart size={18} /></div><span style={{ fontSize: '0.65rem', color: '#cbd5e1' }}>18.4K</span></div>
+                  <div style={{ textAlign: 'center' }}><div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}><MessageCircle size={18} /></div><span style={{ fontSize: '0.65rem', color: '#cbd5e1' }}>842</span></div>
+                  <div style={{ textAlign: 'center' }}><div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00f2fe' }}><Bookmark size={18} /></div><span style={{ fontSize: '0.65rem', color: '#cbd5e1' }}>1.2K</span></div>
+                </div>
+              </div>
             </div>
+          )}
 
-            {/* Engagement Simulation Bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-around', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', color: '#94a3b8', fontSize: '0.78rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MessageCircle size={15} /> <span>38</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Repeat size={15} /> <span>124</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f43f5e' }}><Heart size={15} /> <span>482</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Bookmark size={15} /> <span>89</span></div>
+          {selectedPlatform !== 'snapchat' && selectedPlatform !== 'tiktok' && (
+            /* Standard Social Mockups (Twitter, WhatsApp, Instagram, LinkedIn) */
+            <div style={{
+              background: selectedPlatform === 'twitter' ? '#000000' : selectedPlatform === 'whatsapp' ? '#0b141a' : '#1e293b',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '16px',
+              padding: '16px',
+              color: '#ffffff',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 8px 25px rgba(0, 0, 0, 0.5)'
+            }}>
+              {/* Header info */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: selectedPlatform === 'twitter' ? '50%' : '10px',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: '1.2rem',
+                    color: '#050811'
+                  }}>
+                    🏗️
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>المحترز للحاويات</span>
+                      <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>✓</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                      @almuhtaraz_sa • الآن
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleOpenPlatformDirect(selectedPlatform)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#ec4899',
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>نشر مباشر</span>
+                  <ExternalLink size={12} />
+                </button>
+              </div>
+
+              {/* Post Content */}
+              <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: '#f1f5f9' }}>
+                <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '6px' }}>{promoTitle}</div>
+                <div>{promoBody}</div>
+                <div style={{ color: '#38bdf8', marginTop: '8px', fontSize: '0.8rem' }}>{hashtags}</div>
+              </div>
+
+              {/* Engagement Simulation Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-around', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', color: '#94a3b8', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MessageCircle size={15} /> <span>38</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Repeat size={15} /> <span>124</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f43f5e' }}><Heart size={15} /> <span>482</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Bookmark size={15} /> <span>89</span></div>
+              </div>
             </div>
-
-          </div>
+          )}
 
           {/* 🖼️ AI Canvas 4K Flyer Section */}
           <div style={{
