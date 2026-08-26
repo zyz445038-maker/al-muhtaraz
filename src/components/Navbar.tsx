@@ -654,8 +654,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
 
-            {/* Mobile Actions: New Contract + Bell + Drawer Toggle */}
+            {/* Mobile Actions: Official Contract + New Contract + Bell + Drawer Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {onOpenOfficialContract && permissions?.can_create_contracts !== false && (
+                <button
+                  onClick={onOpenOfficialContract}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 10px',
+                    background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(254, 202, 202, 0.3)',
+                    borderRadius: '10px',
+                    fontSize: '0.74rem',
+                    fontWeight: 900,
+                    boxShadow: '0 0 12px rgba(220, 38, 38, 0.35)',
+                    cursor: 'pointer'
+                  }}
+                  title="إنشاء عقد موثق A4"
+                >
+                  <FileCode2 size={14} />
+                  <span>عقد A4</span>
+                </button>
+              )}
+
               {permissions?.can_create_contracts !== false && (
                 <button
                   onClick={onOpenNewContract}
@@ -663,18 +687,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    padding: '6px 12px',
+                    padding: '6px 10px',
                     background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                     color: '#050811',
                     border: 'none',
                     borderRadius: '10px',
-                    fontSize: '0.78rem',
+                    fontSize: '0.74rem',
                     fontWeight: 900,
                     boxShadow: '0 0 12px rgba(245, 158, 11, 0.35)',
                     cursor: 'pointer'
                   }}
                 >
-                  <PlusCircle size={15} />
+                  <PlusCircle size={14} />
                   <span>عقد جديد</span>
                 </button>
               )}
@@ -852,7 +876,59 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Tab 5: WhatsApp Engine */}
+        {/* Tab 5: Contract Authentication Hub */}
+        <button
+          onClick={() => handleTabSelect('contract-auth')}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'transparent',
+            border: 'none',
+            color: currentTab === 'contract-auth' ? '#f87171' : '#64748b',
+            cursor: 'pointer',
+            padding: '4px',
+            position: 'relative',
+            transition: 'all 0.2s'
+          }}
+        >
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '10px',
+            background: currentTab === 'contract-auth' ? 'rgba(220, 38, 38, 0.25)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative'
+          }}>
+            <Stamp size={19} color={currentTab === 'contract-auth' ? '#f87171' : '#64748b'} />
+            {pendingOfficialContractsCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-4px',
+                background: '#f59e0b',
+                color: '#050811',
+                borderRadius: '50%',
+                width: '15px',
+                height: '15px',
+                fontSize: '0.62rem',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 6px rgba(245, 158, 11, 0.6)'
+              }}>
+                {pendingOfficialContractsCount}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: '0.68rem', fontWeight: currentTab === 'contract-auth' ? 800 : 600 }}>التوثيق</span>
+        </button>
+
+        {/* Tab 6: WhatsApp Engine */}
         <button
           onClick={() => handleTabSelect('whatsapp')}
           style={{
@@ -1198,6 +1274,36 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ChevronLeft size={16} color="#64748b" />
               </button>
 
+              <button
+                onClick={() => handleTabSelect('contract-auth')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: currentTab === 'contract-auth' ? 'rgba(220, 38, 38, 0.25)' : 'transparent',
+                  border: currentTab === 'contract-auth' ? '1px solid rgba(220, 38, 38, 0.4)' : 'none',
+                  color: currentTab === 'contract-auth' ? '#f87171' : '#e2e8f0',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'right'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Stamp size={18} color="#f87171" />
+                  <span>مركز توثيق العقود والختم 🔖</span>
+                </div>
+                {pendingOfficialContractsCount > 0 ? (
+                  <span style={{ background: '#f59e0b', color: '#000', fontSize: '0.7rem', fontWeight: 900, padding: '1px 6px', borderRadius: '8px' }}>
+                    {pendingOfficialContractsCount}
+                  </span>
+                ) : (
+                  <ChevronLeft size={16} color="#64748b" />
+                )}
+              </button>
+
               {/* Admin Special Sections */}
               {currentRole === 'admin' && (
                 <>
@@ -1271,36 +1377,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>إدارة الموظفين والسائقين</span>
                     </div>
                     <ChevronLeft size={16} color="#64748b" />
-                  </button>
-
-                  <button
-                    onClick={() => handleTabSelect('contract-auth')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      background: currentTab === 'contract-auth' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                      border: 'none',
-                      color: currentTab === 'contract-auth' ? '#f87171' : '#e2e8f0',
-                      fontSize: '0.9rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'right'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Stamp size={18} color="#f87171" />
-                      <span>مركز توثيق العقود والختم</span>
-                    </div>
-                    {pendingOfficialContractsCount > 0 ? (
-                      <span style={{ background: '#f59e0b', color: '#000', fontSize: '0.7rem', fontWeight: 900, padding: '1px 6px', borderRadius: '8px' }}>
-                        {pendingOfficialContractsCount}
-                      </span>
-                    ) : (
-                      <ChevronLeft size={16} color="#64748b" />
-                    )}
                   </button>
 
                   <button

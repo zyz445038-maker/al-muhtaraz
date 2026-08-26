@@ -412,20 +412,77 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
         </div>
 
         {/* Modal Body: Split Screen */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: '680px', position: 'relative' }}>
+        <div 
+          className="official-modal-split"
+          style={{ 
+            display: 'flex', 
+            flex: 1, 
+            overflow: 'hidden', 
+            minHeight: '680px', 
+            position: 'relative' 
+          }}
+        >
+          <style>{`
+            @media (max-width: 900px) {
+              .official-modal-split {
+                flex-direction: column !important;
+                min-height: 0 !important;
+                max-height: 82vh !important;
+              }
+              .official-editor-panel {
+                display: ${activeTab === 'editor' ? 'flex' : 'none'} !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 auto !important;
+                border-left: none !important;
+                padding: 16px 14px !important;
+              }
+              .official-preview-panel {
+                display: ${activeTab === 'preview' ? 'flex' : 'none'} !important;
+                width: 100% !important;
+                flex: 1 1 auto !important;
+                padding: 12px 8px 110px 8px !important;
+              }
+              .official-a4-paper {
+                padding: 14px 10px !important;
+                min-height: auto !important;
+                font-size: 0.78rem !important;
+                border-radius: 6px !important;
+              }
+              .official-signature-row {
+                flex-wrap: wrap !important;
+                gap: 14px !important;
+                justify-content: space-around !important;
+              }
+              .official-floating-seal-bar {
+                position: fixed !important;
+                bottom: 16px !important;
+                left: 12px !important;
+                right: 12px !important;
+                transform: none !important;
+                width: auto !important;
+                max-width: 100% !important;
+                padding: 10px 16px !important;
+                justify-content: space-between !important;
+              }
+            }
+          `}</style>
           
           {/* ── LEFT PANEL: Form Editor ── */}
-          <div style={{
-            flex: activeTab === 'editor' ? '1 1 450px' : '0 0 380px',
-            maxWidth: activeTab === 'editor' ? '100%' : '420px',
-            padding: '20px 24px',
-            overflowY: 'auto',
-            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px',
-            background: 'rgba(15, 23, 42, 0.4)'
-          }}>
+          <div 
+            className="official-editor-panel"
+            style={{
+              flex: activeTab === 'editor' ? '1 1 450px' : '0 0 380px',
+              maxWidth: activeTab === 'editor' ? '100%' : '420px',
+              padding: '20px 24px',
+              overflowY: 'auto',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '18px',
+              background: 'rgba(15, 23, 42, 0.4)'
+            }}
+          >
 
             {/* Section 1: بيانات العقد الرسمية */}
             <div style={{
@@ -718,16 +775,19 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
           </div>
 
           {/* ── RIGHT PANEL: Live A4 Visual Canvas ── */}
-          <div style={{
-            flex: activeTab === 'preview' ? '1 1 100%' : '1 1 650px',
-            display: 'flex',
-            flexDirection: 'column',
-            background: '#1e293b',
-            overflowY: 'auto',
-            padding: '24px 24px 100px 24px', // Extra bottom padding for floating button
-            alignItems: 'center',
-            position: 'relative'
-          }}>
+          <div 
+            className="official-preview-panel"
+            style={{
+              flex: activeTab === 'preview' ? '1 1 100%' : '1 1 650px',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#1e293b',
+              overflowY: 'auto',
+              padding: '24px 24px 100px 24px', // Extra bottom padding for floating button
+              alignItems: 'center',
+              position: 'relative'
+            }}
+          >
 
             {/* Toolbar above preview */}
             <div style={{
@@ -776,6 +836,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
             {/* ── THE A4 PAPER DOCUMENT ── */}
             <div 
               ref={printRef}
+              className="official-a4-paper"
               style={{
                 width: '100%',
                 maxWidth: '780px',
@@ -991,13 +1052,16 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
 
               {/* ── 7. SIGNATURES & STAMPS (Bottom section) ── */}
               <div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  padding: '12px 16px 6px 16px',
-                  marginTop: '10px'
-                }}>
+                <div 
+                  className="official-signature-row"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    padding: '12px 16px 6px 16px',
+                    marginTop: '10px'
+                  }}
+                >
                   {/* الطرف الأول (يمين) - مكان الختم والتوقيع الرسمي */}
                   <div style={{ textAlign: 'center', width: '220px', position: 'relative' }}>
                     <div style={{ fontSize: '0.92rem', fontWeight: 900, color: '#dc2626' }}>
@@ -1141,23 +1205,26 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
 
           {/* ── 👑 FLOATING MANAGER SEALLING BAR (الزر العائم لتوثيق وختم العقد) ── */}
           {userRole === 'admin' && !isSealed && (
-            <div style={{
-              position: 'absolute',
-              bottom: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 100,
-              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))',
-              backdropFilter: 'blur(16px)',
-              border: '2px solid #dc2626',
-              borderRadius: '20px',
-              padding: '10px 24px',
-              boxShadow: '0 10px 35px rgba(220, 38, 38, 0.5), 0 0 20px rgba(0, 0, 0, 0.8)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              animation: 'pulse 2s infinite'
-            }}>
+            <div 
+              className="official-floating-seal-bar"
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 100,
+                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))',
+                backdropFilter: 'blur(16px)',
+                border: '2px solid #dc2626',
+                borderRadius: '20px',
+                padding: '10px 24px',
+                boxShadow: '0 10px 35px rgba(220, 38, 38, 0.5), 0 0 20px rgba(0, 0, 0, 0.8)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                animation: 'pulse 2s infinite'
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Stamp size={24} color="#f87171" />
                 <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff' }}>

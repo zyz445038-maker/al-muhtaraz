@@ -927,7 +927,16 @@ function MainDashboard() {
   };
 
   const handleSelectContractFromNotification = (contractId: string) => {
-    setCurrentTab('contracts');
+    if (contractId.startsWith('off-') || contractId.startsWith('notif-sealed-')) {
+      const offRec = officialContractRecords.find(r => r.id === contractId);
+      if (offRec) {
+        setSelectedOfficialRecordForModal(offRec);
+        setIsOfficialContractModalOpen(true);
+      }
+      setCurrentTab('contract-auth');
+    } else {
+      setCurrentTab('contracts');
+    }
   };
 
   // Gateway Settings Handlers
