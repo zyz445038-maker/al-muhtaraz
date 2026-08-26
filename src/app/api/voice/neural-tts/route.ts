@@ -1,47 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { cleanSpeechText } from '@/utils/speechSanitizer';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export const NEURAL_VOICES = {
-  zariyah: {
-    id: 'ar-SA-ZariyahNeural',
-    name: 'زاريّة (سعودي أنثى)',
-    gender: 'female',
-    dialect: 'sa',
-    description: 'صوت نسائي سعودي دافئ وعفوي جداً'
-  },
-  hamed: {
-    id: 'ar-SA-HamedNeural',
-    name: 'حامد (سعودي ذكر)',
-    gender: 'male',
-    dialect: 'sa',
-    description: 'صوت رجالي سعودي تنفيذي وفخم'
-  },
-  fatima: {
-    id: 'ar-AE-FatimaNeural',
-    name: 'فاطمة (خليجي إعلاني)',
-    gender: 'female',
-    dialect: 'ae',
-    description: 'صوت إعلاني خليجي قوي وواضح'
-  },
-  salma: {
-    id: 'ar-EG-SalmaNeural',
-    name: 'سلمى (عربي هادئ)',
-    gender: 'female',
-    dialect: 'eg',
-    description: 'صوت هادئ متزن للشروحات والتقارير'
-  }
-};
-
-import { cleanSpeechText } from '@/utils/speechSanitizer';
+// Exclusively Zariyah (Saudi Female Neural Voice)
+export const ZARIYAH_VOICE_ID = 'ar-SA-ZariyahNeural';
+const RENDER_CLOUD_URL = 'https://al-muhtaraz-whatsapp.onrender.com';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const rawText = searchParams.get('text');
-    const voiceKey = (searchParams.get('voice') || 'zariyah') as keyof typeof NEURAL_VOICES;
     const rate = searchParams.get('rate') || '+0%';
 
     if (!rawText || rawText.trim().length === 0) {
@@ -50,13 +21,11 @@ export async function GET(req: NextRequest) {
 
     // Clean all markdown, asterisks, emojis, and symbols so TTS never reads out punctuation
     const text = cleanSpeechText(rawText);
-
-    const selectedVoice = NEURAL_VOICES[voiceKey] || NEURAL_VOICES.zariyah;
-    const voiceId = selectedVoice.id;
+    const voiceId = ZARIYAH_VOICE_ID;
 
     // 1. First attempt: Query our persistent Render Cloud Voice Server (No serverless timeout!)
     try {
-      const renderVoiceUrl = `${RENDER_CLOUD_URL}/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=${voiceKey}&rate=${encodeURIComponent(rate)}`;
+      const renderVoiceUrl = `${RENDER_CLOUD_URL}/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=zariyah&rate=${encodeURIComponent(rate)}`;
       const renderRes = await fetch(renderVoiceUrl, {
         headers: { 'User-Agent': 'AlMuhtaraz-App' },
         next: { revalidate: 3600 }
@@ -80,7 +49,7 @@ export async function GET(req: NextRequest) {
       console.warn('Render Cloud TTS pass-through fallback:', renderErr);
     }
 
-    // 2. Second attempt: Direct local synthesis via MsEdgeTTS
+    // 2. Second attempt: Direct local synthesis via MsEdgeTTS (Zariyah Voice)
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     

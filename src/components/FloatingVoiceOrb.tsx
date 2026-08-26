@@ -11,8 +11,7 @@ import {
   Volume2,
   VolumeX,
   Loader2,
-  Play,
-  RotateCcw
+  Play
 } from 'lucide-react';
 import { 
   Contract, 
@@ -54,10 +53,10 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [autoSpeak, setAutoSpeak] = useState<boolean>(true);
-  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
   const [transcript, setTranscript] = useState<string>('');
   const [manualInput, setManualInput] = useState<string>('');
   
+  // Initial greeting only at start
   const [lastSpeechText, setLastSpeechText] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
   const [lastResponse, setLastResponse] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
   
@@ -72,8 +71,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // 🔊 Native Device Speech Fallback
-  const playNativeDeviceSpeech = (text: string, voiceKey: string) => {
+  // 🔊 Native Device Speech Fallback (Strictly Female Saudi/Arabic Voice)
+  const playNativeDeviceSpeech = (text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setIsPlayingAudio(false);
       return;
@@ -84,19 +83,23 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ar-SA';
       utterance.rate = 1.0;
-      utterance.pitch = voiceKey === 'hamed' ? 0.95 : 1.15;
+      utterance.pitch = 1.2; // High feminine pitch for Zariyah tone
 
       const voices = window.speechSynthesis.getVoices();
-      const arabicVoice = voices.find(v => 
-        v.lang.startsWith('ar') || 
-        v.name.includes('Arabic') || 
-        v.name.includes('Saudi') || 
-        v.name.includes('Maged') || 
-        v.name.includes('Laila') || 
-        v.name.includes('Tarik')
-      );
-      if (arabicVoice) {
-        utterance.voice = arabicVoice;
+      const femaleArabicVoice = voices.find(v => 
+        (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE') || v.lang.includes('EG')) &&
+        (v.name.toLowerCase().includes('zariyah') || 
+         v.name.toLowerCase().includes('laila') || 
+         v.name.toLowerCase().includes('salma') || 
+         v.name.toLowerCase().includes('fatima') ||
+         v.name.toLowerCase().includes('female') ||
+         v.name.toLowerCase().includes('zeina') ||
+         v.name.toLowerCase().includes('hoda') ||
+         v.name.toLowerCase().includes('mona'))
+      ) || voices.find(v => v.lang.startsWith('ar'));
+
+      if (femaleArabicVoice) {
+        utterance.voice = femaleArabicVoice;
       }
 
       utterance.onstart = () => setIsPlayingAudio(true);
@@ -110,18 +113,17 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     }
   };
 
-  // 🎙️ Main Neural Voice Player
-  const handlePlayVoice = (textToPlay: string, voiceOverride?: 'zariyah' | 'hamed' | 'fatima') => {
+  // 🎙️ Main Neural Voice Player (Exclusively Zariyah)
+  const handlePlayVoice = (textToPlay: string) => {
     const cleanedText = cleanSpeechText(textToPlay);
     if (!cleanedText || !cleanedText.trim()) return;
-    const voice = voiceOverride || selectedVoice;
     
     // Stop any ongoing native speech
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
-    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=${voice}&rate=0%&t=${Date.now()}`;
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=zariyah&rate=0%&t=${Date.now()}`;
 
     if (!audioPlayerRef.current) {
       audioPlayerRef.current = new Audio();
@@ -133,8 +135,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     audio.onplay = () => setIsPlayingAudio(true);
     audio.onended = () => setIsPlayingAudio(false);
     audio.onerror = () => {
-      console.warn('Neural TTS stream fallback to native speech synthesizer');
-      playNativeDeviceSpeech(cleanedText, voice);
+      console.warn('Neural TTS stream fallback to native female speech synthesizer');
+      playNativeDeviceSpeech(cleanedText);
     };
 
     const playPromise = audio.play();
@@ -143,7 +145,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         .then(() => setIsPlayingAudio(true))
         .catch((err) => {
           console.warn('Audio auto-play restricted, falling back to native synthesizer:', err);
-          playNativeDeviceSpeech(cleanedText, voice);
+          playNativeDeviceSpeech(cleanedText);
         });
     }
   };
@@ -160,7 +162,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     setIsPlayingAudio(false);
   };
 
-  // Initialize Speech Recognition with continuous stream & long-phrase tolerance
+  // Initialize Speech Recognition with High Sensitivity Silence Detection (1.2s auto-finish)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -188,17 +190,17 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           const currentFullText = (accumulatedTextRef.current + ' ' + interimTranscript).trim();
           setTranscript(currentFullText);
 
-          // Reset silence timer on every new speech chunk (gives 4.5 seconds for user to pause/think)
+          // High sensitivity silence detection: Stop and answer after 1.2s pause!
           if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
           }
 
           silenceTimerRef.current = setTimeout(() => {
-            if (currentFullText.length > 2 && isListeningRef.current) {
+            if (currentFullText.length > 1 && isListeningRef.current) {
               handleProcessVoiceInput(currentFullText);
               stopListeningSession();
             }
-          }, 4000);
+          }, 1200);
         };
 
         recognition.onerror = (event: any) => {
@@ -267,10 +269,11 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       playInteractionFeedback('response');
 
       if (agentResult.toolExecuted) {
-        setLastSpeechText(agentResult.speechResponse);
+        const speechClean = cleanSpeechText(agentResult.speechResponse);
+        setLastSpeechText(speechClean);
         setLastResponse(agentResult.displayMarkdown);
-        if (autoSpeak && agentResult.speechResponse) {
-          handlePlayVoice(agentResult.speechResponse);
+        if (autoSpeak && speechClean) {
+          handlePlayVoice(speechClean);
         }
         return;
       }
@@ -293,7 +296,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     } catch (err) {
       console.error('Voice processing error:', err);
       setIsThinking(false);
-      setLastResponse('أبشر يا أبو ماجد.. أنا تحت أمرك.');
+      setLastResponse('لا توجد بيانات مطابقة لهذا السؤال.');
     }
   };
 
@@ -325,7 +328,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     if (autoSpeak) {
       setTimeout(() => {
         handlePlayVoice(lastSpeechText);
-      }, 300);
+      }, 250);
     }
   };
 
@@ -407,7 +410,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         {/* 🌟 Conversation Pop-up Card */}
         {isOpen && (
           <div style={{
-            width: '400px',
+            width: '390px',
             maxWidth: 'calc(100vw - 32px)',
             background: 'linear-gradient(165deg, rgba(15, 23, 42, 0.98) 0%, rgba(5, 8, 17, 0.99) 100%)',
             border: '1px solid rgba(245, 158, 11, 0.4)',
@@ -438,7 +441,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                     <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>👑</span>
                   </div>
                   <div style={{ fontSize: '0.74rem', color: isListening ? '#38bdf8' : isThinking ? '#fbbf24' : isPlayingAudio ? '#ec4899' : '#34d399', fontWeight: 700 }}>
-                    {isListening ? '🎙️ يستمع لك.. تحدث براحتك' : isThinking ? '⚡ جاري التحليل وصياغة الرد...' : isPlayingAudio ? '🔊 يتحدث الآن...' : '✨ جاهز لخدمتك يا أبو ماجد'}
+                    {isListening ? '🎙️ يستمع لك.. تحدث وسيجيب فور توقفك' : isThinking ? '⚡ جاري المعالجة...' : isPlayingAudio ? '🔊 زارية تتحدث...' : '🌸 صوت زارية مفعل'}
                   </div>
                 </div>
               </div>
@@ -488,76 +491,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               </div>
             </div>
 
-            {/* Voice Switcher Strip inside Orb */}
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '12px', background: 'rgba(0,0,0,0.35)', padding: '5px 8px', borderRadius: '12px' }}>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>الصوت:</span>
-              {[
-                { id: 'zariyah', label: '🌸 زارية' },
-                { id: 'hamed', label: '👔 حامد' },
-                { id: 'fatima', label: '✨ فاطمة' }
-              ].map(v => (
-                <button
-                  key={v.id}
-                  onClick={() => {
-                    setSelectedVoice(v.id as any);
-                    handlePlayVoice(lastSpeechText, v.id as any);
-                  }}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: selectedVoice === v.id ? 'linear-gradient(135deg, #f59e0b, #ec4899)' : 'transparent',
-                    color: selectedVoice === v.id ? '#050811' : '#cbd5e1',
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {v.label}
-                </button>
-              ))}
-
-              {isPlayingAudio ? (
-                <button
-                  onClick={handleStopAudio}
-                  style={{
-                    marginRight: 'auto',
-                    padding: '3px 8px',
-                    borderRadius: '8px',
-                    border: '1px solid #ef4444',
-                    background: 'rgba(239, 68, 68, 0.2)',
-                    color: '#f87171',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  إيقاف الصوت ⏹️
-                </button>
-              ) : (
-                <button
-                  onClick={() => handlePlayVoice(lastSpeechText)}
-                  style={{
-                    marginRight: 'auto',
-                    padding: '3px 8px',
-                    borderRadius: '8px',
-                    border: '1px solid #10b981',
-                    background: 'rgba(16, 185, 129, 0.2)',
-                    color: '#34d399',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <Play size={10} />
-                  <span>استماع</span>
-                </button>
-              )}
-            </div>
-
             {/* Conversation Box */}
             <div style={{
               background: 'rgba(0, 0, 0, 0.5)',
@@ -565,7 +498,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               borderRadius: '16px',
               padding: '14px',
               marginBottom: '12px',
-              minHeight: '130px',
+              minHeight: '120px',
               maxHeight: '260px',
               overflowY: 'auto',
               display: 'flex',
@@ -616,7 +549,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
               )}
             </div>
 
-            {/* Quick Text Input for Long/Edited Requests */}
+            {/* Quick Text Input */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -695,7 +628,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                 <span>{isListening ? 'اضغط لإرسال السؤال وسماع الإجابة ⚡' : 'اضغط هنا وتحدث بصوتك 🎙️'}</span>
               </button>
 
-              {/* Quick Chips */}
+              {/* Quick Action Chips */}
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button
                   onClick={() => handleProcessVoiceInput('كم دخلنا اليوم كاش')}
