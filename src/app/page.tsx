@@ -46,6 +46,7 @@ import { DevLab } from '@/components/DevLab';
 import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings } from '@/types/officialContract';
+import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
 
@@ -586,7 +587,30 @@ function MainDashboard() {
 
   const handleSendOfficialContractWhatsApp = (record: OfficialContractRecord) => {
     if (record.contractData.phoneNumber && isRealCallablePhone(record.contractData.phoneNumber)) {
-      const msg = `مرحباً ${record.contractData.secondPartyName}، مرفق عقد رفع الأنقاض الموثق والمعتمد رقم (${record.contractData.serialNumber}) من شركة المحترز للحاويات 🏗️.\n\nشكراً لتعاملكم معنا.`;
+      const payload = {
+        type: 'official_contract' as const,
+        approvalNumber: record.contractData.approvalNumber,
+        serialNumber: record.contractData.serialNumber,
+        contractDate: record.contractData.contractDate,
+        secondPartyName: record.contractData.secondPartyName,
+        containerCount: record.contractData.containerCount,
+        containerType: record.contractData.containerType,
+        phoneNumber: record.contractData.phoneNumber,
+        plotNumber: record.contractData.plotNumber,
+        planNumber: record.contractData.planNumber,
+        locationDescription: record.contractData.locationDescription,
+        renovationLicenseYears: record.contractData.renovationLicenseYears,
+        buildingLicenseYears: record.contractData.buildingLicenseYears,
+        isSealed: record.status === 'sealed' || record.contractData.isSealed,
+        sealedBy: record.sealedBy || record.contractData.sealedBy,
+        sealedAt: record.sealedAt || record.contractData.sealedAt,
+        sealImageUrl: record.sealImageUrl || record.contractData.sealImageUrl
+      };
+      const encoded = encodeUtf8Base64(payload);
+      const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://al-muhtaraz.vercel.app';
+      const verifyUrl = `${origin}/receipt/${encodeURIComponent(record.contractData.approvalNumber || record.contractData.serialNumber)}?d=${encoded}&type=official`;
+
+      const msg = `مرحباً ${record.contractData.secondPartyName}، مرفق رابط وثيقة عقد تأجير الحاويات المعتمد والمختوم رقم (${record.contractData.serialNumber || record.contractData.approvalNumber}) من شركة المحترز للحاويات 🏗️\n\n📄 للاطلاع على العقد الرسمي والختم المعتمد إلكترونياً:\n${verifyUrl}\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
       handleSendWhatsApp(record.contractData.phoneNumber, msg);
     } else {
       alert('رقم جوال الطرف الثاني غير مسجل أو غير صحيح.');
@@ -1554,9 +1578,26 @@ function MainDashboard() {
     const shouldNotifyCustomer = assistantSettings.whatsapp_routing?.notify_customer ?? true;
     if (shouldNotifyCustomer && isRealCallablePhone(customerObj.phone)) {
       let imageSent = false;
-      const receiptUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}/receipt/${receiptNumber}?d=${encodeURIComponent(customerVoucherMessage)}` 
-        : `https://al-muhtaraz.vercel.app/receipt/${receiptNumber}`;
+      const receiptPayload = {
+        type: 'receipt' as const,
+        receiptNumber,
+        contractNumber: newContract.contract_number,
+        customerName: customerObj.name,
+        customerPhone: customerObj.phone,
+        containerNumber: containerObj?.container_number || '-',
+        contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
+        paidAmount,
+        totalCost,
+        paymentMethod: isCash ? 'cash' : (isSadad ? 'mada' : 'deferred'),
+        startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
+        endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
+        locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',
+        issueDate: new Date().toISOString(),
+        notes: newContract.notes || ''
+      };
+      const encodedPayload = encodeUtf8Base64(receiptPayload);
+      const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://al-muhtaraz.vercel.app';
+      const receiptUrl = `${origin}/receipt/${encodeURIComponent(receiptNumber)}?d=${encodedPayload}`;
 
       try {
         // Generate High-Definition Digital Card Image

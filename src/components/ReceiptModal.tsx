@@ -112,6 +112,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   useEffect(() => {
     if (!isOpen || !contract) { setReceiptUrl(''); return; }
     const receiptData = {
+      type: 'receipt',
       receiptNumber,
       contractNumber: contract.contract_number,
       customerName: contract.customer?.name || '-',
@@ -125,18 +126,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       endDate,
       locationAddress: contract.location_address || '',
       issueDate: issueDate.toISOString(),
-      notes: receipt?.notes || ''
+      notes: receipt?.notes || contract?.notes || ''
     };
     try {
-      const cleanUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/receipt/${receiptNumber}`
-        : `https://almuhtaraz.com/receipt/${receiptNumber}`;
+      const encoded = encodeUtf8Base64(receiptData);
+      const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://al-muhtaraz.vercel.app';
+      const cleanUrl = `${origin}/receipt/${encodeURIComponent(receiptNumber)}?d=${encoded}`;
       setReceiptUrl(cleanUrl);
     } catch {
-      setReceiptUrl(window.location.origin);
+      setReceiptUrl(typeof window !== 'undefined' ? window.location.href : '');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, contract?.id, receiptNumber]);
+  }, [isOpen, contract?.id, receiptNumber, paidAmount, totalCost, paymentMethod]);
 
   // ── Early return after all hooks ─────────────────────────────────────────
   if (!isOpen || !contract) return null;
