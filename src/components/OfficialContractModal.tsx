@@ -378,7 +378,132 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Action Buttons in Header */}
+            {!isSealed && userRole !== 'admin' && (
+              <button
+                type="button"
+                onClick={handleSubmitForSealing}
+                disabled={isProcessing}
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#050811',
+                  fontSize: '0.86rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.45)',
+                  transition: 'transform 0.15s'
+                }}
+              >
+                <Send size={16} />
+                <span>{isProcessing ? 'جارٍ الإرسال...' : 'إرسال للتوثيق والختم 📤'}</span>
+              </button>
+            )}
+
+            {!isSealed && userRole === 'admin' && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSubmitForSealing}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    color: '#fbbf24',
+                    fontSize: '0.80rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <Send size={14} />
+                  <span>حفظ كمسودة 📤</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleManagerStampAndSeal}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '7px 18px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                    color: '#ffffff',
+                    fontSize: '0.86rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.45)'
+                  }}
+                >
+                  <ShieldCheck size={16} />
+                  <span>{isProcessing ? 'جارٍ الختم...' : 'اعتماد وختم العقد 🔖'}</span>
+                </button>
+              </>
+            )}
+
+            {isSealed && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveExistingContract}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+                  }}
+                >
+                  <CheckCircle2 size={15} />
+                  <span>{isProcessing ? 'جارٍ الحفظ...' : 'حفظ التعديلات 💾'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: '#ffffff',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+                  }}
+                >
+                  <Printer size={15} />
+                  <span>طباعة PDF 🖨️</span>
+                </button>
+              </>
+            )}
+
             {/* View Mode Toggle */}
             <div style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.6)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
               <button
@@ -910,7 +1035,105 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                 <span>📜 ورقة العقد الرسمية (A4 Portrait - 300 DPI Vector)</span>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {!isSealed && userRole !== 'admin' && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitForSealing}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#050811',
+                      fontSize: '0.82rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)'
+                    }}
+                  >
+                    <Send size={15} />
+                    <span>{isProcessing ? 'جارٍ الإرسال...' : 'إرسال لختم المدير 📤'}</span>
+                  </button>
+                )}
+
+                {!isSealed && userRole === 'admin' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSubmitForSealing}
+                      disabled={isProcessing}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(245, 158, 11, 0.4)',
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        color: '#fbbf24',
+                        fontSize: '0.80rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <Send size={14} />
+                      <span>مسودة 📤</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleManagerStampAndSeal}
+                      disabled={isProcessing}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                        color: '#ffffff',
+                        fontSize: '0.82rem',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)'
+                      }}
+                    >
+                      <ShieldCheck size={15} />
+                      <span>{isProcessing ? 'جارٍ الختم...' : 'اعتماد وختم العقد 🔖'}</span>
+                    </button>
+                  </>
+                )}
+
+                {isSealed && (
+                  <button
+                    type="button"
+                    onClick={handleSaveExistingContract}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#ffffff',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>{isProcessing ? 'جارٍ الحفظ...' : 'حفظ التعديلات 💾'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handlePrint}
