@@ -851,11 +851,11 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               borderRadius: '10px',
               border: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#e2e8f0', fontWeight: 700 }}>
-                <span>📜 ورقة العقد الرسمية (A4 Portrait - 300 DPI Vector)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#e2e8f0', fontWeight: 700, flexShrink: 1, overflow: 'hidden' }}>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📜 معاينة العقد</span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 {/* زر الإرسال للتوثيق */}
                 {!isSealed && (
                   <button
