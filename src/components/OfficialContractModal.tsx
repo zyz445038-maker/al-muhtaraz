@@ -379,61 +379,6 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {/* Action Buttons in Header */}
-            {!isSealed && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleSubmitForSealing}
-                  disabled={isProcessing}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: '10px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    color: '#050811',
-                    fontSize: '0.90rem',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 16px rgba(245, 158, 11, 0.5)',
-                    transition: 'transform 0.15s'
-                  }}
-                  title="إرسال العقد إلى مركز التوثيق والاعتماد لختمه من المدير العام"
-                >
-                  <Send size={18} />
-                  <span>{isProcessing ? 'جارٍ الإرسال...' : 'إرسال إلى المدير للتوثيق 📤'}</span>
-                </button>
-
-                {userRole === 'admin' && (
-                  <button
-                    type="button"
-                    onClick={handleManagerStampAndSeal}
-                    disabled={isProcessing}
-                    style={{
-                      padding: '8px 18px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
-                      color: '#ffffff',
-                      fontSize: '0.88rem',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 14px rgba(220, 38, 38, 0.45)'
-                    }}
-                    title="اعتماد وختم العقد فورياً بالختم والـ QR الرسمي"
-                  >
-                    <ShieldCheck size={16} />
-                    <span>{isProcessing ? 'جارٍ الختم...' : 'اعتماد وختم العقد (المدير) 🔖'}</span>
-                  </button>
-                )}
-              </>
-            )}
 
             {isSealed && (
               <>
@@ -911,6 +856,59 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* زر الإرسال للتوثيق */}
+                {!isSealed && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitForSealing}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#050811',
+                      fontSize: '0.85rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 3px 12px rgba(245, 158, 11, 0.5)'
+                    }}
+                  >
+                    <Send size={15} />
+                    <span>{isProcessing ? 'جارٍ الإرسال...' : 'إرسال إلى المدير للتوثيق 📤'}</span>
+                  </button>
+                )}
+
+                {/* زر الختم للمدير فقط */}
+                {!isSealed && userRole === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={handleManagerStampAndSeal}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #b91c1c, #dc2626)',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 3px 10px rgba(220, 38, 38, 0.4)'
+                    }}
+                  >
+                    <ShieldCheck size={15} />
+                    <span>{isProcessing ? 'جارٍ الختم...' : 'اعتماد وختم 🔖'}</span>
+                  </button>
+                )}
+
+                {/* زر الطباعة */}
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -932,7 +930,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                   title={!isSealed ? 'تتطلب الطباعة اعتماد وختم المدير أولاً' : 'طباعة أو حفظ PDF'}
                 >
                   <Printer size={15} />
-                  <span>{isSealed ? 'طباعة أو حفظ PDF' : 'طباعة (بانتظار الختم 🔒)'}</span>
+                  <span>{isSealed ? 'طباعة PDF' : 'طباعة (بانتظار الختم 🔒)'}</span>
                 </button>
               </div>
             </div>
