@@ -44,6 +44,7 @@ import {
 } from '@/types/database';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking, unlockAudio } from '@/utils/voiceAssistant';
+import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 
 interface SmartAssistantHubProps {

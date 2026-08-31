@@ -45,7 +45,7 @@ import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
 import { SocialMediaAIHub } from '@/components/SocialMediaAIHub';
 import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
-import { Contract, Container, Customer, Profile, Receipt } from '@/types';
+import { Contract, Container, Customer, Profile, Receipt } from '@/types/database';
 
 interface DevLabProps {
   currentRole: string;

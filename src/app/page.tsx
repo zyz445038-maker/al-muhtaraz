@@ -706,15 +706,15 @@ function MainDashboard() {
 
     // 1. From regular contracts
     contracts.forEach(cnt => {
-      const cleanPhone = (cnt.customer_phone || '').replace(/[^0-9]/g, '');
+      const cleanPhone = (cnt.customer?.phone || '').replace(/[^0-9]/g, '');
       if (cleanPhone.length >= 9 && !existingPhones.has(cleanPhone)) {
         existingPhones.add(cleanPhone);
         newEntries.push({
           id: `sync-cnt-${cnt.id}`,
-          name: cnt.customer_name || 'عميل عقد حاوية',
-          phone: cnt.customer_phone,
+          name: cnt.customer?.name || 'عميل عقد حاوية',
+          phone: cnt.customer?.phone || '',
           category: cnt.contract_type === 'commercial' ? 'company' : 'individual',
-          address: cnt.location_name || undefined,
+          address: cnt.location_address || undefined,
           total_contracts: 1,
           last_deal_date: cnt.start_date ? cnt.start_date.split('T')[0] : undefined,
           marketing_opt_in: true,

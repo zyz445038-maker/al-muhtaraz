@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // Exclusively Zariyah (Saudi Female Neural Voice)
-export const ZARIYAH_VOICE_ID = 'ar-SA-ZariyahNeural';
+const ZARIYAH_VOICE_ID = 'ar-SA-ZariyahNeural';
+const FATIMA_VOICE_ID = 'ar-SA-FatimaNeural';
+const HAMED_VOICE_ID = 'ar-SA-HamedNeural';
 
 // In-Memory Audio Cache to return frequent phrases (like greetings) in 0ms
 const ttsAudioCache = new Map<string, Buffer>();

@@ -2,10 +2,13 @@
 // Features: Full Multi-Turn Conversational Memory + Deep-Reasoning Knowledge Engine + Dynamic Context
 // Direct, factual, clean speech without repetitive generic greetings, emojis, or punctuation artifacts
 
-import { Contract, Container, Customer, Profile, Receipt } from '@/types';
+import { Contract, Container, Customer, Profile, Receipt, RecipientRole } from '@/types/database';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { querySystemKnowledge } from '@/utils/aiCopilotKnowledge';
+import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
+import { formatCleanArabicDate } from '@/utils/dateFormatter';
+import { determineIntentWithGemini } from '@/utils/geminiToolEngine';
 
 export interface AgentContext {
   contracts: Contract[];
@@ -70,7 +73,7 @@ export class AlMuhtarazExecutiveAgent {
   }
 
   /**
-   * Main Agent Inference & Multi-turn Tool Dispatcher
+   * Main Agent Inference & Multi-turn Tool Dispatcher (Powered by Gemini API)
    */
   public async executeUserCommand(userInput: string): Promise<AgentExecutionResult> {
     const rawQuery = userInput.trim();
@@ -103,123 +106,87 @@ export class AlMuhtarazExecutiveAgent {
       return followUpResult;
     }
 
-    // ─── 2. Latest & Sequential Contract Queries ("آخر عقد", "العقد الأخير", "أحدث عقد", "العقد السابق") ───
-    if (
-      query.includes('اخر عقد') || query.includes('العقد الاخير') || query.includes('العقد الأخير') ||
-      query.includes('احدث عقد') || query.includes('أحدث عقد') || query.includes('اجدد عقد') ||
-      query.includes('أجدد عقد') || query.includes('اخر عمليه') || query.includes('آخر عملية') ||
-      query.includes('عقد جديد مسجل') || query.includes('اخر مستاجر') || query.includes('آخر مستأجر')
-    ) {
-      const res = this.tool_fetchLatestContract();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
+    // ─── 2. Gemini API Intent Detection (Function Calling) ───
+    const intent = await determineIntentWithGemini(rawQuery);
+    
+    let res: AgentExecutionResult;
+
+    if (intent) {
+      // Execute local tool based on Gemini's function call decision
+      switch (intent.toolName) {
+        case 'fetchLatestContract':
+          res = this.tool_fetchLatestContract();
+          break;
+        case 'fetchPreviousContract':
+          res = this.tool_fetchPreviousContract();
+          break;
+        case 'auditLiveFinancials':
+          res = this.tool_auditLiveFinancials();
+          break;
+        case 'auditExpiringContainers':
+          res = this.tool_auditExpiringContainers();
+          break;
+        case 'auditContainersStock':
+          res = this.tool_auditContainersStock();
+          break;
+        case 'searchEntity':
+          res = this.tool_searchEntity((intent.args as any)?.searchQuery || rawQuery);
+          break;
+        case 'auditDriversFleet':
+          res = this.tool_auditDriversFleet();
+          break;
+        case 'generateWhatsAppReport':
+          res = this.tool_generateWhatsAppReport();
+          break;
+        case 'auditDebtsAndReceivables':
+          res = this.tool_auditDebtsAndReceivables();
+          break;
+        case 'fetchTopCustomers':
+          res = this.tool_fetchTopCustomers();
+          break;
+        case 'fetchTodayOperations':
+          res = this.tool_fetchTodayOperations();
+          break;
+        case 'fetchContractVoucherOrImage':
+          res = this.tool_fetchContractVoucherOrImage((intent.args as any)?.searchQuery || rawQuery);
+          break;
+        case 'generalConversation':
+          res = {
+            toolExecuted: 'generalConversation',
+            speechResponse: cleanSpeechText((intent.args as any)?.reply || 'مرحباً بك، كيف يمكنني مساعدتك اليوم؟'),
+            displayMarkdown: (intent.args as any)?.reply || 'مرحباً بك، كيف يمكنني مساعدتك اليوم؟',
+            updatedMemory: this.memory
+          };
+          break;
+        default:
+          res = this.generateSmartGreeting();
+      }
+    } else {
+      // ─── 3. Deep Reasoning Engine Fallback (If API fails or key is missing) ───
+      const deepResult = processDeepAssistantQuery(rawQuery, {
+        contracts: this.context.contracts || [],
+        containers: this.context.containers || [],
+        customers: this.context.customers || [],
+        staffList: this.context.staffList || [],
+        receipts: this.context.receipts || []
+      });
+
+      if (deepResult && deepResult.displayText) {
+        const speech = cleanSpeechText(deepResult.speechText || deepResult.displayText.slice(0, 180));
+        res = {
+          toolExecuted: 'deepReasoningQuery',
+          speechResponse: speech,
+          displayMarkdown: deepResult.displayText,
+          updatedMemory: this.memory
+        };
+      } else {
+        res = this.generateSmartGreeting();
+      }
     }
 
-    if (query.includes('العقد السابق') || query.includes('اللي قبله') || query.includes('العقد اللي قبل')) {
-      const res = this.tool_fetchPreviousContract();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 3. Financial & Revenue Audit (التقرير المالي والمداخيل) ───
-    if (
-      query.includes('دخل') || query.includes('مداخيل') || query.includes('ارباح') || query.includes('أرباح') ||
-      query.includes('مبالغ') || query.includes('كاش') || query.includes('تحصيل') ||
-      query.includes('كم جمعنا') || query.includes('فلوس') || query.includes('مالية') ||
-      query.includes('تقرير مالي') || query.includes('الحالة المالية') || query.includes('كم جانا') ||
-      query.includes('كم جبنا') || query.includes('كم طلعنا') || query.includes('كم كسبنا') ||
-      query.includes('كم صفينا') || query.includes('كم صفى') || query.includes('سندات القبض')
-    ) {
-      const res = this.tool_auditLiveFinancials();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 4. Municipality & Expiring Containers Protection (البلدية والعقود المنتهية) ───
-    if (
-      query.includes('بلديه') || query.includes('بلدية') || query.includes('منتهية') ||
-      query.includes('منتهي') || query.includes('انتهى') || query.includes('سحب') ||
-      query.includes('غرامات') || query.includes('مخالفات') || query.includes('تحذير') ||
-      query.includes('بتنتهي بكره') || query.includes('تنتهي غدا') || query.includes('انذار')
-    ) {
-      const res = this.tool_auditExpiringContainers();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 5. Containers Inventory & Stock Availability (المخزون والشواغر) ───
-    if (
-      query.includes('حاويات متوفرة') || query.includes('حاويات شاغرة') || query.includes('المتوفر') ||
-      query.includes('مخزون') || query.includes('كم حاوية') || query.includes('فاضي') || query.includes('فاضية') ||
-      query.includes('حالة الحاويات') || query.includes('الاسطول') || query.includes('أسطول') ||
-      query.includes('كم باقي حاويات') || query.includes('وش عندنا حاويات')
-    ) {
-      const res = this.tool_auditContainersStock();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 6. Search Customer / Contract by Name or Number (البحث المباشر) ───
-    if (
-      query.includes('ابحث عن') || query.includes('عقد رقم') || query.includes('عقد شركة') ||
-      query.includes('جوال عميل') || query.includes('رقم العميل') || query.includes('موقع الحاوية') ||
-      query.includes('حاوية رقم') || query.includes('بحث عن') || query.includes('عقد ')
-    ) {
-      const res = this.tool_searchEntity(rawQuery);
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 7. Drivers & Logistics Fleet Status (طاقم السائقين) ───
-    if (
-      query.includes('سواق') || query.includes('سائق') || query.includes('سائقين') ||
-      query.includes('سواقين') || query.includes('مهام') || query.includes('مشاوير') ||
-      query.includes('طاقم الميدان') || query.includes('من شغال') || query.includes('من مداوم')
-    ) {
-      const res = this.tool_auditDriversFleet();
-      this.recordTurn(rawQuery, res.speechResponse);
-      res.updatedMemory = this.memory;
-      return res;
-    }
-
-    // ─── 8. Greetings & Welcoming Intent ───
-    if (
-      query.includes('مرحبا') || query.includes('يا هلا') || query.includes('هلا') ||
-      query.includes('السلام عليكم') || query.includes('صباح الخير') || query.includes('مساء الخير') ||
-      query.includes('كيف حالك') || query.includes('وش اخبارك')
-    ) {
-      return this.generateSmartGreeting();
-    }
-
-    // ─── 9. Deep Reasoning & Semantic RAG Engine Fallback ───
-    const deepResult = processDeepAssistantQuery(rawQuery, {
-      contracts: this.context.contracts || [],
-      containers: this.context.containers || [],
-      customers: this.context.customers || [],
-      staffList: this.context.staffList || [],
-      receipts: this.context.receipts || []
-    });
-
-    if (deepResult && deepResult.displayText) {
-      const speech = cleanSpeechText(deepResult.displayText);
-      const res: AgentExecutionResult = {
-        toolExecuted: 'deepReasoningQuery',
-        speechResponse: speech,
-        displayMarkdown: deepResult.displayText,
-        updatedMemory: this.memory
-      };
-      this.recordTurn(rawQuery, speech);
-      return res;
-    }
-
-    // ─── 10. Intelligent Adaptive Guidance ───
-    return this.generateSmartGreeting();
+    this.recordTurn(rawQuery, res.speechResponse);
+    res.updatedMemory = this.memory;
+    return res;
   }
 
   // ─── CONTEXTUAL MULTI-TURN REASONING ─────────────────────────────────
@@ -409,7 +376,7 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       if (query.includes('كم سداد') || query.includes('كم الكتروني') || query.includes('كم شبكه') || query.includes('كم تحويل') || query.includes('شبكة')) {
-        const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer');
+        const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer' || c.payment_method === 'apple_pay' || c.payment_method === 'mada' || c.payment_method === 'credit_card');
         const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
         const speech = cleanSpeechText(`إجمالي السداد الإلكتروني والتحويل البنكي ${electronicCollected} ريال.`);
         return {
@@ -562,7 +529,7 @@ export class AlMuhtarazExecutiveAgent {
     const cashContracts = contracts.filter(c => c.payment_method === 'cash');
     const cashCollected = cashContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
 
-    const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer');
+    const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer' || c.payment_method === 'apple_pay' || c.payment_method === 'mada' || c.payment_method === 'credit_card');
     const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
 
     const speech = cleanSpeechText(
@@ -746,6 +713,258 @@ export class AlMuhtarazExecutiveAgent {
       toolParameters: { driversCount: drivers.length },
       speechResponse: speech,
       displayMarkdown: md
+    };
+  }
+
+  // 📱 Tool 6: WhatsApp Daily Executive Report
+  private tool_generateWhatsAppReport(): AgentExecutionResult {
+    const contracts = this.context.contracts || [];
+    const containers = this.context.containers || [];
+    const receipts = this.context.receipts || [];
+    this.memory.lastFocusedTopic = 'finance';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayReceipts = receipts.filter(r => (r.issued_at || r.created_at || '').startsWith(todayStr));
+    const cashToday = todayReceipts.filter(r => r.payment_method === 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const electronicToday = todayReceipts.filter(r => r.payment_method !== 'cash').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const totalIncomeToday = cashToday + electronicToday;
+    const newContractsCount = contracts.filter(c => (c.created_at || '').startsWith(todayStr) || (c.start_date || '') === todayStr).length;
+    const activeContractsCount = contracts.filter(c => c.status === 'active').length;
+    const availableContainersCount = containers.filter(c => c.status === 'available').length;
+    const rentedContainersCount = containers.filter(c => c.status === 'rented').length;
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const expiringTomorrowCount = contracts.filter(c => c.status === 'active' && (c.end_date || '').startsWith(tomorrow)).length;
+
+    const reportMsg = formatDailyExecutiveReport({
+      date: formatCleanArabicDate(new Date(), true),
+      totalIncomeToday,
+      cashToday,
+      electronicToday,
+      newContractsCount,
+      activeContractsCount,
+      availableContainersCount,
+      rentedContainersCount,
+      expiringTomorrowCount
+    });
+
+    const speech = cleanSpeechText(
+      `تم تجهيز التقرير التنفيذي اليومي يا أبو ماجد. إجمالي الدخل اليوم ${totalIncomeToday} ريال ، منها ${cashToday} ريال كاش ، و ${newContractsCount} عقود جديدة.`
+    );
+
+    const md = `### 📱 التقرير التنفيذي اليومي للواتساب 📊\n\n` +
+      `\`\`\`text\n${reportMsg}\n\`\`\`\n\n` +
+      `🚀 **جاهز للمشاركة:** تم إعداد التقرير التلخيصي الفوري لنسخه أو إرساله بنقرة زر لواتساب الإدارة.`;
+
+    return {
+      toolExecuted: 'generateWhatsAppReport',
+      toolParameters: { totalIncomeToday, newContractsCount, activeContractsCount },
+      speechResponse: speech,
+      displayMarkdown: md,
+      actionCard: {
+        type: 'marketing',
+        title: 'تقرير الواتساب اليومي',
+        data: { reportMsg }
+      }
+    };
+  }
+
+  // 💰 Tool 7: Audit Debts & Receivables
+  private tool_auditDebtsAndReceivables(): AgentExecutionResult {
+    const contracts = this.context.contracts || [];
+    const customers = this.context.customers || [];
+    this.memory.lastFocusedTopic = 'finance';
+
+    const unpaidContracts = contracts.filter(c => Number(c.remaining_amount) > 0 && c.status === 'active');
+    const totalRemaining = unpaidContracts.reduce((sum, c) => sum + (Number(c.remaining_amount) || 0), 0);
+
+    if (unpaidContracts.length === 0) {
+      const speech = cleanSpeechText('كافة العقود النشطة مسددة بالكامل ولا توجد أي ديون أو مبالغ معلقة في السوق.');
+      return {
+        toolExecuted: 'auditDebtsAndReceivables',
+        speechResponse: speech,
+        displayMarkdown: `### 🟢 الذمم والتحصيلات المعلقة\n\n✅ **لا توجد أي مبالغ معلقة:** كافة العقود النشطة مسددة بنسبة 100% 🎉.`
+      };
+    }
+
+    const debtorList = unpaidContracts.slice(0, 5).map((c, i) => {
+      const cust = c.customer?.name || customers.find(cust => cust.id === c.customer_id)?.name || 'عميل';
+      return `${i + 1}. **${cust}**: متبقي عليه \`${Number(c.remaining_amount).toLocaleString('ar-SA')} ر.س\` (عقد #${c.contract_number})`;
+    }).join('\n');
+
+    const speech = cleanSpeechText(
+      `إجمالي المبالغ المعلقة في السوق ${totalRemaining} ريال موزعة على ${unpaidContracts.length} عقود غير مكتملة السداد.`
+    );
+
+    const md = `### 💰 تقرير الديون والمبالغ المعلقة في السوق ⚠️\n\n` +
+      `* **إجمالي المبالغ غير المحصلة:** \`${totalRemaining.toLocaleString('ar-SA')} ر.س\`\n` +
+      `* **عدد العقود المعلقة:** \`(${unpaidContracts.length})\` عقد نشط\n\n` +
+      `📋 **أبرز العقود التي عليها متبقي:**\n${debtorList}` +
+      (unpaidContracts.length > 5 ? `\n\n*...ويوجد ${unpaidContracts.length - 5} عقود أخرى بها متبقي.*` : '');
+
+    return {
+      toolExecuted: 'auditDebtsAndReceivables',
+      toolParameters: { totalRemaining, unpaidCount: unpaidContracts.length },
+      speechResponse: speech,
+      displayMarkdown: md,
+      actionCard: {
+        type: 'finance',
+        title: 'الديون والمبالغ المعلقة',
+        data: unpaidContracts
+      }
+    };
+  }
+
+  // 👑 Tool 8: Top VIP Customers
+  private tool_fetchTopCustomers(): AgentExecutionResult {
+    const contracts = this.context.contracts || [];
+    const customers = this.context.customers || [];
+    this.memory.lastFocusedTopic = 'search';
+
+    if (customers.length === 0) {
+      return {
+        toolExecuted: 'fetchTopCustomers',
+        speechResponse: cleanSpeechText('لا يوجد عملاء مسجلين حالياً في النظام.'),
+        displayMarkdown: `👥 لا يوجد عملاء مسجلين حالياً.`
+      };
+    }
+
+    const spendingMap = new Map<string, { name: string; count: number; total: number }>();
+    for (const c of contracts) {
+      const custName = c.customer?.name || customers.find(cust => cust.id === c.customer_id)?.name || 'عميل';
+      const existing = spendingMap.get(custName) || { name: custName, count: 0, total: 0 };
+      existing.count += 1;
+      existing.total += Number(c.total_cost) || 0;
+      spendingMap.set(custName, existing);
+    }
+
+    const topList = Array.from(spendingMap.values()).sort((a, b) => b.total - a.total).slice(0, 5);
+
+    if (topList.length === 0) {
+      return {
+        toolExecuted: 'fetchTopCustomers',
+        speechResponse: cleanSpeechText('لا توجد تعاملات كافية بعد لتحديد كبار العملاء.'),
+        displayMarkdown: `🏆 لا توجد تعاملات كافية لحساب كبار العملاء بعد.`
+      };
+    }
+
+    const topOne = topList[0];
+    const speech = cleanSpeechText(
+      `أكبر عميل لدينا هو ${topOne.name} بإجمالي تعاملات ${topOne.total} ريال عبر ${topOne.count} عقود.`
+    );
+
+    const formattedList = topList.map((item, idx) => 
+      `${idx + 1}. 👑 **${item.name}**: إجمالي تعاملاته \`${item.total.toLocaleString('ar-SA')} ر.س\` (${item.count} عقد)`
+    ).join('\n');
+
+    const md = `### 🏆 قائمة كبار العملاء الأكثر تعاملاً ودخلاً 👑\n\n` +
+      `${formattedList}\n\n` +
+      `💡 *نوصي بتقديم عروض وخصومات تشجيعية لهم لتعزيز ولائهم واستمرار عقودهم.*`;
+
+    return {
+      toolExecuted: 'fetchTopCustomers',
+      toolParameters: { topCustomer: topOne },
+      speechResponse: speech,
+      displayMarkdown: md
+    };
+  }
+
+  // 📅 Tool 9: Today's Real-time Operations
+  private tool_fetchTodayOperations(): AgentExecutionResult {
+    const contracts = this.context.contracts || [];
+    const customers = this.context.customers || [];
+    this.memory.lastFocusedTopic = 'contract';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayContracts = contracts.filter(c => (c.created_at || '').startsWith(todayStr) || (c.start_date || '') === todayStr);
+
+    if (todayContracts.length === 0) {
+      const speech = cleanSpeechText('لم يتم تسجيل عقود جديدة اليوم حتى الآن. الحاويات الشاغرة جاهزة للتأجير.');
+      return {
+        toolExecuted: 'fetchTodayOperations',
+        speechResponse: speech,
+        displayMarkdown: `### 📅 تقرير عقود اليوم\n\nلم يتم إبرام عقود جديدة حتى هذه اللحظة اليوم. جميع الحاويات الشاغرة بالمستودع جاهزة للتأجير 🟢.`
+      };
+    }
+
+    const totalTodayRevenue = todayContracts.reduce((sum, c) => sum + (Number(c.total_cost) || 0), 0);
+    const speech = cleanSpeechText(
+      `تم إبرام ${todayContracts.length} عقود جديدة اليوم بإجمالي قيمة ${totalTodayRevenue} ريال يا أبو ماجد.`
+    );
+
+    const list = todayContracts.map((c, i) => {
+      const cust = c.customer?.name || customers.find(cust => cust.id === c.customer_id)?.name || 'عميل';
+      const cont = c.container?.container_number || '-';
+      return `${i + 1}. **${cust}** | حاوية \`#${cont}\` | المبلغ: \`${Number(c.total_cost).toLocaleString('ar-SA')} ر.س\``;
+    }).join('\n');
+
+    const md = `### 📋 العقود المبرمة اليوم (${todayContracts.length} عقد) ✨\n\n` +
+      `* **إجمالي قيمة عقود اليوم:** \`${totalTodayRevenue.toLocaleString('ar-SA')} ر.س\`\n\n` +
+      `${list}\n\n` +
+      `عساها مداخيل الخير والبركة يا رب 🌸!`;
+
+    return {
+      toolExecuted: 'fetchTodayOperations',
+      toolParameters: { count: todayContracts.length, totalRevenue: totalTodayRevenue },
+      speechResponse: speech,
+      displayMarkdown: md
+    };
+  }
+
+  // 📄 Tool 10: Contract Voucher, Image & Official Receipt
+  private tool_fetchContractVoucherOrImage(rawQuery: string): AgentExecutionResult {
+    const contracts = this.context.contracts || [];
+    const customers = this.context.customers || [];
+    const containers = this.context.containers || [];
+    this.memory.lastFocusedTopic = 'contract';
+
+    if (contracts.length === 0) {
+      return {
+        toolExecuted: 'fetchContractVoucher',
+        speechResponse: cleanSpeechText('لا توجد عقود مسجلة في النظام لعرض سندها أو طباعتها.'),
+        displayMarkdown: `⚠️ لا توجد عقود مسجلة حالياً.`
+      };
+    }
+
+    const numMatch = rawQuery.match(/[0-9]+/);
+    let targetContract = contracts[0];
+
+    if (numMatch) {
+      const found = contracts.find(c => c.contract_number.includes(numMatch[0]) || (c.container?.container_number || '').includes(numMatch[0]));
+      if (found) targetContract = found;
+    } else if (this.memory.lastFocusedContract) {
+      targetContract = this.memory.lastFocusedContract;
+    } else {
+      const sorted = [...contracts].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      targetContract = sorted[0];
+    }
+
+    const custName = targetContract.customer?.name || customers.find(c => c.id === targetContract.customer_id)?.name || 'عميل نقدي';
+    const contNum = targetContract.container?.container_number || containers.find(c => c.id === targetContract.container_id)?.container_number || '-';
+    const receiptNum = targetContract.receipt_number || `RCP-${targetContract.contract_number}`;
+    const totalCost = Number(targetContract.total_cost || 0);
+    const receiptUrl = `/receipt/${receiptNum}`;
+
+    const speech = cleanSpeechText(
+      `تم إحضار وثيقة وسند العقد رقم ${targetContract.contract_number} للعميل ${custName} بقيمة ${totalCost} ريال.`
+    );
+
+    const md = `### 📄 وثيقة وسند العقد الرسمي المعتمد ✨\n\n` +
+      `* **رقم العقد:** \`${targetContract.contract_number}\` | **رقم السند:** \`${receiptNum}\`\n` +
+      `* **العميل:** **${custName}** (📞 ${targetContract.customer?.phone || '-'})\n` +
+      `* **الحاوية:** \`#${contNum}\` (${targetContract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})\n` +
+      `* **المبلغ:** \`${totalCost.toLocaleString('ar-SA')} ر.س\` | **المدفوع:** \`${Number(targetContract.paid_amount || 0).toLocaleString('ar-SA')} ر.س\`\n\n` +
+      `🔗 **[اضغط هنا لفتح وطباعة وثيقة العقد الأصلية مع الـ QR باركود](${receiptUrl})**`;
+
+    return {
+      toolExecuted: 'fetchContractVoucher',
+      toolParameters: { contractId: targetContract.id, receiptUrl },
+      speechResponse: speech,
+      displayMarkdown: md,
+      actionCard: {
+        type: 'contract',
+        title: `سند العقد ${targetContract.contract_number}`,
+        data: targetContract
+      }
     };
   }
 
