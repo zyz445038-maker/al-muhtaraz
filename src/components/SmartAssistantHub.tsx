@@ -237,7 +237,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
   };
 
   // Deep-Reasoning AI Copilot Query Handler
-  const handleAskCopilot = (query: string) => {
+  const handleAskCopilot = async (query: string) => {
     if (!query.trim()) return;
 
     const userTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
@@ -247,21 +247,42 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setIsCopilotThinking(true);
     playInteractionFeedback('thinking'); // 🎵 Soft thinking chime
 
-    // Process intelligence query against real data dynamically
-    setTimeout(() => {
-      const { displayText } = processDeepAssistantQuery(query, {
-        contracts,
-        containers,
-        customers,
-        staffList,
-        receipts
+    try {
+      const response = await fetch('/api/ai/executive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: query,
+          context: { contracts, containers, customers, staffList, receipts }
+        })
       });
 
+      const data = await response.json();
       const botTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+      
+      let displayText = 'حدث خطأ في الاتصال بالخادم.';
+      let speechText = 'حدث خطأ.';
+
+      if (data.success && data.result) {
+        displayText = data.result.displayMarkdown;
+        speechText = data.result.speechResponse;
+      } else {
+        const fallback = processDeepAssistantQuery(query, { contracts, containers, customers, staffList, receipts });
+        displayText = fallback.displayText;
+        speechText = fallback.speechText || fallback.displayText;
+      }
+
       setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
       setIsCopilotThinking(false);
-      playInteractionFeedback('response'); // 🎵 Answer completion chime
-    }, 450);
+      playInteractionFeedback('response');
+      
+      if (speechText) {
+        speakSaudiFemaleVoice(speechText);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsCopilotThinking(false);
+    }
   };
 
 

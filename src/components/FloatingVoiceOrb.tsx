@@ -228,28 +228,37 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         conversationalMemoryRef.current
       );
 
-      const agentResult = await agent.executeUserCommand(cleanQuery);
+      // Call Server API for Gemini instead of running locally on Client
+      const response = await fetch('/api/ai/executive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: cleanQuery,
+          context: { contracts, containers, customers, staffList, receipts }
+        })
+      });
 
-      if (agentResult.updatedMemory) {
-        conversationalMemoryRef.current = agentResult.updatedMemory;
-      }
-
+      const data = await response.json();
+      
       setIsThinking(false);
       accumulatedTextRef.current = '';
       playInteractionFeedback('response');
 
-      if (agentResult.speechResponse) {
-        const speechClean = cleanSpeechText(agentResult.speechResponse);
+      if (data.success && data.result) {
+        if (data.result.updatedMemory) {
+          conversationalMemoryRef.current = data.result.updatedMemory;
+        }
+        const speechClean = cleanSpeechText(data.result.speechResponse);
         setLastSpeechText(speechClean);
-        setLastResponse(agentResult.displayMarkdown);
+        setLastResponse(data.result.displayMarkdown);
         if (autoSpeak && speechClean) {
           handlePlayVoice(speechClean);
         }
         return;
       }
 
-      // 2. Fallback to Deep Reasoning Knowledge Base
-      const { displayText } = processDeepAssistantQuery(cleanQuery, {
+      // Fallback
+      const { displayText, speechText } = processDeepAssistantQuery(cleanQuery, {
         contracts,
         containers,
         customers,
@@ -257,11 +266,11 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         receipts
       });
 
-      const speechClean = cleanSpeechText(displayText);
-      setLastSpeechText(speechClean);
+      const speechFallbackClean = cleanSpeechText(speechText || displayText);
+      setLastSpeechText(speechFallbackClean);
       setLastResponse(displayText);
-      if (autoSpeak && speechClean) {
-        handlePlayVoice(speechClean);
+      if (autoSpeak && speechFallbackClean) {
+        handlePlayVoice(speechFallbackClean);
       }
     } catch (err) {
       console.error('Voice processing error:', err);
