@@ -1,38 +1,29 @@
 /**
- * تحويل الأرقام إلى صياغة سنوات باللغة العربية الفصحى (مفرد / مثنى / جمع)
+ * تحويل المدة إلى صياغة عربية فصحى (أشهر أو سنوات)
  */
 export function formatYearsToArabic(years: number): string {
+  // دعم الأشهر
+  if (years === 0.25) return 'ثلاثة أشهر';
+  if (years === 0.5)  return 'ستة أشهر';
+
   const num = Math.floor(years);
   switch (num) {
-    case 0:
-      return 'صفر سنة';
-    case 1:
-      return 'سنة';
-    case 2:
-      return 'سنتان';
-    case 3:
-      return 'ثلاث سنوات';
-    case 4:
-      return 'أربع سنوات';
-    case 5:
-      return 'خمس سنوات';
-    case 6:
-      return 'ست سنوات';
-    case 7:
-      return 'سبع سنوات';
-    case 8:
-      return 'ثماني سنوات';
-    case 9:
-      return 'تسع سنوات';
-    case 10:
-      return 'عشر سنوات';
+    case 0:  return 'صفر سنة';
+    case 1:  return 'سنة';
+    case 2:  return 'سنتان';
+    case 3:  return 'ثلاث سنوات';
+    case 4:  return 'أربع سنوات';
+    case 5:  return 'خمس سنوات';
+    case 6:  return 'ست سنوات';
+    case 7:  return 'سبع سنوات';
+    case 8:  return 'ثماني سنوات';
+    case 9:  return 'تسع سنوات';
+    case 10: return 'عشر سنوات';
     default:
-      if (num > 10) {
-        return `${num} سنة`;
-      }
-      return `${years} سنة`;
+      return num > 10 ? `${num} سنة` : `${years} سنة`;
   }
 }
+
 
 /**
  * توليد البند الأول ديناميكياً بناءً على سنوات رخصة الترميم ورخصة البناء

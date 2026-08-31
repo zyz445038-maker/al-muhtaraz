@@ -753,7 +753,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
-                    سنوات رخصة الترميم:
+                    مدة رخصة الترميم:
                   </label>
                   <select
                     className="form-select"
@@ -761,15 +761,20 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                     onChange={(e) => setRenovationLicenseYears(Number(e.target.value))}
                     style={{ height: '36px', fontSize: '0.82rem' }}
                   >
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(y => (
-                      <option key={y} value={y}>{y === 0 ? 'بدون رخصة ترميم' : `${y} (${y === 1 ? 'سنة' : y === 2 ? 'سنتان' : `${y} سنوات`})`}</option>
+                    <option value={0}>بدون رخصة ترميم</option>
+                    <option value={0.25}>3 أشهر</option>
+                    <option value={0.5}>6 أشهر</option>
+                    <option value={1}>سنة</option>
+                    <option value={2}>سنتان</option>
+                    {[3,4,5,6,7,8,9,10].map(y => (
+                      <option key={y} value={y}>{y} سنوات</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
-                    سنوات رخصة البناء:
+                    مدة رخصة البناء:
                   </label>
                   <select
                     className="form-select"
@@ -777,8 +782,13 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
                     onChange={(e) => setBuildingLicenseYears(Number(e.target.value))}
                     style={{ height: '36px', fontSize: '0.82rem' }}
                   >
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(y => (
-                      <option key={y} value={y}>{y === 0 ? 'بدون رخصة بناء' : `${y} (${y === 1 ? 'سنة' : y === 2 ? 'سنتان' : `${y} سنوات`})`}</option>
+                    <option value={0}>بدون رخصة بناء</option>
+                    <option value={0.25}>3 أشهر</option>
+                    <option value={0.5}>6 أشهر</option>
+                    <option value={1}>سنة</option>
+                    <option value={2}>سنتان</option>
+                    {[3,4,5,6,7,8,9,10].map(y => (
+                      <option key={y} value={y}>{y} سنوات</option>
                     ))}
                   </select>
                 </div>
