@@ -171,25 +171,7 @@ export function stopSpeaking(): void {
 }
 
 export async function speakSaudiFemaleVoice(rawText: string, voiceKey: string = 'zariyah'): Promise<void> {
-  if (typeof window === 'undefined' || !rawText.trim()) return;
-
-  const text = cleanSpeechText(rawText);
-  if (!text) return;
-
-  stopSpeaking();
-  unlockAudio();
-
-  try {
-    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=${voiceKey}&rate=0%&t=${Date.now()}`;
-    const audio = new Audio(streamUrl);
-    currentAudio = audio;
-    
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      await playPromise;
-    }
-  } catch (err) {
-    console.warn('Voice playback skipped:', err);
-  }
+  // Voice playback is intentionally disabled per user request
+  return;
 }
 
