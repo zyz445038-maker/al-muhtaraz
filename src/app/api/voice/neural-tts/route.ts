@@ -7,7 +7,10 @@ export const runtime = 'nodejs';
 
 // Exclusively Zariyah (Saudi Female Neural Voice)
 export const ZARIYAH_VOICE_ID = 'ar-SA-ZariyahNeural';
-const RENDER_CLOUD_URL = 'https://al-muhtaraz-whatsapp.onrender.com';
+
+// In-Memory Audio Cache to return frequent phrases (like greetings) in 0ms
+const ttsAudioCache = new Map<string, Buffer>();
+const MAX_CACHE_ENTRIES = 150;
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,34 +25,23 @@ export async function GET(req: NextRequest) {
     // Clean all markdown, asterisks, emojis, and symbols so TTS never reads out punctuation
     const text = cleanSpeechText(rawText);
     const voiceId = ZARIYAH_VOICE_ID;
+    const cacheKey = `${voiceId}_${rate}_${text}`;
 
-    // 1. First attempt: Query our persistent Render Cloud Voice Server (No serverless timeout!)
-    try {
-      const renderVoiceUrl = `${RENDER_CLOUD_URL}/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=zariyah&rate=${encodeURIComponent(rate)}`;
-      const renderRes = await fetch(renderVoiceUrl, {
-        headers: { 'User-Agent': 'AlMuhtaraz-App' },
-        next: { revalidate: 3600 }
-      });
-
-      if (renderRes.ok) {
-        const audioBlob = await renderRes.arrayBuffer();
-        if (audioBlob.byteLength > 1000) {
-          return new NextResponse(audioBlob, {
-            status: 200,
-            headers: {
-              'Content-Type': 'audio/mpeg',
-              'Content-Length': audioBlob.byteLength.toString(),
-              'Cache-Control': 'public, max-age=86400',
-              'Accept-Ranges': 'bytes'
-            }
-          });
+    // 1. Instant Cache Hit (0ms response time!)
+    if (ttsAudioCache.has(cacheKey)) {
+      const cachedBuffer = ttsAudioCache.get(cacheKey)!;
+      return new NextResponse(cachedBuffer as any, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': cachedBuffer.length.toString(),
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+          'Accept-Ranges': 'bytes'
         }
-      }
-    } catch (renderErr) {
-      console.warn('Render Cloud TTS pass-through fallback:', renderErr);
+      });
     }
 
-    // 2. Second attempt: Direct local synthesis via MsEdgeTTS (Zariyah Voice)
+    // 2. Direct High-Speed Local Neural Synthesis (Exclusively Zariyah Female Voice)
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     
@@ -67,21 +59,28 @@ export async function GET(req: NextRequest) {
       audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
       audioStream.on('end', () => resolve());
       audioStream.on('error', (err: any) => reject(err));
-      // Guard against infinite hang
+      // Guard against infinite hang (max 5 seconds)
       setTimeout(() => {
         if (chunks.length > 0) resolve();
         else reject(new Error('TTS timeout'));
-      }, 7000);
+      }, 5000);
     });
 
     const audioBuffer = Buffer.concat(chunks);
 
-    return new NextResponse(audioBuffer, {
+    // Save to cache for ultra-fast subsequent plays
+    if (ttsAudioCache.size >= MAX_CACHE_ENTRIES) {
+      const firstKey = ttsAudioCache.keys().next().value;
+      if (firstKey) ttsAudioCache.delete(firstKey);
+    }
+    ttsAudioCache.set(cacheKey, audioBuffer);
+
+    return new NextResponse(audioBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
         'Content-Length': audioBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
         'Accept-Ranges': 'bytes'
       }
     });
@@ -93,3 +92,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

@@ -179,49 +179,17 @@ export async function speakSaudiFemaleVoice(rawText: string, voiceKey: string = 
   stopSpeaking();
   unlockAudio();
 
-  // Try direct cloud stream with device speech fallback
   try {
-    const streamUrl = `https://al-muhtaraz-whatsapp.onrender.com/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=${voiceKey}&rate=0%&t=${Date.now()}`;
+    const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(text)}&voice=${voiceKey}&rate=0%&t=${Date.now()}`;
     const audio = new Audio(streamUrl);
     currentAudio = audio;
     
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       await playPromise;
-      return;
     }
   } catch (err) {
-    console.warn('Direct stream fallback to device speech synthesis:', err);
-  }
-
-  // Device Speech Fallback (Strictly Female Voice - No Male Fallback)
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ar-SA';
-    utterance.pitch = 1.25;
-    utterance.rate = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const isMaleVoice = (vName: string) => {
-      const n = vName.toLowerCase();
-      return n.includes('hamed') || n.includes('maged') || n.includes('naayf') || n.includes('tarik') || n.includes('male') || n.includes('shakir');
-    };
-
-    const arabicFemaleVoice = voices.find(v => 
-      (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE')) &&
-      !isMaleVoice(v.name) &&
-      (v.name.toLowerCase().includes('zariyah') || 
-       v.name.toLowerCase().includes('laila') || 
-       v.name.toLowerCase().includes('salma') || 
-       v.name.toLowerCase().includes('fatima') || 
-       v.name.toLowerCase().includes('zeina') || 
-       v.name.toLowerCase().includes('female'))
-    ) || voices.find(v => v.lang.startsWith('ar') && !isMaleVoice(v.name));
-
-    if (arabicFemaleVoice) {
-      utterance.voice = arabicFemaleVoice;
-    }
-
-    window.speechSynthesis.speak(utterance);
+    console.warn('Voice playback skipped:', err);
   }
 }
+

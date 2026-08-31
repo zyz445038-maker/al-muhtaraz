@@ -78,66 +78,13 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // 🔊 Native Device Speech Fallback (Strictly Female Saudi/Arabic Voice - Blacklists Hamed and all male voices)
-  const playNativeDeviceSpeech = (text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setIsPlayingAudio(false);
-      return;
-    }
-
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'ar-SA';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.25; // High feminine pitch for Zariyah tone
-
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Strictly female voices only - exclude any male voice like Hamed, Maged, Naayf, Tarik
-      const isMaleVoice = (vName: string) => {
-        const n = vName.toLowerCase();
-        return n.includes('hamed') || n.includes('maged') || n.includes('naayf') || n.includes('tarik') || n.includes('male') || n.includes('shakir') || n.includes('david');
-      };
-
-      const femaleArabicVoice = voices.find(v => 
-        (v.lang.startsWith('ar') || v.lang.includes('SA') || v.lang.includes('AE') || v.lang.includes('EG')) &&
-        !isMaleVoice(v.name) &&
-        (v.name.toLowerCase().includes('zariyah') || 
-         v.name.toLowerCase().includes('laila') || 
-         v.name.toLowerCase().includes('salma') || 
-         v.name.toLowerCase().includes('fatima') || 
-         v.name.toLowerCase().includes('female') || 
-         v.name.toLowerCase().includes('zeina') || 
-         v.name.toLowerCase().includes('hoda') || 
-         v.name.toLowerCase().includes('mona'))
-      ) || voices.find(v => (v.lang.startsWith('ar') || v.lang.includes('SA')) && !isMaleVoice(v.name));
-
-      if (femaleArabicVoice) {
-        utterance.voice = femaleArabicVoice;
-      }
-
-      utterance.onstart = () => setIsPlayingAudio(true);
-      utterance.onend = () => setIsPlayingAudio(false);
-      utterance.onerror = () => setIsPlayingAudio(false);
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn('Native speech error:', e);
-      setIsPlayingAudio(false);
-    }
-  };
-
-
-  // 🎙️ Main Neural Voice Player (Exclusively Zariyah)
+  // 🎙️ Main Neural Voice Player (Exclusively Zariyah - No Male Device Fallback)
   const handlePlayVoice = (textToPlay: string) => {
     const cleanedText = cleanSpeechText(textToPlay);
     if (!cleanedText || !cleanedText.trim()) return;
     
-    // Stop any ongoing native speech
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    // Stop any previous audio
+    handleStopAudio();
 
     const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=zariyah&rate=0%&t=${Date.now()}`;
 
@@ -151,17 +98,16 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     audio.onplay = () => setIsPlayingAudio(true);
     audio.onended = () => setIsPlayingAudio(false);
     audio.onerror = () => {
-      console.warn('Neural TTS stream fallback to native female speech synthesizer');
-      playNativeDeviceSpeech(cleanedText);
+      // Clean silent failure - never fall back to male robot speech
+      setIsPlayingAudio(false);
     };
 
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise
         .then(() => setIsPlayingAudio(true))
-        .catch((err) => {
-          console.warn('Audio auto-play restricted, falling back to native synthesizer:', err);
-          playNativeDeviceSpeech(cleanedText);
+        .catch(() => {
+          setIsPlayingAudio(false);
         });
     }
   };
