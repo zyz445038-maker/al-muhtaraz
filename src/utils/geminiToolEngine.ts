@@ -61,8 +61,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
 
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
-    console.warn('⚠️ GITHUB_TOKEN is not set. Falling back to local routing.');
-    return null;
+    throw new Error('[Server Env] GITHUB_TOKEN is not set on the server.');
   }
 
   // Lazy init — client created only when called server-side
@@ -107,9 +106,10 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       };
     }
 
-    return null;
+    throw new Error('[Server -> LLM] No tool call or content returned from LLM');
   } catch (error: any) {
-    console.error('❌ GitHub Models API Error:', error?.message || error);
-    return null;
+    const errMsg = error?.message || String(error);
+    console.error('❌ GitHub Models API Error:', errMsg);
+    throw new Error(`[Server -> LLM Error] ${errMsg}`);
   }
 }

@@ -1,4 +1,3 @@
-require('dotenv').config({ path: '.env.local' });
 const OpenAI = require('openai');
 const client = new OpenAI({
   baseURL: 'https://models.inference.ai.azure.com',

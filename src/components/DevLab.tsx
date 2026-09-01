@@ -339,16 +339,39 @@ export const DevLab: React.FC<DevLabProps> = ({
         return;
       }
 
-      // 2. ⚡ Autonomous AI Executive Agent (Live Tool Execution from Database)
-      const agent = new AlMuhtarazExecutiveAgent({
-        contracts,
-        containers,
-        customers,
-        staffList,
-        receipts,
-        currentUserName: 'أبو ماجد'
-      });
-      const agentResult = await agent.executeUserCommand(userMsg);
+      // 2. ⚡ Autonomous AI Executive Agent (Live Tool Execution from Database via Server Route)
+      let agentResult: any;
+      try {
+        const response = await fetch('/api/ai/executive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: userMsg,
+            context: {
+              contracts,
+              containers,
+              customers,
+              staffList,
+              receipts,
+              currentUserName: 'أبو ماجد'
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        agentResult = data.result;
+      } catch (err: any) {
+        console.error('Failed to contact Executive Agent API', err);
+        agentResult = {
+          toolExecuted: 'error',
+          speechResponse: 'عذراً، حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي.',
+          displayMarkdown: `❌ **فشل الاتصال بالمحرك الذكي:**\n\n\`${err.message || String(err)}\`\n\n*(يرجى التأكد من إعدادات الشبكة ومفتاح API)*`
+        };
+      }
 
       if (agentResult.toolExecuted) {
         const replyMsg: ChatMessage = {

@@ -257,25 +257,19 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         return;
       }
 
-      // Fallback
-      const { displayText, speechText } = processDeepAssistantQuery(cleanQuery, {
-        contracts,
-        containers,
-        customers,
-        staffList,
-        receipts
-      });
+      // If not successful, display explicit error
+      const errorMsg = data.error || 'استجابة غير متوقعة من الخادم.';
+      throw new Error(errorMsg);
 
-      const speechFallbackClean = cleanSpeechText(speechText || displayText);
-      setLastSpeechText(speechFallbackClean);
-      setLastResponse(displayText);
-      if (autoSpeak && speechFallbackClean) {
-        handlePlayVoice(speechFallbackClean);
-      }
-    } catch (err) {
-      console.error('Voice processing error:', err);
+    } catch (err: any) {
+      const actualError = err.message || String(err);
+      console.error('Voice processing error:', actualError);
       setIsThinking(false);
-      setLastResponse('لا توجد بيانات مطابقة لهذا السؤال.');
+      setLastResponse(`❌ **فشل الاتصال بالمحرك الذكي:**\n\n\`${actualError}\`\n\n*(يرجى التأكد من إعدادات الشبكة ومفتاح API)*`);
+      setLastSpeechText('عذراً، فشل الاتصال بمحرك الذكاء الاصطناعي.');
+      if (autoSpeak) {
+        handlePlayVoice('عذراً، فشل الاتصال بمحرك الذكاء الاصطناعي.');
+      }
     }
 
   };
