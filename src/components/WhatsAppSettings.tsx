@@ -1245,8 +1245,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     justifyContent: 'space-between'
                   }}>
                     <div>
-                      <strong style={{ color: '#ffffff' }}>{n.recipient_role === 'driver' ? '🚚 سائق' : '👤 عميل'}:</strong> {n.recipient_phone}
-                      <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{n.message_preview?.slice(0, 45)}...</div>
+                      <strong style={{ color: '#ffffff' }}>{(n.recipient_role as string) === 'driver' ? '🚚 سائق' : '👤 عميل'}:</strong> {n.recipient_phone}
+                      <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{(n as any).message_preview?.slice(0, 45)}...</div>
                     </div>
                     <span style={{ color: '#34d399', fontWeight: 800 }}>✓ أُرسلت</span>
                   </div>

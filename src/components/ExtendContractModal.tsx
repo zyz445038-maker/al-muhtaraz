@@ -70,7 +70,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
     const baseEnd = new Date(contract.expected_pickup_time || contract.end_date || new Date());
 
     if (extendMode === 'days') {
-      const dailyRate = contract.container?.daily_rate > 0 ? contract.container.daily_rate : 150;
+      const dailyRate = (contract.container?.daily_rate ?? 0) > 0 ? (contract.container?.daily_rate ?? 150) : 150;
       const cost = dailyRate * additionalDays;
       setBaseExtensionCost(cost);
 
@@ -79,7 +79,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
     } else {
       let monthlyRate = contract.container?.monthly_rate || 0;
       if (monthlyRate <= 0) {
-        monthlyRate = contract.container?.daily_rate > 0 ? contract.container.daily_rate * 25 : 2000;
+        monthlyRate = (contract.container?.daily_rate ?? 0) > 0 ? (contract.container?.daily_rate ?? 0) * 25 : 2000;
       }
       const cost = monthlyRate * additionalMonths;
       setBaseExtensionCost(cost);

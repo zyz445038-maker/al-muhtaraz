@@ -376,7 +376,7 @@ export class AlMuhtarazExecutiveAgent {
       }
 
       if (query.includes('كم سداد') || query.includes('كم الكتروني') || query.includes('كم شبكه') || query.includes('كم تحويل') || query.includes('شبكة')) {
-        const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer' || c.payment_method === 'apple_pay' || c.payment_method === 'mada' || c.payment_method === 'credit_card');
+        const electronicContracts = contracts.filter(c => ['online', 'bank_transfer', 'apple_pay', 'mada', 'credit_card'].includes(c.payment_method as string));
         const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
         const speech = cleanSpeechText(`إجمالي السداد الإلكتروني والتحويل البنكي ${electronicCollected} ريال.`);
         return {
@@ -529,7 +529,7 @@ export class AlMuhtarazExecutiveAgent {
     const cashContracts = contracts.filter(c => c.payment_method === 'cash');
     const cashCollected = cashContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
 
-    const electronicContracts = contracts.filter(c => c.payment_method === 'online' || c.payment_method === 'bank_transfer' || c.payment_method === 'apple_pay' || c.payment_method === 'mada' || c.payment_method === 'credit_card');
+    const electronicContracts = contracts.filter(c => ['online', 'bank_transfer', 'apple_pay', 'mada', 'credit_card'].includes(c.payment_method as string));
     const electronicCollected = electronicContracts.reduce((sum, c) => sum + (Number(c.paid_amount) || 0), 0);
 
     const speech = cleanSpeechText(

@@ -77,7 +77,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   const [activeLabTab, setActiveLabTab] = useState<'social_ai' | 'chat' | 'education' | 'voice_studio' | 'discord'>('social_ai');
 
   // ─── Voice Studio States ─────────────────────────
-  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima'>('zariyah');
+  const [selectedVoice, setSelectedVoice] = useState<'zariyah' | 'hamed' | 'fatima' | 'salma'>('zariyah');
   const [inputText, setInputText] = useState('هلا أبو ماجد أنا تحت أمرك');
   const [speechRate, setSpeechRate] = useState<string>('0%');
   const [voiceMood, setVoiceMood] = useState<'cheerful' | 'formal' | 'friendly'>('cheerful');
@@ -146,7 +146,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   };
 
   // 🔊 Native Device Speech Fallback (Strictly Female Voice)
-  const playNativeDeviceSpeech = (text: string, voiceKey: 'zariyah' | 'fatima' | 'salma' = selectedVoice) => {
+  const playNativeDeviceSpeech = (text: string, voiceKey: 'zariyah' | 'hamed' | 'fatima' | 'salma' = selectedVoice) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setErrorMessage('متصفحك لا يدعم مشغل الصوت المدمج');
       return;
@@ -200,7 +200,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   };
 
   // Generate & Play Voice with active rate & mood
-  const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'fatima' | 'salma') => {
+  const handlePlayVoice = (textToPlay: string = inputText, voiceOverride?: 'zariyah' | 'hamed' | 'fatima' | 'salma') => {
     const cleanedText = cleanSpeechText(textToPlay);
     if (!cleanedText || !cleanedText.trim()) return;
     const voiceToUse = voiceOverride || selectedVoice;

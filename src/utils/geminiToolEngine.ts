@@ -83,16 +83,15 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       ],
       tools,
       tool_choice: 'auto',
-      temperature: 0.1,
     });
 
-    const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+    const toolCall = response.choices[0]?.message?.tool_calls?.[0] as any;
 
     if (toolCall) {
       let args = {};
-      try { args = JSON.parse(toolCall.function.arguments || '{}'); } catch { args = {}; }
+      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
       return {
-        toolName: toolCall.function.name,
+        toolName: toolCall.function?.name as string,
         args
       };
     }
