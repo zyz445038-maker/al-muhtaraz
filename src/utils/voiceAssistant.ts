@@ -152,6 +152,13 @@ export function unlockAudio(): void {
         unlockedAudioContext.resume();
       }
     }
+    // Unlock HTML5 Audio Elements by playing a short silent sound synchronously on user interaction
+    const silentAudio = new Audio('data:audio/mp3;base64,//OkwAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAQAACcQgAHCwwPEhQZHB8iJSgqLS8xNTc5PEBDRUpOUFNaXF5iZWdoaWttb3F1eHl7fH6Ag4WHiYuOkZOWmZudoaOlpqutrrG0tri7vsHDxMnMztDT1tfa3N/h5OXo6+3v8vT3+fv9/v8AAADwTEFNRTMuMTAwA8EAAAAAQQAAACAYAAAAAAJwIgAAADqcxM0AAAAAAAAAAAAAAAAAAAAAAAAAAA==');
+    silentAudio.volume = 0.01;
+    const playPromise = silentAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => { /* Ignore blocked silent plays */ });
+    }
   } catch (e) {
     console.warn('AudioContext init notice:', e);
   }

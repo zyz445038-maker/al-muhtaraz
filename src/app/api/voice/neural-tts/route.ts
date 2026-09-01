@@ -56,34 +56,32 @@ export async function GET(req: NextRequest) {
     }
     const { audioStream } = tts.toStream(text, { rate: rateFactor });
 
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      audioStream.on('end', () => resolve());
-      audioStream.on('error', (err: any) => reject(err));
-      // Guard against infinite hang (max 5 seconds)
-      setTimeout(() => {
-        if (chunks.length > 0) resolve();
-        else reject(new Error('TTS timeout'));
-      }, 5000);
+    const chunksForCache: Buffer[] = [];
+    
+    const stream = new ReadableStream({
+      start(controller) {
+        audioStream.on('data', chunk => {
+          chunksForCache.push(chunk);
+          controller.enqueue(new Uint8Array(chunk));
+        });
+        audioStream.on('end', () => {
+          const finalBuffer = Buffer.concat(chunksForCache);
+          ttsAudioCache.set(cacheKey, finalBuffer);
+          if (ttsAudioCache.size > MAX_CACHE_ENTRIES) {
+            const firstKey = ttsAudioCache.keys().next().value;
+            if (firstKey) ttsAudioCache.delete(firstKey);
+          }
+          controller.close();
+        });
+        audioStream.on('error', err => controller.error(err));
+      }
     });
 
-    const audioBuffer = Buffer.concat(chunks);
-
-    // Save to cache for ultra-fast subsequent plays
-    if (ttsAudioCache.size >= MAX_CACHE_ENTRIES) {
-      const firstKey = ttsAudioCache.keys().next().value;
-      if (firstKey) ttsAudioCache.delete(firstKey);
-    }
-    ttsAudioCache.set(cacheKey, audioBuffer);
-
-    return new NextResponse(audioBuffer as any, {
+    return new NextResponse(stream, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
-        'Content-Length': audioBuffer.length.toString(),
-        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
-        'Accept-Ranges': 'bytes'
+        'Transfer-Encoding': 'chunked'
       }
     });
   } catch (error: any) {

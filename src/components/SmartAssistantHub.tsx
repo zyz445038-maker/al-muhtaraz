@@ -240,6 +240,8 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
   const handleAskCopilot = async (query: string) => {
     if (!query.trim()) return;
 
+    unlockAudio(); // Unlock audio synchronously on user interaction
+
     const userTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
     const newMessages = [...chatMessages, { role: 'user' as const, text: query, time: userTime }];
     setChatMessages(newMessages);
