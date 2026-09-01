@@ -73,7 +73,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
 
   try {
     const response = await client.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
@@ -88,7 +88,8 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       tool_choice: 'auto',
     });
 
-    const toolCall = response.choices[0]?.message?.tool_calls?.[0] as any;
+    const message = response.choices[0]?.message;
+    const toolCall = message?.tool_calls?.[0] as any;
 
     if (toolCall) {
       let args = {};
@@ -96,6 +97,13 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       return {
         toolName: toolCall.function?.name as string,
         args
+      };
+    }
+
+    if (message?.content) {
+      return {
+        toolName: 'generalConversation',
+        args: { reply: message.content }
       };
     }
 
