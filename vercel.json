@@ -1,0 +1,17 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "functions": {
+    "src/app/api/voice/neural-tts/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "src/app/api/ai/executive/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
