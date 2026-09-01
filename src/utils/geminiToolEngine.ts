@@ -1,12 +1,5 @@
 import OpenAI from 'openai';
 
-// GitHub Models – free, fast, supports Function Calling
-// Endpoint: https://models.inference.ai.azure.com
-const client = new OpenAI({
-  baseURL: 'https://models.inference.ai.azure.com',
-  apiKey: process.env.GITHUB_TOKEN || '',
-});
-
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   { type: 'function', function: { name: 'fetchLatestContract', description: 'يجلب أحدث عقد تم تسجيله في النظام.' } },
   { type: 'function', function: { name: 'fetchPreviousContract', description: 'يجلب العقد الذي يسبق العقد الأخير.' } },
@@ -63,10 +56,20 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 ];
 
 export async function determineIntentWithGemini(userQuery: string): Promise<{ toolName: string; args: any } | null> {
-  if (!process.env.GITHUB_TOKEN) {
+  // Guard: only run on server — prevents client-side OpenAI crash
+  if (typeof window !== 'undefined') return null;
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
     console.warn('⚠️ GITHUB_TOKEN is not set. Falling back to local routing.');
     return null;
   }
+
+  // Lazy init — client created only when called server-side
+  const client = new OpenAI({
+    baseURL: 'https://models.inference.ai.azure.com',
+    apiKey: token,
+  });
 
   try {
     const response = await client.chat.completions.create({
