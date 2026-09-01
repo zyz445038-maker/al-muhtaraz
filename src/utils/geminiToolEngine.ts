@@ -99,7 +99,7 @@ export async function determineIntentWithGemini(userQuery: string) {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       contents: `المستخدم يسأل: "${userQuery}"\nاختر الأداة المناسبة لتنفيذ طلب المستخدم بأكبر دقة ممكنة.`,
       config: {
         tools: toolsDeclarations,
