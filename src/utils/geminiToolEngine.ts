@@ -59,20 +59,20 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
   // Guard: only run on server — prevents client-side OpenAI crash
   if (typeof window !== 'undefined') return null;
 
-  const token = process.env.GITHUB_TOKEN;
+  const token = process.env.GROQ_API_KEY;
   if (!token) {
-    throw new Error('[Server Env] GITHUB_TOKEN is not set on the server.');
+    throw new Error('[Server Env] GROQ_API_KEY is not set on the server.');
   }
 
   // Lazy init — client created only when called server-side
   const client = new OpenAI({
-    baseURL: 'https://models.inference.ai.azure.com',
+    baseURL: 'https://api.groq.com/openai/v1',
     apiKey: token,
   });
 
   try {
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'openai/gpt-oss-120b',
       messages: [
         {
           role: 'system',
@@ -109,7 +109,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
     throw new Error('[Server -> LLM] No tool call or content returned from LLM');
   } catch (error: any) {
     const errMsg = error?.message || String(error);
-    console.error('❌ GitHub Models API Error:', errMsg);
+    console.error('❌ Groq API Error:', errMsg);
     throw new Error(`[Server -> LLM Error] ${errMsg}`);
   }
 }

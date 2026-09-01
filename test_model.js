@@ -1,17 +1,18 @@
 const OpenAI = require('openai');
 const client = new OpenAI({
-  baseURL: 'https://models.inference.ai.azure.com',
-  apiKey: process.env.GITHUB_TOKEN || '',
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY
 });
-async function run() {
+
+async function main() {
   try {
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: 'hello' }]
+      model: 'openai/gpt-oss-120b',
+      messages: [{ role: 'user', content: 'مرحبا' }],
     });
-    console.log("Success with gpt-4o-mini:", response.choices[0].message.content);
+    console.log(response.choices[0].message);
   } catch(e) {
-    console.error("Error:", e.message);
+    console.log(e.message || String(e));
   }
 }
-run();
+main();
