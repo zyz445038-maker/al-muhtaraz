@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AlMuhtarazExecutiveAgent, AgentContext } from '@/utils/aiExecutiveAgent';
+import { HumanoidAgent } from '@/services/ai/humanoidAgent';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,20 +18,23 @@ export async function POST(req: NextRequest) {
       receipts: []
     };
 
-    // Initialize Autonomous Executive Agent
-    const agent = new AlMuhtarazExecutiveAgent(safeContext);
-
-    // Execute User Intent via Agentic Function Calling.
-    // If AI keys are missing or remote service fails, the agent must still
-    // fall back to local reasoning instead of crashing the backend.
-    const result = await agent.executeUserCommand(prompt);
+    const agent = new HumanoidAgent();
+    const response = await agent.handle({
+      query: prompt,
+      context: safeContext,
+      userId: body.userId,
+      sessionId: body.sessionId,
+      correlationId: body.correlationId
+    });
 
     return NextResponse.json({
       success: true,
-      result
+      result: response.result,
+      correlationId: response.correlationId,
+      fallback: response.fallback
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ AI Executive Agent execution error:', error);
 
     // Graceful degradation: do not fail the whole backend when AI is unavailable.
