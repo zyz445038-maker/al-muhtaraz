@@ -4,6 +4,8 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { sendWhatsAppMessage } from '@/lib/whatsappEngine';
+import { insertNotificationLog, runDbQuery } from '@/lib/db';
+import { logError, logEvent } from '@/lib/eventLogger';
 
 export async function POST(request: Request) {
   try {
@@ -33,18 +35,19 @@ export async function POST(request: Request) {
     let dbApiKey = '';
 
     try {
-      const { data: settings } = await supabase
+      const settingsResult = await runDbQuery<{ evolution_server_url?: string; evolution_api_key?: string }>('whatsapp.settings.read', () => supabase
         .from('whatsapp_settings')
         .select('*')
         .limit(1)
-        .maybeSingle();
+        .maybeSingle());
 
-      if (settings) {
+      if (settingsResult.ok && settingsResult.data) {
+        const settings = settingsResult.data;
         dbServerUrl = settings.evolution_server_url || '';
         dbApiKey = settings.evolution_api_key || '';
       }
-    } catch (err) {
-      console.warn('Using default settings due to db fetch failure:', err);
+    } catch (error) {
+      logError('whatsapp.settings.read', error);
     }
 
     // Format and normalize phone number
@@ -137,19 +140,22 @@ export async function POST(request: Request) {
 
     // 3. Log notification to Supabase
     try {
-      await supabase.from('notification_logs').insert([{
+      const logResult = await insertNotificationLog('whatsapp.message.log', {
         contract_id: contract_id || null,
         customer_id: customer_id || null,
         recipient_phone: cleanPhone,
-        phone: cleanPhone,
-        message_body: message,
         recipient_name: body.recipient_name || 'مستلم',
         recipient_role: recipient_role || 'customer',
-        notification_type: notification_type || 'manual_notice',
+        notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
+        message_body: message || caption || '[media]',
         status: sendSuccess ? 'sent' : 'failed'
-      }]);
-    } catch (logErr) {
-      console.error('Failed to write log to supabase:', logErr);
+      });
+      if (!logResult.ok) {
+        logError('whatsapp.message.log', logResult.error);
+      }
+      logEvent('whatsapp.message.completed', { phone: cleanPhone, success: sendSuccess });
+    } catch (error) {
+      logError('whatsapp.message.log', error);
     }
 
     return NextResponse.json({

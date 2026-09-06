@@ -3,6 +3,8 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { runDbQuery } from '@/lib/db';
+import { apiErrorResponse } from '@/lib/apiSafety';
 
 export async function POST(request: Request) {
   try {
@@ -14,22 +16,30 @@ export async function POST(request: Request) {
     }
 
     // 1. Fetch Moyasar Payment Settings
-    let secretKey = 'sk_test_muhtaraz_secret_key';
+    let secretKey = '';
     let isEnabled = true;
 
     try {
-      const { data: settings } = await supabase
+      const settingsResult = await runDbQuery<any>('payment.settings.read', () => supabase
         .from('payment_settings')
         .select('*')
         .limit(1)
-        .single();
+        .single());
 
-      if (settings) {
+      if (settingsResult.ok && settingsResult.data) {
+        const settings = settingsResult.data;
         isEnabled = settings.is_enabled;
-        secretKey = settings.secret_key || secretKey;
+        secretKey = settings.secret_key || '';
       }
-    } catch (err) {
-      console.warn('Using default payment settings for invoice:', err);
+    } catch (error) {
+      return apiErrorResponse('payment.settings.read', error, 'Payment settings could not be loaded', 503);
+    }
+
+    if (!secretKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'Payment provider is not configured'
+      }, { status: 503 });
     }
 
     if (!isEnabled) {
@@ -49,8 +59,7 @@ export async function POST(request: Request) {
       contract_number,
       message: 'Payment link generated successfully'
     });
-  } catch (error: any) {
-    console.error('Error creating invoice link:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    return apiErrorResponse('payment.create-invoice', error, 'Internal Server Error');
   }
 }

@@ -44,7 +44,7 @@ async function checkSupabase(): Promise<ServiceStatus> {
     const latency = Date.now() - start;
 
     // حتى لو لم يوجد الجدول، مجرد استجابة السيرفر تعني أن الرابط سليم
-    if (error && error.code !== 'PGRST116' && !error.message.includes('relation') && !error.message.includes('does not exist')) {
+    if (error && error.code !== 'PGRST116' && !error.message.includes('relation') && !error.message.includes('does not exist') && !error.message.includes('schema cache')) {
       return {
         name: 'Supabase Database',
         status: 'DEGRADED',
@@ -74,7 +74,20 @@ async function checkSupabase(): Promise<ServiceStatus> {
 // فحص خادم الواتساب المحتوي على server.ts
 async function checkWhatsAppServer(): Promise<ServiceStatus> {
   const start = Date.now();
-  const waUrl = process.env.WHATSAPP_SERVER_URL || 'http://localhost:3001/health';
+  const configuredUrl = process.env.WHATSAPP_ADDON_URL || process.env.WHATSAPP_SERVER_URL;
+
+  if (!configuredUrl) {
+    return {
+      name: 'WhatsApp Server',
+      status: 'DEGRADED',
+      details: 'WhatsApp add-on is not configured. Embedded/fallback mode remains available.',
+      isRequired: false,
+    };
+  }
+
+  const waUrl = configuredUrl.endsWith('/health')
+    ? configuredUrl
+    : `${configuredUrl.replace(/\/+$/, '')}/health`;
 
   try {
     const controller = new AbortController();
@@ -112,24 +125,47 @@ async function checkWhatsAppServer(): Promise<ServiceStatus> {
   }
 }
 
-// فحص مفاتيح محرك الذكاء الاصطناعي (Gemini / GitHub Models)
+// فحص مفاتيح محركات الذكاء الاصطناعي
 async function checkAIEngine(): Promise<ServiceStatus> {
+  const hasGroqKey = !!process.env.GROQ_API_KEY;
   const hasGithubToken = !!process.env.GITHUB_TOKEN;
   const hasGeminiKey = !!process.env.GEMINI_API_KEY;
 
-  if (hasGithubToken || hasGeminiKey) {
+  if (hasGroqKey || hasGithubToken || hasGeminiKey) {
     return {
-      name: 'AI Engine (Gemini / GitHub)',
+      name: 'AI Engine',
       status: 'HEALTHY',
-      details: `API Keys configured (${hasGithubToken ? 'GitHub Models' : 'Gemini Key'}).`,
+      details: `API key configured (${hasGroqKey ? 'Groq' : hasGithubToken ? 'GitHub Models' : 'Gemini'}).`,
       isRequired: false,
     };
   }
 
   return {
-    name: 'AI Engine (Gemini / GitHub)',
+    name: 'AI Engine',
     status: 'FAILED',
     details: 'No API Keys found for AI processing. AI features will be disabled.',
+    isRequired: false,
+  };
+}
+
+// فحص إعدادات الدفع الأساسية دون طباعة أي قيمة سرية
+function checkPaymentConfiguration(): ServiceStatus {
+  const hasWebhookSecret = !!process.env.MOYASAR_WEBHOOK_SECRET;
+  const hasPaymentSecret = !!process.env.MOYASAR_SECRET_KEY;
+
+  if (hasWebhookSecret && hasPaymentSecret) {
+    return {
+      name: 'Payment Configuration',
+      status: 'HEALTHY',
+      details: 'Webhook and provider secrets are configured.',
+      isRequired: false,
+    };
+  }
+
+  return {
+    name: 'Payment Configuration',
+    status: 'DEGRADED',
+    details: 'Payment webhook or provider secret is not configured.',
     isRequired: false,
   };
 }
@@ -139,7 +175,7 @@ function checkProjectFiles(): ServiceStatus {
   const criticalFiles = [
     'src/app/page.tsx',
     'package.json',
-    '.env.local',
+    '.env.example',
   ];
 
   const missingFiles = criticalFiles.filter(file => !fs.existsSync(path.join(process.cwd(), file)));
@@ -172,6 +208,7 @@ async function runHealthCheck() {
     await checkSupabase(),
     await checkWhatsAppServer(),
     await checkAIEngine(),
+    checkPaymentConfiguration(),
   ];
 
   const hasCriticalFailure = services.some(s => s.isRequired && s.status === 'FAILED');

@@ -4,6 +4,9 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getWhatsAppStatus, initWhatsAppEngine, logoutWhatsApp } from '@/lib/whatsappEngine';
+import { runDbQuery } from '@/lib/db';
+import { apiErrorResponse } from '@/lib/apiSafety';
+import { logError } from '@/lib/eventLogger';
 
 export async function GET(request: Request) {
   try {
@@ -25,13 +28,14 @@ export async function GET(request: Request) {
     let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || '';
 
     try {
-      const { data: settings } = await supabase
+      const settingsResult = await runDbQuery<any>('whatsapp.settings.read', () => supabase
         .from('whatsapp_settings')
         .select('*')
         .limit(1)
-        .maybeSingle();
+        .maybeSingle());
 
-      if (settings) {
+      if (settingsResult.ok && settingsResult.data) {
+        const settings = settingsResult.data;
         if (settings.evolution_server_url && !settings.evolution_server_url.includes('localhost') && !settings.evolution_server_url.includes('8080')) {
           addonServerUrl = settings.evolution_server_url;
         }
@@ -39,8 +43,8 @@ export async function GET(request: Request) {
           addonApiKey = settings.evolution_api_key;
         }
       }
-    } catch (err) {
-      console.warn('Could not read settings from db, using environment values only:', err);
+    } catch (error) {
+      logError('whatsapp.settings.read', error, { fallback: 'environment' });
     }
 
     if (!addonServerUrl || !addonApiKey) {
@@ -154,12 +158,12 @@ export async function GET(request: Request) {
       message: 'جارِ تهيئة المحرك...'
     });
 
-  } catch (error: any) {
+  } catch (error) {
+    const response = apiErrorResponse('whatsapp.status', error);
     return NextResponse.json({
-      success: false,
-      status: 'error',
-      error: error.message
-    }, { status: 500 });
+      ...(await response.json()),
+      status: 'error'
+    }, { status: response.status });
   }
 }
 

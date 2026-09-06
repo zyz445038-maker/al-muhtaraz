@@ -26,8 +26,8 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({
   onSaveSettings
 }) => {
   const [isEnabled, setIsEnabled] = useState(settings.is_enabled ?? true);
-  const [publishableKey, setPublishableKey] = useState(settings.publishable_key || 'pk_test_muhtaraz_demo_key');
-  const [secretKey, setSecretKey] = useState(settings.secret_key || 'sk_test_muhtaraz_secret_key');
+  const [publishableKey, setPublishableKey] = useState(settings.publishable_key || '');
+  const [secretKey, setSecretKey] = useState(settings.secret_key || '');
   const [applePayEnabled, setApplePayEnabled] = useState(settings.apple_pay_enabled ?? true);
   const [madaEnabled, setMadaEnabled] = useState(settings.mada_enabled ?? true);
   const [creditCardEnabled, setCreditCardEnabled] = useState(settings.credit_card_enabled ?? true);

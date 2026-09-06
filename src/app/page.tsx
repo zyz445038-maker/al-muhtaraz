@@ -260,9 +260,9 @@ const initialInAppNotifications: InAppNotification[] = [
 
 const initialGatewaySettings: IWhatsAppSettings = {
   mode: 'evolution',
-  evolution_server_url: 'http://localhost:8080',
+  evolution_server_url: '',
   evolution_instance_name: 'muhtaraz-instance',
-  evolution_api_key: '123456',
+  evolution_api_key: '',
   sender_phone: '+966920001234',
   admin_phone: '+966500000001',
   is_connected: true,
@@ -271,8 +271,8 @@ const initialGatewaySettings: IWhatsAppSettings = {
 
 const initialPaymentSettings: IPaymentSettings = {
   is_enabled: true,
-  publishable_key: 'pk_test_muhtaraz_demo_key',
-  secret_key: 'sk_test_muhtaraz_secret_key',
+  publishable_key: '',
+  secret_key: '',
   apple_pay_enabled: true,
   mada_enabled: true,
   credit_card_enabled: true,

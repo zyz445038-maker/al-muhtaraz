@@ -412,8 +412,8 @@ CREATE TRIGGER tr_inapp_notif_contract
 CREATE TABLE IF NOT EXISTS public.payment_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     is_enabled BOOLEAN NOT NULL DEFAULT true,                    -- تفعيل أو تعطيل بوابة الدفع الإلكتروني
-    publishable_key TEXT DEFAULT 'pk_test_muhtaraz_demo_key',    -- المفتاح العام
-    secret_key TEXT DEFAULT 'sk_test_muhtaraz_secret_key',       -- المفتاح السري
+    publishable_key TEXT DEFAULT '',                             -- المفتاح العام من إعدادات البيئة/لوحة الإدارة
+    secret_key TEXT DEFAULT '',                                  -- المفتاح السري من إعدادات البيئة/لوحة الإدارة
     apple_pay_enabled BOOLEAN NOT NULL DEFAULT true,             -- تفعيل خيار Apple Pay
     mada_enabled BOOLEAN NOT NULL DEFAULT true,                  -- تفعيل خيار مدى
     credit_card_enabled BOOLEAN NOT NULL DEFAULT true,           -- تفعيل البطاقات الائتمانية
@@ -710,13 +710,13 @@ ON CONFLICT (container_number) DO NOTHING;
 -- إعدادات بوابة الواتساب الافتراضية
 INSERT INTO public.whatsapp_settings (provider, instance_id, api_token, sender_phone, admin_phone, is_connected, auto_send_enabled)
 VALUES 
-    ('ultramsg', 'instance_muhtaraz_01', 'tok_muhtaraz_sec_9988', '+966920001234', '+966500000001', true, true)
+    ('ultramsg', 'instance_muhtaraz_01', '', '+966920001234', '+966500000001', false, true)
 ON CONFLICT DO NOTHING;
 
 -- إعدادات بوابة الدفع Moyasar الافتراضية
 INSERT INTO public.payment_settings (is_enabled, publishable_key, secret_key, apple_pay_enabled, mada_enabled, credit_card_enabled)
 VALUES 
-    (true, 'pk_test_muhtaraz_demo_key', 'sk_test_muhtaraz_secret_key', true, true, true)
+    (false, '', '', true, true, true)
 ON CONFLICT DO NOTHING;
 
 -- إضافة إشعارات داخلية أولية تجريبية

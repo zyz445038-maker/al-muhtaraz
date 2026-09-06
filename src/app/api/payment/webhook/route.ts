@@ -5,6 +5,8 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { normalizeErrorMessage, validateRequiredFields, withDbSafety } from '@/lib/apiSafety';
+import { runDbQuery } from '@/lib/db';
+import { logEvent } from '@/lib/eventLogger';
 
 export async function POST(request: Request) {
   try {
@@ -101,13 +103,22 @@ export async function POST(request: Request) {
         query = query.eq('contract_number', contractNumber);
       }
 
-      const { data: updatedContract } = await query.select('*, customer:customers(*), container:containers(*)').single();
+      const contractResult = await runDbQuery<any>(
+        'payment.webhook.contract.update',
+        () => query.select('*, customer:customers(*), container:containers(*)').single()
+      );
+
+      if (!contractResult.ok) {
+        throw new Error(contractResult.error);
+      }
+
+      const updatedContract = contractResult.data;
 
       if (!updatedContract) {
         return { updatedContract: null };
       }
 
-      await supabase.from('receipts').insert([{
+      const receiptResult = await runDbQuery('payment.webhook.receipt.insert', () => supabase.from('receipts').insert([{
         receipt_number: receiptNumber,
         contract_id: updatedContract.id,
         customer_id: updatedContract.customer_id,
@@ -119,14 +130,28 @@ export async function POST(request: Request) {
         container_number: updatedContract.container?.container_number,
         container_type: updatedContract.contract_type,
         notes: 'تم التحصيل إلكترونياً بنجاح عبر سداد / مدى / Apple Pay'
-      }]);
+      }]));
 
-      await supabase.from('notifications').insert([{
+      if (!receiptResult.ok) {
+        throw new Error(receiptResult.error);
+      }
+
+      const notificationResult = await runDbQuery('payment.webhook.notification.insert', () => supabase.from('notifications').insert([{
         contract_id: updatedContract.id,
         title: `💳 سداد إلكتروني ناجح (${updatedContract.contract_number})`,
         message: `قام العميل ${updatedContract.customer?.name} بسداد ${amount} ر.س إلكترونياً بنجاح.`,
         type: 'payment_received'
-      }]);
+      }]));
+
+      if (!notificationResult.ok) {
+        throw new Error(notificationResult.error);
+      }
+
+      logEvent('payment.webhook.processed', {
+        contractId: updatedContract.id,
+        transactionReference: transactionRef,
+        amount
+      });
 
       return { updatedContract };
     });

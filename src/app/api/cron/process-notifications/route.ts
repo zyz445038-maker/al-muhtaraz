@@ -3,6 +3,8 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { insertNotificationLog, runDbQuery } from '@/lib/db';
+import { logError, logEvent } from '@/lib/eventLogger';
 
 export async function GET() {
   return handleProcess();
@@ -19,13 +21,14 @@ async function handleProcess() {
     let autoSendEnabled = true;
 
     try {
-      const { data: settings } = await supabase
+      const settingsResult = await runDbQuery<any>('cron.whatsapp-settings.read', () => supabase
         .from('whatsapp_settings')
         .select('*')
         .limit(1)
-        .single();
+        .single());
 
-      if (settings) {
+      if (settingsResult.ok && settingsResult.data) {
+        const settings = settingsResult.data;
         adminPhone = settings.admin_phone || adminPhone;
         autoSendEnabled = settings.auto_send_enabled ?? true;
       }
@@ -37,18 +40,19 @@ async function handleProcess() {
     const now = new Date();
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const { data: contracts, error } = await supabase
+    const contractsResult = await runDbQuery<any[]>('cron.expiring-contracts.read', () => supabase
       .from('contracts')
       .select('*, customer:customers(*), container:containers(*)')
       .eq('status', 'active')
       .lte('end_date', tomorrow.toISOString())
-      .gte('end_date', now.toISOString());
+      .gte('end_date', now.toISOString()));
 
-    if (error) {
-      throw error;
+    if (!contractsResult.ok) {
+      throw new Error(contractsResult.error);
     }
 
     const processed = [];
+    const contracts = contractsResult.data;
 
     if (contracts && contracts.length > 0) {
       for (const contract of contracts) {
@@ -60,18 +64,21 @@ async function handleProcess() {
 
         // Send via internal WhatsApp route or log
         try {
-          await supabase.from('notification_logs').insert([{
+          const logResult = await insertNotificationLog('cron.expiry-notification.queue', {
             contract_id: contract.id,
             customer_id: customer?.id,
-            phone: customer?.phone || '',
-            message: customerMsg,
+            recipient_phone: customer?.phone || '',
+            message_body: customerMsg,
             recipient_role: 'customer',
-            notification_type: 'cron_expiry_notice',
+            notification_type: 'custom_alert',
             status: 'pending'
-          }]);
-          processed.push(contract.contract_number);
-        } catch (e) {
-          console.error('Error queueing notification:', e);
+          });
+          if (logResult.ok) {
+            processed.push(contract.contract_number);
+            logEvent('cron.expiry-notification.queued', { contractNumber: contract.contract_number });
+          }
+        } catch (error) {
+          logError('cron.expiry-notification.queue', error, { contractNumber: contract.contract_number });
         }
       }
     }
@@ -82,8 +89,8 @@ async function handleProcess() {
       contracts: processed,
       timestamp: new Date().toISOString()
     });
-  } catch (error: any) {
-    console.error('Cron job error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    logError('cron.process-notifications', error);
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Cron job failed' }, { status: 500 });
   }
 }
