@@ -42,6 +42,7 @@ export class HumanoidAgent {
 
     try {
       const result = await agent.executeUserCommand(query);
+      const usedLocalFallback = result.toolExecuted === 'deepReasoningQuery';
 
       try {
         await this.memoryProvider.save({
@@ -58,10 +59,10 @@ export class HumanoidAgent {
       logEvent('ai.agent.request.completed', {
         correlationId,
         toolExecuted: result.toolExecuted,
-        fallback: false
+        fallback: usedLocalFallback
       });
 
-      return { correlationId, result, fallback: false };
+      return { correlationId, result, fallback: usedLocalFallback };
     } catch (error) {
       logError('ai.agent.execution', error, { correlationId, classification: 'provider_failure' });
       logEvent('ai.agent.request.fallback', {
