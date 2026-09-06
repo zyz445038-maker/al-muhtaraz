@@ -21,8 +21,8 @@ export async function GET(request: Request) {
     }
 
     // 1. Fetch saved WhatsApp Settings
-    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || 'https://al-muhtaraz-whatsapp.onrender.com';
-    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
+    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || '';
+    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || '';
 
     try {
       const { data: settings } = await supabase
@@ -40,12 +40,19 @@ export async function GET(request: Request) {
         }
       }
     } catch (err) {
-      console.warn('Could not read settings from db, using defaults:', err);
+      console.warn('Could not read settings from db, using environment values only:', err);
     }
 
-    if (addonServerUrl.includes('localhost') || addonServerUrl.includes('8080')) {
-      addonServerUrl = 'https://al-muhtaraz-whatsapp.onrender.com';
+    if (!addonServerUrl || !addonApiKey) {
+      return NextResponse.json({
+        success: true,
+        status: 'not_configured',
+        mode: 'unavailable',
+        state: 'disconnected',
+        message: 'خادم الواتساب غير مهيأ. أضف WHATSAPP_ADDON_URL و WHATSAPP_ADDON_API_KEY أولاً.'
+      });
     }
+
     const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
     // Handle logout action

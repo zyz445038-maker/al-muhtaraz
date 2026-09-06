@@ -16,33 +16,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Try Add-on Server
-    const addonServerUrl = process.env.WHATSAPP_ADDON_URL || 'http://localhost:5050';
-    const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || 'mhk_wa_live_7d9e4a8b1c2f3056e84920ab4c1f';
-    const cleanServer = addonServerUrl.replace(/\/+$/, '');
+    const addonServerUrl = process.env.WHATSAPP_ADDON_URL;
+    const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY;
 
-    try {
-      const addonRes = await fetch(`${cleanServer}/api/session/pair-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${addonApiKey}`
-        },
-        body: JSON.stringify({ phone })
-      });
+    // 1. Try Add-on Server only when configured explicitly
+    if (addonServerUrl && addonApiKey) {
+      const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
-      if (addonRes.ok) {
-        const addonData = await addonRes.json();
-        if (addonData.success && addonData.data?.code) {
-          return NextResponse.json({
-            success: true,
-            code: addonData.data.code,
-            message: 'تم توليد كود الاقتران بنجاح! أدخله في تطبيق الواتساب الآن.'
-          });
+      try {
+        const addonRes = await fetch(`${cleanServer}/api/session/pair-code`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${addonApiKey}`
+          },
+          body: JSON.stringify({ phone })
+        });
+
+        if (addonRes.ok) {
+          const addonData = await addonRes.json();
+          if (addonData.success && addonData.data?.code) {
+            return NextResponse.json({
+              success: true,
+              code: addonData.data.code,
+              message: 'تم توليد كود الاقتران بنجاح! أدخله في تطبيق الواتساب الآن.'
+            });
+          }
         }
+      } catch (addonErr) {
+        console.warn('Addon pair-code failed, trying embedded:', addonErr);
       }
-    } catch (addonErr) {
-      console.warn('Addon pair-code failed, trying embedded:', addonErr);
     }
 
     // 2. Fallback to embedded engine

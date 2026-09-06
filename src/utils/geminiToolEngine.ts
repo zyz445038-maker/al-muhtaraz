@@ -61,7 +61,8 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
 
   const token = process.env.GROQ_API_KEY;
   if (!token) {
-    throw new Error('[Server Env] GROQ_API_KEY is not set on the server.');
+    console.warn('[Server Env] GROQ_API_KEY is not set on the server. Falling back to local reasoning engine.');
+    return null;
   }
 
   // Lazy init — client created only when called server-side

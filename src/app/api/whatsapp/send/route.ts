@@ -63,58 +63,56 @@ export async function POST(request: Request) {
     let sendSuccess = false;
     let apiResponse: any = null;
 
-    // Resolve active cloud Add-on server URL & API Key
-    let addonServerUrl = process.env.WHATSAPP_ADDON_URL || dbServerUrl || 'https://al-muhtaraz-whatsapp.onrender.com';
-    if (addonServerUrl.includes('localhost') || addonServerUrl.includes('8080')) {
-      addonServerUrl = 'https://al-muhtaraz-whatsapp.onrender.com';
-    }
-    const cleanServer = addonServerUrl.replace(/\/+$/, '');
+    // Resolve active cloud Add-on server URL & API Key from environment only
+    const addonServerUrl = process.env.WHATSAPP_ADDON_URL || dbServerUrl;
+    const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || dbApiKey;
 
-    let addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || dbApiKey || 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
-    if (!addonApiKey || addonApiKey === '123456' || addonApiKey.includes('7d9e4a8b1c2f3056e84920ab4c1f')) {
-      addonApiKey = 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
-    }
+    // 2. Dispatch message through Cloud Add-on server only when configuration exists
+    if (addonServerUrl && addonApiKey) {
+      const cleanServer = addonServerUrl.replace(/\/+$/, '');
 
-    // 2. Dispatch message through Cloud Add-on server
-    try {
-      const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
-      const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
+      try {
+        const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
+        const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
 
-      const addonPayload = isMedia ? {
-        phone: cleanPhone,
-        message,
-        mediaUrl,
-        mediaBase64,
-        mediaType: mediaType || (location ? 'location' : 'document'),
-        fileName,
-        mimetype,
-        caption: caption || message,
-        location
-      } : {
-        phone: cleanPhone,
-        message
-      };
+        const addonPayload = isMedia ? {
+          phone: cleanPhone,
+          message,
+          mediaUrl,
+          mediaBase64,
+          mediaType: mediaType || (location ? 'location' : 'document'),
+          fileName,
+          mimetype,
+          caption: caption || message,
+          location
+        } : {
+          phone: cleanPhone,
+          message
+        };
 
-      const addonRes = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${addonApiKey}`
-        },
-        body: JSON.stringify(addonPayload)
-      });
+        const addonRes = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${addonApiKey}`
+          },
+          body: JSON.stringify(addonPayload)
+        });
 
-      if (addonRes.ok) {
-        apiResponse = await addonRes.json();
-        if (apiResponse.success) {
-          sendSuccess = true;
+        if (addonRes.ok) {
+          apiResponse = await addonRes.json();
+          if (apiResponse.success) {
+            sendSuccess = true;
+          }
+        } else {
+          const errorText = await addonRes.text();
+          console.error('Addon server response error:', addonRes.status, errorText);
         }
-      } else {
-        const errorText = await addonRes.text();
-        console.error('Addon server response error:', addonRes.status, errorText);
+      } catch (addonErr) {
+        console.warn('Failed sending via Addon server, attempting local fallback:', addonErr);
       }
-    } catch (addonErr) {
-      console.warn('Failed sending via Addon server, attempting local fallback:', addonErr);
+    } else {
+      console.warn('WhatsApp add-on is not configured. Skipping external send route.');
     }
 
     // If cloud microservice was unreachable, try embedded fallback

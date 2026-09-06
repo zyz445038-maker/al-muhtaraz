@@ -66,13 +66,13 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Server & Gateway Config (Render Cloud Microservice)
   const [serverUrl, setServerUrl] = useState(
     settings.evolution_server_url && !settings.evolution_server_url.includes('8080')
-      ? settings.evolution_server_url 
-      : 'https://al-muhtaraz-whatsapp.onrender.com'
+      ? settings.evolution_server_url
+      : ''
   );
   const [apiKey, setApiKey] = useState(
     settings.evolution_api_key && settings.evolution_api_key.startsWith('mhk_live')
       ? settings.evolution_api_key
-      : 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0'
+      : ''
   );
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
   const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
@@ -876,7 +876,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   type="text"
                   value={serverUrl}
                   onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="https://al-muhtaraz-whatsapp.onrender.com"
+                  placeholder="https://your-whatsapp-addon.example.com"
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -901,7 +901,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="mhk_live_xxxxxxxx"
+                    placeholder="your_api_key_here"
                     style={{
                       width: '100%',
                       padding: '10px 38px 10px 14px',
