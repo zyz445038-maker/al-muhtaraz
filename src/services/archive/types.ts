@@ -6,6 +6,19 @@ export type ExtractionStatus = 'pending' | 'completed' | 'failed';
 export type OcrStatus = 'not_required' | 'pending' | 'completed' | 'failed';
 export type ImportJobStatus = 'queued' | 'processing' | 'indexed' | 'failed' | 'needs_ocr' | 'cancelled';
 
+export const IMPORT_JOB_TRANSITIONS: Record<ImportJobStatus, readonly ImportJobStatus[]> = {
+  queued: ['queued', 'processing', 'cancelled'],
+  processing: ['processing', 'indexed', 'needs_ocr', 'queued', 'failed'],
+  indexed: ['indexed'],
+  needs_ocr: ['needs_ocr', 'queued', 'cancelled'],
+  failed: ['failed', 'queued', 'cancelled'],
+  cancelled: ['cancelled']
+};
+
+export function canTransitionImportJob(from: ImportJobStatus, to: ImportJobStatus): boolean {
+  return IMPORT_JOB_TRANSITIONS[from].includes(to);
+}
+
 export interface ArchiveDocument {
   id: string;
   document_type: ArchiveDocumentType;

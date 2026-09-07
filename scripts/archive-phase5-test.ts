@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { DocumentJobQueue } from '@/services/archive/queue/documentJobQueue';
 import { DocumentWorker } from '@/services/archive/queue/documentWorker';
 import { DocumentImportJob } from '@/services/archive/types';
+import { canTransitionImportJob } from '@/services/archive/types';
 
 function makeJob(id: string, status: DocumentImportJob['status'] = 'queued', attempts = 0, maxAttempts = 3): DocumentImportJob {
   const now = new Date().toISOString();
@@ -75,6 +76,13 @@ class FakeImporter {
 }
 
 async function main() {
+  assert.equal(canTransitionImportJob('queued', 'processing'), true);
+  assert.equal(canTransitionImportJob('processing', 'indexed'), true);
+  assert.equal(canTransitionImportJob('processing', 'queued'), true);
+  assert.equal(canTransitionImportJob('processing', 'failed'), true);
+  assert.equal(canTransitionImportJob('indexed', 'processing'), false);
+  assert.equal(canTransitionImportJob('failed', 'indexed'), false);
+
   const queuedJobs = [makeJob('one'), makeJob('two'), makeJob('three')];
   const repository = new FakeQueueRepository(queuedJobs);
   const queue = new DocumentJobQueue(repository as any, { workerId: 'test-worker', staleAfterMs: 15 * 60 * 1000 });

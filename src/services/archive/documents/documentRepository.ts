@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
-import { ArchiveDocument, CreateDocumentInput, CreateImportJobInput, DocumentImportJob } from '@/services/archive/types';
+import { ArchiveDocument, canTransitionImportJob, CreateDocumentInput, CreateImportJobInput, DocumentImportJob, ImportJobStatus } from '@/services/archive/types';
 
 export class DocumentRepository {
   constructor(private readonly client: any = supabase) {}
@@ -84,6 +84,18 @@ export class DocumentRepository {
   }
 
   async updateImportJob(id: string, updates: Partial<Pick<DocumentImportJob, 'status' | 'attempts' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at'>>) {
+    if (updates.status) {
+      const current = await this.getImportJob(id);
+      if (!current.ok || !current.data) return current;
+      if (!canTransitionImportJob(current.data.status, updates.status as ImportJobStatus)) {
+        return {
+          ok: false as const,
+          data: null,
+          error: `Invalid import job transition: ${current.data.status} -> ${updates.status}`
+        };
+      }
+    }
+
     return runDbQuery<DocumentImportJob>('archive.import-jobs.update', () => this.client
       .from('document_import_jobs')
       .update({ ...updates, updated_at: new Date().toISOString() })
