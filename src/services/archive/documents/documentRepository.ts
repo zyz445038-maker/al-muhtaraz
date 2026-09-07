@@ -92,6 +92,41 @@ export class DocumentRepository {
       .single());
   }
 
+  async findNextQueuedJob() {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.find-next', () => this.client
+      .from('document_import_jobs')
+      .select('*')
+      .eq('status', 'queued')
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle());
+  }
+
+  async claimImportJob(id: string, workerId: string) {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.claim', () => this.client
+      .from('document_import_jobs')
+      .update({
+        status: 'processing',
+        worker_id: workerId,
+        locked_at: new Date().toISOString(),
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('status', 'queued')
+      .select()
+      .maybeSingle());
+  }
+
+  async listStaleProcessingJobs(staleBefore: string) {
+    return runDbQuery<DocumentImportJob[]>('archive.import-jobs.list-stale', () => this.client
+      .from('document_import_jobs')
+      .select('*')
+      .eq('status', 'processing')
+      .lt('locked_at', staleBefore));
+  }
+
   async findVersionBySha256(sha256: string) {
     return runDbQuery<{ id: string; document_id: string }>('archive.document-versions.find-sha256', () => this.client
       .from('document_versions')
