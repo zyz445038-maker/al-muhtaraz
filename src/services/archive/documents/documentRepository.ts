@@ -46,6 +46,15 @@ export class DocumentRepository {
       .single());
   }
 
+  async setCurrentVersion(id: string, currentVersionId: string) {
+    return runDbQuery<ArchiveDocument>('archive.documents.set-current-version', () => this.client
+      .from('documents')
+      .update({ current_version_id: currentVersionId, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single());
+  }
+
   async softDelete(id: string) {
     return this.updateStatus(id, 'archived');
   }
@@ -57,11 +66,38 @@ export class DocumentRepository {
         document_id: input.document_id,
         source_type: input.source_type,
         source_path: input.source_path,
+        metadata: input.metadata || {},
         priority: input.priority || 0,
         max_attempts: input.max_attempts || 3,
         status: 'queued'
       }])
       .select()
       .single());
+  }
+
+  async getImportJob(id: string) {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.get', () => this.client
+      .from('document_import_jobs')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle());
+  }
+
+  async updateImportJob(id: string, updates: Partial<Pick<DocumentImportJob, 'status' | 'attempts' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at'>>) {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.update', () => this.client
+      .from('document_import_jobs')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single());
+  }
+
+  async findVersionBySha256(sha256: string) {
+    return runDbQuery<{ id: string; document_id: string }>('archive.document-versions.find-sha256', () => this.client
+      .from('document_versions')
+      .select('id, document_id')
+      .eq('sha256', sha256)
+      .limit(1)
+      .maybeSingle());
   }
 }

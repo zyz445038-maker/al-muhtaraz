@@ -55,6 +55,7 @@ export interface DocumentImportJob {
   document_id: string;
   source_type: ArchiveSourceType;
   source_path: string;
+  metadata: Record<string, unknown>;
   status: ImportJobStatus;
   priority: number;
   attempts: number;
@@ -99,4 +100,37 @@ export interface CreateImportJobInput {
   source_path: string;
   priority?: number;
   max_attempts?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ExtractedPdfText {
+  text: string;
+  content_type: 'pdf_text' | 'pdf_scan';
+  extraction_status: ExtractionStatus;
+  ocr_status: OcrStatus;
+  error?: string;
+}
+
+export interface ArchiveIndexData {
+  document_id: string;
+  document_number: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  contract_number: string | null;
+  container_number: string | null;
+  extracted_text: string;
+  metadata: Record<string, unknown>;
+  indexed_at: string;
+}
+
+export interface ImportDocumentInput extends CreateDocumentInput {
+  file: Uint8Array;
+  mime_type?: string;
+  source_filename: string;
+  document_number?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  contract_number?: string | null;
+  container_number?: string | null;
+  metadata?: Record<string, unknown>;
 }

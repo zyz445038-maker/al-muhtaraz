@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS public.document_import_jobs (
     document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE RESTRICT,
     source_type TEXT NOT NULL CHECK (source_type IN ('upload', 'zip_import', 'legacy_import', 'generated')),
     source_path TEXT NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'processing', 'indexed', 'failed', 'needs_ocr', 'cancelled')),
     priority INTEGER NOT NULL DEFAULT 0 CHECK (priority >= 0),
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),

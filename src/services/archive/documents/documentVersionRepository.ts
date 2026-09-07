@@ -50,4 +50,14 @@ export class DocumentVersionRepository {
       .select()
       .single());
   }
+
+  async getLatestByDocument(documentId: string) {
+    return runDbQuery<ArchiveDocumentVersion>('archive.document-versions.latest', () => this.client
+      .from('document_versions')
+      .select('*')
+      .eq('document_id', documentId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle());
+  }
 }
