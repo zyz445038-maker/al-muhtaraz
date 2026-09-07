@@ -21,6 +21,18 @@ export function logError(
   error: unknown,
   metadata: Record<string, unknown> = {}
 ) {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = error instanceof Error ? error.message : String(error);
+  if (error && typeof error === 'object' && !(error instanceof Error)) {
+    const structuredMessage = (error as { message?: unknown }).message;
+    if (typeof structuredMessage === 'string' && structuredMessage) {
+      message = structuredMessage;
+    } else {
+      try {
+        message = JSON.stringify(error);
+      } catch {
+        message = 'Unknown structured error';
+      }
+    }
+  }
   return logEvent('error', { context, message, ...metadata }, 'error');
 }
