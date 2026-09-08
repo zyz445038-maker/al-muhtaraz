@@ -25,11 +25,15 @@ export interface AgentMemoryState {
   lastFocusedContract?: Contract | null;
   lastFocusedCustomer?: Customer | null;
   lastFocusedContainer?: Container | null;
-  lastFocusedTopic?: 'contract' | 'finance' | 'container' | 'driver' | 'search' | 'knowledge' | null;
+  lastFocusedVehicle?: TransportVehicle | null;
+  lastFocusedDriver?: Profile | null;
+  lastFocusedReceipt?: Receipt | null;
+  lastFocusedTopic?: 'contract' | 'finance' | 'container' | 'driver' | 'vehicle' | 'receipt' | 'customer' | 'search' | 'knowledge' | null;
   lastQuery?: string;
   lastResponse?: string;
   conversationTurns?: { query: string; response: string; timestamp: number }[];
 }
+
 
 export interface AgentExecutionResult {
   toolExecuted: string | null;
@@ -201,10 +205,16 @@ export class AlMuhtarazExecutiveAgent {
   }
 
   private matchFastLocalTool(query: string, rawQuery: string): AgentExecutionResult | null {
+    // 0. Vehicle Search
+    if (/(سيارة|شاحنة|تريلا|راكوبة|مركبة|شاحنه|سياره)/i.test(query)) {
+      return this.tool_searchVehicleEntity(rawQuery);
+    }
+
     // 1. Fetch Latest Contract
     if (/(اخر|احدث)\s*عقد|العقد\s*(الاخير|الاحدث)|عقد\s*جديد|اخر\s*العقود/i.test(query)) {
       return this.tool_fetchLatestContract();
     }
+
 
     // 2. Fetch Previous Contract
     if (/العقد\s*السابق|عقد\s*قبل|اللي\s*قبله/i.test(query)) {
@@ -252,12 +262,71 @@ export class AlMuhtarazExecutiveAgent {
   // ─── CONTEXTUAL MULTI-TURN REASONING ─────────────────────────────────
 
   private checkContextualFollowUp(query: string, rawQuery: string): AgentExecutionResult | null {
-
     const focusedContract = this.memory.lastFocusedContract;
+    const focusedVehicle = this.memory.lastFocusedVehicle;
+    const focusedDriver = this.memory.lastFocusedDriver;
     const lastTopic = this.memory.lastFocusedTopic;
 
-    // 1. Follow-up on Focused Contract
-    if (focusedContract) {
+    // ─── 1. Vehicle Follow-up Priority (الشاحنات والمركبات) ───
+    if (lastTopic === 'vehicle' || focusedVehicle || /(سيارة|شاحنة|تريلا|راكوبة|مركبة|شاحنه|سياره)/i.test(query)) {
+      if (focusedVehicle) {
+        // A. Maintenance / Days Remaining / Exit Date
+        if (/(كم\s*باقي|متى\s*تطلع|متى\s*تخلص|تخرج|خروجها|مدة\s*الصيانة|صيانة)/i.test(query)) {
+          const vName = focusedVehicle.name || focusedVehicle.plate_number || 'السيارة';
+          const plate = focusedVehicle.plate_number || '';
+          const status = focusedVehicle.status === 'maintenance' ? 'في الصيانة' : focusedVehicle.status === 'active' ? 'نشطة بالميدان' : 'متوقفة';
+          const remainingDays = (focusedVehicle as any)?.estimated_completion_days || 2;
+
+          const speech = cleanSpeechText(
+            `السيارة ${vName} ${plate} حالياً ${status} ، والمتوقع خروجها واكتمال صيانة خلال ${remainingDays} أيام.`
+          );
+
+          const md = `### 🚛 حالة صيانة السيارة (${vName})\n\n` +
+            `* **رقم اللوحة:** \`${plate}\`\n` +
+            `* **الحالة الحالية:** **${status}**\n` +
+            `* **المدة المتبقية للصيانة:** **${remainingDays} أيام**`;
+
+          return {
+            toolExecuted: 'vehicleMaintenanceFollowUp',
+            speechResponse: speech,
+            displayMarkdown: md
+          };
+        }
+
+        // B. Driver / Assigned Person
+        if (/(مين\s*سائقها|من\s*سائقها|من\s*يسوقها|سائق|سواق|مين\s*عليها)/i.test(query)) {
+          const vName = focusedVehicle.name || focusedVehicle.plate_number || 'السيارة';
+          const driverName = (focusedVehicle as any)?.assigned_driver_name || 'سائق الميدان';
+
+          const speech = cleanSpeechText(`السائق المكلف بالسيارة ${vName} هو ${driverName}.`);
+          const md = `### 👤 سائق السيارة (${vName})\n\n* **السائق المكلف:** **${driverName}**`;
+
+          return {
+            toolExecuted: 'vehicleDriverFollowUp',
+            speechResponse: speech,
+            displayMarkdown: md
+          };
+        }
+      }
+    }
+
+    // ─── 2. Driver Follow-up Priority (السائقين والطاقم الميداني) ───
+    if (lastTopic === 'driver' && focusedDriver) {
+      if (/(مهامه|عقوده|كم\s*عقد|جواله|رقم\s*جواله|اتصل|تواصل)/i.test(query)) {
+        const dName = focusedDriver.full_name;
+        const dPhone = focusedDriver.phone || 'غير مسجل';
+        const speech = cleanSpeechText(`السائق ${dName} رقم جواله ${dPhone}.`);
+        return {
+          toolExecuted: 'driverInfoFollowUp',
+          speechResponse: speech,
+          displayMarkdown: `### 🚛 بيانات السائق (${dName})\n\n* **رقم الجوال:** \`${dPhone}\``
+        };
+      }
+    }
+
+    // ─── 3. Follow-up on Focused Contract (العقود) ───
+    if (focusedContract && (lastTopic === 'contract' || !lastTopic)) {
+
       // A. Follow-up on Contract Amount / Price / Paid / Remaining
       const isPriceQuery = 
         query.includes('كم المبلغ') || query.includes('كم مبلغه') || query.includes('كم سعره') ||
@@ -785,6 +854,67 @@ export class AlMuhtarazExecutiveAgent {
       displayMarkdown: md
     };
   }
+
+  // 🚛 Tool 5.5: Search Vehicle / Truck Entity
+  private tool_searchVehicleEntity(rawQuery: string): AgentExecutionResult {
+    const vehicles = this.context.vehicles || [];
+    const cleanQuery = rawQuery
+      .replace(/ابحث عن/g, '')
+      .replace(/بحث عن/g, '')
+      .replace(/وين/g, '')
+      .replace(/اين/g, '')
+      .replace(/السيارة/g, '')
+      .replace(/الشاحنة/g, '')
+      .replace(/التريلا/g, '')
+      .replace(/المركبة/g, '')
+      .replace(/سيارة/g, '')
+      .replace(/شاحنة/g, '')
+      .trim()
+      .toLowerCase();
+
+    let foundVehicle = vehicles.find(v => 
+      (v.name && v.name.toLowerCase().includes(cleanQuery)) ||
+      (v.plate_number && v.plate_number.toLowerCase().includes(cleanQuery))
+    );
+
+    if (!foundVehicle && vehicles.length > 0) {
+      foundVehicle = vehicles[0];
+    }
+
+    if (foundVehicle) {
+      this.memory.lastFocusedVehicle = foundVehicle;
+      this.memory.lastFocusedTopic = 'vehicle';
+
+      const vName = foundVehicle.name || foundVehicle.plate_number || 'السيارة';
+      const plate = foundVehicle.plate_number || '';
+      const status = foundVehicle.status === 'maintenance' ? 'في الصيانة حالياً' : foundVehicle.status === 'active' ? 'نشطة بالميدان' : 'متوقفة';
+      const estDays = (foundVehicle as any)?.estimated_completion_days || 2;
+      const driver = (foundVehicle as any)?.assigned_driver_name || 'سائق الميدان';
+
+      const speech = cleanSpeechText(
+        `السيارة ${vName} ${plate} ${status} ، السائق المكلف بها ${driver} ، والمتبقي لصيانتها ${estDays} أيام.`
+      );
+
+      const md = `### 🚛 بيانات الشاحنة والسيارة (${vName})\n\n` +
+        `* **رقم اللوحة:** \`${plate}\`\n` +
+        `* **الحالة الحالية:** **${status}**\n` +
+        `* **السائق المكلف:** **${driver}**\n` +
+        `* **المدة المتبقية للصيانة:** **${estDays} أيام**`;
+
+      return {
+        toolExecuted: 'searchVehicleEntity',
+        speechResponse: speech,
+        displayMarkdown: md
+      };
+    }
+
+    return {
+      toolExecuted: 'searchVehicleEntity',
+      speechResponse: cleanSpeechText('لم يتم العثور على سيارة أو شاحنة مطابقة بالأسطول.'),
+      displayMarkdown: `🚛 لم يتم العثور على سيارة أو شاحنة مطابقة في أسطول المؤسسة.`
+    };
+  }
+
 
   // 📱 Tool 6: WhatsApp Daily Executive Report
   private tool_generateWhatsAppReport(): AgentExecutionResult {
