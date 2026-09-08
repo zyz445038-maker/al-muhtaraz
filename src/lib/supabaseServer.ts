@@ -7,8 +7,8 @@ import { cookies } from 'next/headers';
  * This client can be used in Next.js route handlers (App Router) to safely call
  * `auth.getUser()` and perform RBAC checks.
  */
-export function getSupabaseServerClient() {
-  const cookieStore = cookies();
+export async function getSupabaseServerClient() {
+  const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

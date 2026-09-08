@@ -218,6 +218,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              id="nav-vehicles-tab"
+              onClick={() => setCurrentTab('vehicles')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                background: currentTab === 'vehicles' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
+                color: currentTab === 'vehicles' ? '#38bdf8' : '#94a3b8',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Truck size={17} />
+              <span>سيارات النقل</span>
+            </button>
+
+            <button
               id="nav-whatsapp-tab"
               onClick={() => setCurrentTab('whatsapp')}
               style={{
@@ -842,6 +865,35 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span style={{ fontSize: '0.68rem', fontWeight: currentTab === 'contracts' ? 800 : 600 }}>العقود</span>
         </button>
 
+        <button
+          onClick={() => handleTabSelect('vehicles')}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'transparent',
+            border: 'none',
+            color: currentTab === 'vehicles' ? '#38bdf8' : '#64748b',
+            cursor: 'pointer',
+            padding: '4px',
+            transition: 'all 0.2s'
+          }}
+        >
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '10px',
+            background: currentTab === 'vehicles' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Truck size={19} />
+          </div>
+          <span style={{ fontSize: '0.68rem', fontWeight: currentTab === 'vehicles' ? 800 : 600 }}>السيارات</span>
+        </button>
+
         {/* Tab 4: AI Copilot (if admin) */}
         {currentRole === 'admin' && (
           <button
@@ -1222,6 +1274,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <FileText size={18} color="#34d399" />
                   <span>سجل العقود والتحصيل المالي</span>
+                </div>
+                <ChevronLeft size={16} color="#64748b" />
+              </button>
+
+              <button
+                onClick={() => handleTabSelect('vehicles')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: currentTab === 'vehicles' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
+                  border: 'none',
+                  color: currentTab === 'vehicles' ? '#38bdf8' : '#e2e8f0',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'right'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Truck size={18} color="#38bdf8" />
+                  <span>إدارة سيارات النقل 🚛</span>
                 </div>
                 <ChevronLeft size={16} color="#64748b" />
               </button>

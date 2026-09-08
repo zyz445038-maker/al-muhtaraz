@@ -2,7 +2,7 @@
 // Features: Full Multi-Turn Conversational Memory + Deep-Reasoning Knowledge Engine + Dynamic Context
 // Direct, factual, clean speech without repetitive generic greetings, emojis, or punctuation artifacts
 
-import { Contract, Container, Customer, Profile, Receipt, RecipientRole } from '@/types/database';
+import { Contract, Container, Customer, Profile, Receipt, RecipientRole, TransportVehicle } from '@/types/database';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { querySystemKnowledge } from '@/utils/aiCopilotKnowledge';
@@ -16,6 +16,7 @@ export interface AgentContext {
   customers: Customer[];
   staffList: Profile[];
   receipts: Receipt[];
+  vehicles: TransportVehicle[];
   currentUserName?: string;
   memory?: AgentMemoryState;
 }
@@ -168,7 +169,8 @@ export class AlMuhtarazExecutiveAgent {
         containers: this.context.containers || [],
         customers: this.context.customers || [],
         staffList: this.context.staffList || [],
-        receipts: this.context.receipts || []
+        receipts: this.context.receipts || [],
+        vehicles: this.context.vehicles || []
       });
 
       if (deepResult && deepResult.displayText) {

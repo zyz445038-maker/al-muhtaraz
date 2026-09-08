@@ -12,14 +12,16 @@ export const runtime = 'nodejs';
  * Returns document metadata and its version list.
  * Includes preview URLs for versions when the file is publicly accessible.
  */
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const docRepo = new DocumentRepository();
     const versionRepo = new DocumentVersionRepository();
+    
+    const { id } = await params;
 
     const [docResult, versionsResult] = await Promise.all([
-      docRepo.getById(params.id),
-      versionRepo.listByDocument(params.id),
+      docRepo.getById(id),
+      versionRepo.listByDocument(id),
     ]);
 
     if (!docResult.ok || !docResult.data) {

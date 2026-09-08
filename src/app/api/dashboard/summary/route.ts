@@ -30,7 +30,7 @@ async function getCount(supabase: any, table: string): Promise<number> {
  */
 export async function GET() {
   try {
-    const supabase = getSupabaseServerClient();
+    const supabase = await getSupabaseServerClient();
     // Authenticate user and enforce RBAC
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {

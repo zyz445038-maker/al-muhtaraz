@@ -40,7 +40,8 @@ import {
   Profile, 
   Receipt, 
   SmartAssistantSettings, 
-  WhatsAppSettings 
+  WhatsAppSettings,
+  TransportVehicle
 } from '@/types/database';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking, unlockAudio } from '@/utils/voiceAssistant';
@@ -53,6 +54,7 @@ interface SmartAssistantHubProps {
   customers: Customer[];
   staffList: Profile[];
   receipts: Receipt[];
+  vehicles: TransportVehicle[];
   assistantSettings: SmartAssistantSettings;
   onSaveAssistantSettings: (settings: SmartAssistantSettings) => Promise<boolean>;
   gatewaySettings: WhatsAppSettings;
@@ -66,6 +68,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
   customers,
   staffList,
   receipts,
+  vehicles,
   assistantSettings,
   onSaveAssistantSettings,
   gatewaySettings,
@@ -269,7 +272,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         displayText = data.result.displayMarkdown;
         speechText = data.result.speechResponse;
       } else {
-        const fallback = processDeepAssistantQuery(query, { contracts, containers, customers, staffList, receipts });
+        const fallback = processDeepAssistantQuery(query, { contracts, containers, customers, staffList, receipts, vehicles });
         displayText = fallback.displayText;
         speechText = fallback.speechText || fallback.displayText;
       }

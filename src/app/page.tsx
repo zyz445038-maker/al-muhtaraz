@@ -49,6 +49,8 @@ import { OfficialContractRecord, OfficialContractData, ContractSealSettings } fr
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
+import { VehiclesManagement } from '@/components/VehiclesManagement';
+import { TransportVehicle } from '@/types/database';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -318,6 +320,7 @@ function MainDashboard() {
   const [paymentSettings, setPaymentSettings] = useState<IPaymentSettings>(initialPaymentSettings);
   const [assistantSettings, setAssistantSettings] = useState<SmartAssistantSettings>(initialAssistantSettings);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [vehicles, setVehicles] = useState<TransportVehicle[]>([]);
 
   // WhatsApp Alert System – persistent failure notifications
   interface WhatsAppAlert {
@@ -2177,6 +2180,7 @@ function MainDashboard() {
                 customers={customers}
                 staffList={staffList}
                 receipts={receipts}
+                vehicles={vehicles}
                 assistantSettings={assistantSettings}
                 onSaveAssistantSettings={handleSaveAssistantSettings}
                 gatewaySettings={gatewaySettings}
@@ -2240,6 +2244,30 @@ function MainDashboard() {
                 onDeleteContractRecord={handleDeleteOfficialContractRecord}
                 sealSettings={contractSealSettings}
                 onSaveSealSettings={handleSaveSealSettings}
+              />
+            )}
+
+            {/* TRANSPORT VEHICLES TAB */}
+            {currentTab === 'vehicles' && (
+              <VehiclesManagement
+                vehicles={vehicles}
+                staffList={staffList}
+                onAddVehicle={(vehicle) => {
+                  const newVehicle = { ...vehicle, id: `v_${Date.now()}` } as TransportVehicle;
+                  setVehicles(prev => [...prev, newVehicle]);
+                  alert(`تمت إضافة سيارة النقل ${newVehicle.plate_number} بنجاح`);
+                }}
+                onEditVehicle={(vehicle) => {
+                  setVehicles(prev => prev.map(v => v.id === vehicle.id ? vehicle : v));
+                  alert(`تم تحديث بيانات السيارة ${vehicle.plate_number} بنجاح`);
+                }}
+                onDeleteVehicle={(id) => {
+                  if(confirm('هل أنت متأكد من حذف هذه السيارة؟')) {
+                    setVehicles(prev => prev.filter(v => v.id !== id));
+                    alert('تم حذف السيارة بنجاح');
+                  }
+                }}
+                onSendWhatsApp={(phone, message) => handleSendWhatsApp(phone, message)}
               />
             )}
 
@@ -2334,6 +2362,7 @@ function MainDashboard() {
         customers={customers}
         staffList={staffList}
         receipts={receipts}
+        vehicles={vehicles}
       />
 
 

@@ -17,7 +17,7 @@ import { getSupabaseServerClient } from '@/lib/supabaseServer';
  * this file.
  */
 export default async function DashboardPage() {
-  const supabase = getSupabaseServerClient();
+  const supabase = await getSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   let isAdmin = false;

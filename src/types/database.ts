@@ -55,6 +55,24 @@ export interface Customer {
   updated_at: string;
 }
 
+export type VehicleStatus = 'excellent' | 'needs_maintenance' | 'broken' | 'in_maintenance';
+
+export interface TransportVehicle {
+  id: string;
+  plate_number: string;
+  brand_model: string;
+  assigned_driver_id?: string;
+  last_oil_change_date: string;
+  next_oil_change_km: number;
+  current_km: number;
+  periodic_inspection_date: string;
+  insurance_expiry_date: string;
+  status: VehicleStatus;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ContractPeriodType = 'daily' | 'monthly' | 'semi_annual' | 'annual';
 export type ContractStatus = 'active' | 'completed' | 'cancelled' | 'extended';
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid';

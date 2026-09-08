@@ -19,7 +19,8 @@ import {
   Customer, 
   Profile, 
   Receipt, 
-  UserRole 
+  UserRole,
+  TransportVehicle
 } from '@/types/database';
 import { AlMuhtarazExecutiveAgent, AgentMemoryState } from '@/utils/aiExecutiveAgent';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
@@ -33,6 +34,7 @@ interface FloatingVoiceOrbProps {
   customers?: Customer[];
   staffList?: Profile[];
   receipts: Receipt[];
+  vehicles?: TransportVehicle[];
 }
 
 export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
@@ -41,7 +43,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   containers,
   customers = [],
   staffList = [],
-  receipts
+  receipts,
+  vehicles = []
 }) => {
   // STRICT ADMIN ONLY: If not admin, hide completely from UI
   if (userRole !== 'admin') {
@@ -222,6 +225,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           customers,
           staffList,
           receipts,
+          vehicles,
           currentUserName: 'أبو ماجد',
           memory: conversationalMemoryRef.current
         },
