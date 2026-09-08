@@ -25,6 +25,8 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   { type: 'function', function: { name: 'auditDebtsAndReceivables', description: 'يستعرض الديون والمستحقات التي لم يتم سدادها.' } },
   { type: 'function', function: { name: 'fetchTopCustomers', description: 'يجلب قائمة بأهم كبار العملاء والأكثر تعاملاً.' } },
   { type: 'function', function: { name: 'fetchTodayOperations', description: 'يستعرض عقود اليوم وعمليات التشغيل اللحظية.' } },
+  { type: 'function', function: { name: 'executiveReasoning', description: 'يحلل أسباب انخفاض العقود أو الإيرادات، وتقديم توصيات واستنتاجات إدارية وتخزينها في ذاكرة القرار.' } },
+  { type: 'function', function: { name: 'memoryRecall', description: 'يسترجع التوصيات والقرارات الإدارية السابقة المخزنة في النظام.' } },
   {
     type: 'function',
     function: {

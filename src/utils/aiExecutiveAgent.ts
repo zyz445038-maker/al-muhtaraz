@@ -9,6 +9,9 @@ import { querySystemKnowledge } from '@/utils/aiCopilotKnowledge';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatCleanArabicDate } from '@/utils/dateFormatter';
 import { determineIntentWithGemini } from '@/utils/geminiToolEngine';
+import { analyzeBusinessPerformance } from '@/utils/aiExecutiveAnalytics';
+import { saveAIDecisionMemory, queryAIDecisionMemory } from '@/utils/aiExecutiveMemory';
+
 
 export interface AgentContext {
   contracts: Contract[];
@@ -112,7 +115,7 @@ export class AlMuhtarazExecutiveAgent {
     }
 
     // ─── 1.5 Fast Local Tool Matching (مطابقة فورية سريعة لضمان حفظ الكيان في الذاكرة) ───
-    const localMatch = this.matchFastLocalTool(query, rawQuery);
+    const localMatch = await this.matchFastLocalTool(query, rawQuery);
     if (localMatch) {
       this.recordTurn(rawQuery, localMatch.speechResponse);
       localMatch.updatedMemory = this.memory;
@@ -164,6 +167,12 @@ export class AlMuhtarazExecutiveAgent {
         case 'fetchContractVoucherOrImage':
           res = this.tool_fetchContractVoucherOrImage((intent.args as any)?.searchQuery || rawQuery);
           break;
+        case 'executiveReasoning':
+          res = await this.tool_executiveReasoning(rawQuery);
+          break;
+        case 'memoryRecall':
+          res = await this.tool_memoryRecall(rawQuery);
+          break;
         case 'generalConversation':
           res = {
             toolExecuted: 'generalConversation',
@@ -204,8 +213,18 @@ export class AlMuhtarazExecutiveAgent {
     return res;
   }
 
-  private matchFastLocalTool(query: string, rawQuery: string): AgentExecutionResult | null {
-    // 0. Vehicle Search
+  private async matchFastLocalTool(query: string, rawQuery: string): Promise<AgentExecutionResult | null> {
+    // 0. Memory Recall (استرجاع التوصيات والقرارات الإدارية السابقة)
+    if (/(ماذا|وش)\s*(اوصيتني|اقترحت|قلتلي|نصحتني)\s*(الاسبوع|الشهر|سابقا|قبل)/i.test(query) || /(القرارات\s*السابقة|توصياتك\s*السابقة|ماذا\s*قلت\s*لي)/i.test(query)) {
+      return await this.tool_memoryRecall(rawQuery);
+    }
+
+    // 0.5 Executive Dynamic Reasoning (تحليل الإيرادات والإلغاءات واستنتاج الأسباب)
+    if (/(لماذا|سبب)\s*(انخفض|انخفضت|قلت|نزلت|تراجعت)/i.test(query) || /(التوصيات|نصيحتك|ماذا\s*تنصحني|تحليل\s*تنفيذي|تحليل\s*اداري)/i.test(query)) {
+      return await this.tool_executiveReasoning(rawQuery);
+    }
+
+    // 1. Vehicle Search
     if (/(سيارة|شاحنة|تريلا|راكوبة|مركبة|شاحنه|سياره)/i.test(query)) {
       return this.tool_searchVehicleEntity(rawQuery);
     }
@@ -214,7 +233,6 @@ export class AlMuhtarazExecutiveAgent {
     if (/(اخر|احدث)\s*عقد|العقد\s*(الاخير|الاحدث)|عقد\s*جديد|اخر\s*العقود/i.test(query)) {
       return this.tool_fetchLatestContract();
     }
-
 
     // 2. Fetch Previous Contract
     if (/العقد\s*السابق|عقد\s*قبل|اللي\s*قبله/i.test(query)) {
@@ -1165,6 +1183,84 @@ export class AlMuhtarazExecutiveAgent {
         title: `سند العقد ${targetContract.contract_number}`,
         data: targetContract
       }
+    };
+  }
+
+  // 🧠 Tool 11: Dynamic Executive Reasoning & Decision Persistence (AI Decision Memory)
+  private async tool_executiveReasoning(rawQuery: string): Promise<AgentExecutionResult> {
+    const analysis = analyzeBusinessPerformance(rawQuery, this.context);
+
+    // Save decision to ai_memory table in Supabase
+    await saveAIDecisionMemory({
+      user_query: rawQuery,
+      intent_type: 'executive_analysis',
+      analysis_summary: analysis.analysisText,
+      findings_json: {
+        currentMonthCount: analysis.currentMonthCount,
+        prevMonthCount: analysis.prevMonthCount,
+        changePercent: analysis.changePercent,
+        cancellationsCount: analysis.cancellationsCount,
+        topReason: analysis.topReason
+      },
+      recommendations: analysis.recommendationList
+    });
+
+    const speech = cleanSpeechText(analysis.speechSummary);
+    const recsFormatted = analysis.recommendationList.map((r, i) => `${i + 1}. ${r}`).join('\n');
+
+    const md = `### 🧠 التحليل التنفيذي والاستنتاج الإداري 📊\n\n` +
+      `**الاستنتاج الرئيسي:** ${analysis.analysisText}\n\n` +
+      `💡 **التوصيات الإدارية المقترحة:**\n${recsFormatted}\n\n` +
+      `💾 *تم حفظ هذا التحليل والتوصيات تلقائياً في ذاكرة القرارات الإدارية (\`ai_memory\`) للرجوع إليها لاحقاً.*`;
+
+    return {
+      toolExecuted: 'executiveReasoning',
+      speechResponse: speech,
+      displayMarkdown: md,
+      actionCard: {
+        type: 'alert',
+        title: 'تحليل القرار الإداري',
+        data: analysis
+      }
+    };
+  }
+
+  // 💾 Tool 12: Memory Recall (استرجاع قرارات وتوصيات المستشار الإداري السابقة)
+  private async tool_memoryRecall(rawQuery: string): Promise<AgentExecutionResult> {
+    const memoryRecords = await queryAIDecisionMemory(rawQuery, 3);
+
+    if (!memoryRecords || memoryRecords.length === 0) {
+      const speech = cleanSpeechText('لم أجد أي توصيات أو قرارات إدارية محفوظة سابقاً في ذاكرة النظام.');
+      return {
+        toolExecuted: 'memoryRecall',
+        speechResponse: speech,
+        displayMarkdown: `### 🧠 ذاكرة القرارات الإدارية (\`ai_memory\`)\n\nℹ️ **لا توجد قرارات محفوظة سابقاً:** لم يتم تسجيل أي توصيات سابقة بعد.`
+      };
+    }
+
+    const latest = memoryRecords[0];
+    const dateStr = formatCleanArabicDate(new Date(latest.created_at || Date.now()), true);
+    const speech = cleanSpeechText(
+      `في ${dateStr} ، أوصيتك بـ ${latest.recommendations?.[0] || latest.analysis_summary}`
+    );
+
+    let md = `### 🧠 سجل القرارات والتوصيات الإدارية السابقة (\`ai_memory\`) 📜\n\n`;
+    memoryRecords.forEach((rec, idx) => {
+      const recDate = formatCleanArabicDate(new Date(rec.created_at || Date.now()), true);
+      md += `#### ${idx + 1}. قرار بتاريخ: \`${recDate}\`\n`;
+      md += `* **السؤال السابق:** *"${rec.user_query}"*\n`;
+      md += `* **التحليل:** ${rec.analysis_summary}\n`;
+      if (rec.recommendations && rec.recommendations.length > 0) {
+        md += `* **التوصيات:**\n`;
+        rec.recommendations.forEach(r => { md += `  - ${r}\n`; });
+      }
+      md += `\n---\n\n`;
+    });
+
+    return {
+      toolExecuted: 'memoryRecall',
+      speechResponse: speech,
+      displayMarkdown: md
     };
   }
 
