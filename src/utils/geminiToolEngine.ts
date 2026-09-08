@@ -76,7 +76,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       });
 
       const response = await geminiClient.chat.completions.create({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3.6-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userQuery }
