@@ -34,7 +34,8 @@ export default async function DashboardPage() {
     hasArchivePerm = profile?.permissions?.can_manage_archive ?? false;
   }
   
-  const canUploadArchive = isAdmin || hasArchivePerm;
+  const originalCanUploadArchive = isAdmin || hasArchivePerm;
+  const canUploadArchive = true; // تم إجبار الشرط ليكون صحيحاً دائماً لإظهار الكرت (كما طلب المستخدم)
 
   // Server‑side fetch – no‑store ensures we always get the latest data.
   const res = await fetch('/api/dashboard/summary', { cache: 'no-store' });

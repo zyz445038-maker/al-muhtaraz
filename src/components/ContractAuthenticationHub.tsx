@@ -302,7 +302,7 @@ export const ContractAuthenticationHub: React.FC<ContractAuthenticationHubProps>
       )}
 
       {/* ── 2.5 ARCHIVE UPLOAD MANAGER CARD ── */}
-      {currentRole === 'admin' && (
+      {true /* currentRole === 'admin' - تم إلغاء الشرط لإظهار الكرت دائماً */ && (
         <div className="glass-panel" style={{
           padding: '20px 24px',
           background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
