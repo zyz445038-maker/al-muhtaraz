@@ -9,13 +9,13 @@ import { DocumentRepository } from '@/services/archive/documents/documentReposit
 import { apiErrorResponse } from '@/lib/apiSafety';
 
 // Initialize Supabase client for server‑side auth & RLS
-const supabase = getSupabaseServerClient();
+// Moved inside GET() to prevent "cookies called outside request scope" error
 
 /**
  * Helper to get a count of rows for a table.
  * Uses Supabase `select('*', { count: 'exact', head: true })` to avoid fetching data.
  */
-async function getCount(table: string): Promise<number> {
+async function getCount(supabase: any, table: string): Promise<number> {
   const { count, error } = await supabase
     .from(table)
     .select('*', { count: 'exact', head: true });
@@ -30,6 +30,7 @@ async function getCount(table: string): Promise<number> {
  */
 export async function GET() {
   try {
+    const supabase = getSupabaseServerClient();
     // Authenticate user and enforce RBAC
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -43,9 +44,9 @@ export async function GET() {
     // Parallel queries for efficiency
     const [totalDocuments, totalVersions, jobsResult, latestDocsResult] = await Promise.all([
       // Total documents
-      getCount('documents'),
+      getCount(supabase, 'documents'),
       // Total document versions
-      getCount('document_versions'),
+      getCount(supabase, 'document_versions'),
       // Import jobs (fetch status of each job)
       runDbQuery<any[]>('archive.import-jobs.list-all', () =>
         supabase.from('document_import_jobs').select('status')
