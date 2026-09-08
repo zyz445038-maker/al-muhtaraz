@@ -3,10 +3,13 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
+import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { DocumentRepository } from '@/services/archive/documents/documentRepository';
 import { apiErrorResponse } from '@/lib/apiSafety';
+
+// Initialize Supabase client for server‑side auth & RLS
+const supabase = getSupabaseServerClient();
 
 /**
  * Helper to get a count of rows for a table.
@@ -27,6 +30,16 @@ async function getCount(table: string): Promise<number> {
  */
 export async function GET() {
   try {
+    // Authenticate user and enforce RBAC
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const isAdmin = (user.role as any) === 'admin';
+    const hasPermission = (user as any).permissions?.can_view_all_records ?? false;
+    if (!isAdmin && !hasPermission) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
     // Parallel queries for efficiency
     const [totalDocuments, totalVersions, jobsResult, latestDocsResult] = await Promise.all([
       // Total documents
