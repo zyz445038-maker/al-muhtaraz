@@ -59,58 +59,118 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
   // Guard: only run on server — prevents client-side OpenAI crash
   if (typeof window !== 'undefined') return null;
 
-  const token = process.env.GROQ_API_KEY;
-  if (!token) {
-    console.warn('[Server Env] GROQ_API_KEY is not set on the server. Falling back to local reasoning engine.');
-    return null;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const githubToken = process.env.GITHUB_TOKEN;
+  const groqKey = process.env.GROQ_API_KEY;
+
+  const systemPrompt = `أنت رفيق عمل ومساعد إداري ومالي ذكي وودود جداً لشركة "المحترز للحاويات" في السعودية.
+تتميز بالذكاء العالي، التفكير الإيجابي، سرعة البديهة، والقدرة على النقاش الحر، ومناقشة الحلول، وتأدية العمل بمهنية مع حس دعابة خفيف ومرح وودود.
+اختر الأداة المناسبة بدقة لتنفيذ طلب المستخدم، أو ناقشه بحرية وبطريقة ذكية ولطيفة دون قوالب مكررة.`;
+
+  // 1. TRY GOOGLE GEMINI (PRIMARY FREE MODEL)
+  if (geminiKey) {
+    try {
+      const geminiClient = new OpenAI({
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        apiKey: geminiKey
+      });
+
+      const response = await geminiClient.chat.completions.create({
+        model: 'gemini-2.0-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery }
+        ],
+        tools,
+        tool_choice: 'auto'
+      });
+
+      const message = response.choices[0]?.message;
+      const toolCall = message?.tool_calls?.[0] as any;
+
+      if (toolCall) {
+        let args = {};
+        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+        return { toolName: toolCall.function?.name as string, args };
+      }
+
+      if (message?.content) {
+        return { toolName: 'generalConversation', args: { reply: message.content } };
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Gemini Primary AI failover to GitHub Models:', err?.message || err);
+    }
   }
 
-  // Lazy init — client created only when called server-side
-  const client = new OpenAI({
-    baseURL: 'https://api.groq.com/openai/v1',
-    apiKey: token,
-  });
+  // 2. TRY GITHUB MODELS API (BACKUP FREE MODEL)
+  if (githubToken) {
+    try {
+      const githubClient = new OpenAI({
+        baseURL: 'https://models.inference.ai.azure.com',
+        apiKey: githubToken
+      });
 
-  try {
-    const response = await client.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [
-        {
-          role: 'system',
-          content: 'أنت مساعد ذكي متخصص في إدارة شركات تأجير الحاويات في السعودية. اختر الأداة المناسبة بدقة لتنفيذ طلب المستخدم.'
-        },
-        {
-          role: 'user',
-          content: userQuery
-        }
-      ],
-      tools,
-      tool_choice: 'auto',
-    });
+      const response = await githubClient.chat.completions.create({
+        model: 'Meta-Llama-3.3-70B-Instruct',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery }
+        ],
+        tools,
+        tool_choice: 'auto'
+      });
 
-    const message = response.choices[0]?.message;
-    const toolCall = message?.tool_calls?.[0] as any;
+      const message = response.choices[0]?.message;
+      const toolCall = message?.tool_calls?.[0] as any;
 
-    if (toolCall) {
-      let args = {};
-      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
-      return {
-        toolName: toolCall.function?.name as string,
-        args
-      };
+      if (toolCall) {
+        let args = {};
+        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+        return { toolName: toolCall.function?.name as string, args };
+      }
+
+      if (message?.content) {
+        return { toolName: 'generalConversation', args: { reply: message.content } };
+      }
+    } catch (err: any) {
+      console.warn('⚠️ GitHub Models Backup failover to Groq/Local:', err?.message || err);
     }
-
-    if (message?.content) {
-      return {
-        toolName: 'generalConversation',
-        args: { reply: message.content }
-      };
-    }
-
-    throw new Error('[Server -> LLM] No tool call or content returned from LLM');
-  } catch (error: any) {
-    const errMsg = error?.message || String(error);
-    console.error('❌ Groq API Error:', errMsg);
-    throw new Error(`[Server -> LLM Error] ${errMsg}`);
   }
+
+  // 3. TRY GROQ API (FALLBACK MODEL)
+  if (groqKey) {
+    try {
+      const groqClient = new OpenAI({
+        baseURL: 'https://api.groq.com/openai/v1',
+        apiKey: groqKey
+      });
+
+      const response = await groqClient.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery }
+        ],
+        tools,
+        tool_choice: 'auto'
+      });
+
+      const message = response.choices[0]?.message;
+      const toolCall = message?.tool_calls?.[0] as any;
+
+      if (toolCall) {
+        let args = {};
+        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+        return { toolName: toolCall.function?.name as string, args };
+      }
+
+      if (message?.content) {
+        return { toolName: 'generalConversation', args: { reply: message.content } };
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Groq API Error:', err?.message || err);
+    }
+  }
+
+  return null;
 }
