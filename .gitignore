@@ -48,3 +48,6 @@ whatsapp-addon-server/sessions/
 whatsapp-addon-server/.env
 
 cloudflared.exe
+/scratch/
+test_*.js
+
