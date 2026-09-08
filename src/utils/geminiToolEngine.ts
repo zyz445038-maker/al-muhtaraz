@@ -111,7 +111,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       });
 
       const response = await githubClient.chat.completions.create({
-        model: 'Meta-Llama-3.3-70B-Instruct',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userQuery }
@@ -146,7 +146,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       });
 
       const response = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userQuery }
