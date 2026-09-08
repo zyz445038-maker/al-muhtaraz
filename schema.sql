@@ -727,4 +727,29 @@ VALUES
     ('✨ جاهزية النظام', 'تم ربط وتشغيل محرك الإشعارات الداخلية وأنظمة المتابعة اللحظية بنجاح.', 'system_alert', true)
 ON CONFLICT DO NOTHING;
 
+-- ==============================================================================
+-- 15. جدول vehicles (سيارات النقل والصيانة والتراخيص)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.vehicles (
+    id TEXT PRIMARY KEY,
+    plate_number TEXT NOT NULL,
+    brand_model TEXT NOT NULL,
+    assigned_driver_id TEXT,
+    last_oil_change_date DATE,
+    next_oil_change_km INT DEFAULT 0,
+    current_km INT DEFAULT 0,
+    periodic_inspection_date DATE,
+    insurance_expiry_date DATE,
+    status TEXT NOT NULL DEFAULT 'excellent' CHECK (status IN ('excellent', 'needs_maintenance', 'broken', 'in_maintenance')),
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE public.vehicles IS 'جدول سيارات النقل ومواعيد الصيانة الدورية وتغيير الزيت والفحص';
+
+ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated all" ON public.vehicles FOR ALL USING (true);
+
+
 

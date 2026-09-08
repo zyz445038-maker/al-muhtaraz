@@ -844,6 +844,9 @@ function MainDashboard() {
 
         const { data: dbReceipts } = await supabase.from('receipts').select('*');
         if (dbReceipts && dbReceipts.length > 0) setReceipts(dbReceipts);
+
+        const { data: dbVehicles } = await supabase.from('vehicles').select('*');
+        if (dbVehicles && dbVehicles.length > 0) setVehicles(dbVehicles);
       } catch (err) {
         console.warn('Supabase local sync initialized with active state:', err);
       }
