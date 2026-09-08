@@ -1,14 +1,14 @@
 // Service Worker for "المحترز للحاويات"
-const CACHE_NAME = 'muhtaraz-pwa-v1';
+const CACHE_NAME = 'muhtaraz-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/icon.svg',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  '/apple-touch-icon.png',
-  '/globals.css'
+  '/apple-touch-icon.png'
 ];
+
 
 // Install Event - Precache critical assets
 self.addEventListener('install', (event) => {
