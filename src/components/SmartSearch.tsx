@@ -17,6 +17,7 @@ import {
   RotateCw
 } from 'lucide-react';
 import { Container, Contract, Customer, NotificationLog, StaffPermissions, UserRole } from '@/types/database';
+import { UploadContractForm } from './UploadContractForm';
 
 interface SmartSearchProps {
   containers: Container[];
@@ -251,6 +252,11 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Archive Upload Section (For Admin or Users with Archive Permissions) */}
+      {(userRole === 'admin' || permissions?.can_manage_archive) && (
+        <UploadContractForm />
+      )}
 
       {/* KPI Cards Row */}
       <div style={{

@@ -54,10 +54,6 @@ export default async function DashboardPage() {
 
   return (
     <main className={styles.dashboard}>
-      
-      {canUploadArchive && (
-        <UploadContractForm />
-      )}
 
       <section className={styles.summary}>
         <h1 className="title">ملخص لوحة التحكم</h1>
