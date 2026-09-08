@@ -205,8 +205,8 @@ export function formatSpokenDate(yearStr: string, monthStr: string, dayStr: stri
 }
 
 /**
- * Formats phone numbers into natural digit clusters with spoken pauses
- * e.g., "0501234567" -> "صفر خمسة صفر ، واحد اثنين ثلاثة ، أربعة خمسة ستة سبعة"
+ * Formats phone numbers into natural digit clusters with smooth speech pauses
+ * e.g., "0501234567" -> "صفر خمسة صفر واحد اثنين ثلاثة أربعة خمسة ستة سبعة"
  */
 export function formatSpokenPhoneNumber(phone: string): string {
   const digitsOnly = phone.replace(/\D/g, '');
@@ -218,12 +218,12 @@ export function formatSpokenPhoneNumber(phone: string): string {
     localNum = '0' + localNum;
   }
 
-  // Read as: 05X , XXX , XXXX
+  // Read smoothly as spaced digit groups without forcing artificial comma pauses
   const p1 = localNum.slice(0, 3).split('').map(d => DIGIT_NAMES[d] || d).join(' ');
   const p2 = localNum.slice(3, 6).split('').map(d => DIGIT_NAMES[d] || d).join(' ');
   const p3 = localNum.slice(6).split('').map(d => DIGIT_NAMES[d] || d).join(' ');
 
-  return `${p1} ، ${p2} ، ${p3}`;
+  return `${p1} ${p2} ${p3}`;
 }
 
 /**
@@ -248,7 +248,7 @@ export function formatSpokenSerialOrCode(code: string): string {
       return part.split('').map(d => DIGIT_NAMES[d] || d).join(' ');
     }
     return part;
-  }).join(' ، ');
+  }).join(' ');
 }
 
 // ─── 2. Full Semantic Pipeline for Voice Synthesis ────────────────────────────
@@ -302,9 +302,13 @@ export function normalizeArabicSpeechPhonetics(rawText: string): string {
   });
 
   // 6. Saudi Phone Numbers (+9665xxxxxxxx, 05xxxxxxxx, 9665xxxxxxxx)
-  text = text.replace(/(?:\+?966|0)5\d{8}\b/g, match => {
-    return `رقم الجوال ${formatSpokenPhoneNumber(match)}`;
+  text = text.replace(/(رقم\s+الجوال(?:\s+للتواصل)?\s*[:\-]?\s*)?(?:\+?966|0)5\d{8}\b/g, (match, prefix) => {
+    const digitsOnly = match.replace(/^(رقم\s+الجوال(?:\s+للتواصل)?\s*[:\-]?\s*)/, '');
+    const spokenDigits = formatSpokenPhoneNumber(digitsOnly);
+    return prefix ? `${prefix}${spokenDigits}` : `رقم الجوال ${spokenDigits}`;
   });
+
+
 
   // 7. Monetary Amounts & Currencies
   // Handles: 3500 ريال, 3500 ر.س, 3500.50 SAR, 1500 ر.س.
@@ -385,8 +389,8 @@ export function normalizeArabicSpeechPhonetics(rawText: string): string {
     return tafqeetNumber(num, false);
   });
 
-  // 12. Remove any remaining slashes, hyphens, and math symbols so the TTS NEVER says "شرطة"
-  text = text.replace(/[\/\-\_\\]+/g, ' ، ');
+  // 12. Remove any remaining slashes, hyphens, and math symbols smoothly
+  text = text.replace(/[\/\-\_\\]+/g, ' ');
   text = text.replace(/[\+\=\<\>\|\~\^]/g, ' ');
   
   // 13. Clean multiple spaces and ensure natural pauses

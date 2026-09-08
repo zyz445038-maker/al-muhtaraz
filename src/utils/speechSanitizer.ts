@@ -33,22 +33,27 @@ export function cleanSpeechText(text: string): string {
   // 6. Remove all Emojis and miscellaneous symbols
   cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}]/gu, '');
 
-  // 7. Remove bullet points (•, - at line start) without stripping important numbers
+  // 7. Remove bullet points (•, - at line start) and list numbers without stripping important data
   cleaned = cleaned.replace(/^[\s•\-\*]+/gm, '');
+  cleaned = cleaned.replace(/^\d+[\.\)\-]\s*/gm, '');
 
-  // 8. Transform semantic tokens, dates, amounts, contract codes, and numbers to spoken words
+  // 8. Convert line breaks into natural sentence boundaries (period for line ends without punctuation)
+  cleaned = cleaned.replace(/([.!?؟،,])\s*[\r\n]+/g, '$1 ');
+  cleaned = cleaned.replace(/[\r\n]+/g, '. ');
+
+  // 9. Transform semantic tokens, dates, amounts, contract codes, and numbers to spoken words
   cleaned = normalizeArabicSpeechPhonetics(cleaned);
 
-  // 9. Apply Saudi dialect diacritics and acoustic pauses
+  // 10. Apply phonetic enhancement and punctuation cleanup
   cleaned = diacritizeArabicSpeech(cleaned);
 
-  // 10. Normalize spaces and line breaks into natural spoken pauses
-  cleaned = cleaned.replace(/[\r\n]+/g, ' ، ');
+  // 11. Normalize spaces
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
-  // 11. Remove any leading/trailing commas or dots
+  // 12. Remove any leading/trailing commas or dots
   cleaned = cleaned.replace(/^[\s،,.]+|[\s،,.]+$/g, '').trim();
 
   return cleaned;
 }
+
 
