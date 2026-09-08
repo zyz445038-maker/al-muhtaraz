@@ -648,12 +648,21 @@ export class AlMuhtarazExecutiveAgent {
 
     const contracts = this.context.contracts || [];
 
-    const foundContract = contracts.find(c => 
+    let foundContract = contracts.find(c => 
       c.contract_number.toLowerCase().includes(cleanQuery) ||
       (c.customer?.name && c.customer.name.toLowerCase().includes(cleanQuery)) ||
       (c.customer?.phone && c.customer.phone.includes(cleanQuery)) ||
       (c.container?.container_number && c.container.container_number.includes(cleanQuery))
     );
+
+    // Fuzzy Fallback: Match individual words if no direct substring match
+    if (!foundContract && cleanQuery.length > 2) {
+      const queryWords = cleanQuery.split(' ').filter(w => w.length > 2);
+      foundContract = contracts.find(c => {
+        const custName = (c.customer?.name || '').toLowerCase();
+        return queryWords.some(word => custName.includes(word));
+      });
+    }
 
     if (foundContract) {
       this.memory.lastFocusedContract = foundContract;
