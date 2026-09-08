@@ -38,7 +38,7 @@ export class HumanoidAgent {
       logError('ai.agent.memory.load', error, { correlationId });
     }
 
-    const agent = new AlMuhtarazExecutiveAgent(request.context, memoryState);
+    const agent = new AlMuhtarazExecutiveAgent(request.context, request.context.memory || memoryState);
 
     try {
       const result = await agent.executeUserCommand(query);

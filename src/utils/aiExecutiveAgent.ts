@@ -107,8 +107,17 @@ export class AlMuhtarazExecutiveAgent {
       return followUpResult;
     }
 
-    // ─── 2. Gemini API Intent Detection (Function Calling) ───
-    const intent = await determineIntentWithGemini(rawQuery);
+    // ─── 1.5 Fast Local Tool Matching (مطابقة فورية سريعة لضمان حفظ الكيان في الذاكرة) ───
+    const localMatch = this.matchFastLocalTool(query, rawQuery);
+    if (localMatch) {
+      this.recordTurn(rawQuery, localMatch.speechResponse);
+      localMatch.updatedMemory = this.memory;
+      return localMatch;
+    }
+
+    // ─── 2. Gemini API Intent Detection (Function Calling with Multi-turn Context) ───
+    const intent = await determineIntentWithGemini(rawQuery, this.memory.conversationTurns);
+
     
     let res: AgentExecutionResult;
 
@@ -191,9 +200,59 @@ export class AlMuhtarazExecutiveAgent {
     return res;
   }
 
+  private matchFastLocalTool(query: string, rawQuery: string): AgentExecutionResult | null {
+    // 1. Fetch Latest Contract
+    if (/(اخر|احدث)\s*عقد|العقد\s*(الاخير|الاحدث)|عقد\s*جديد|اخر\s*العقود/i.test(query)) {
+      return this.tool_fetchLatestContract();
+    }
+
+    // 2. Fetch Previous Contract
+    if (/العقد\s*السابق|عقد\s*قبل|اللي\s*قبله/i.test(query)) {
+      return this.tool_fetchPreviousContract();
+    }
+
+    // 3. Live Financials Audit
+    if (/(الدخل|الارباح|المبالغ\s*المحصلة|الكاش|التقرير\s*المالي|كم\s*دخلنا)/i.test(query)) {
+      return this.tool_auditLiveFinancials();
+    }
+
+    // 4. Expiring Containers / Municipality
+    if (/(منتهية|تنتهي|البلدية|الأمانة|مخالفات)/i.test(query) && /(حاوية|حاويات|عقد|عقود)/i.test(query)) {
+      return this.tool_auditExpiringContainers();
+    }
+
+    // 5. Container Stock
+    if (/(مخزون|شاغرة|متاحة|متوفرة)/i.test(query) && /(حاوية|حاويات|الاسطول)/i.test(query)) {
+      return this.tool_auditContainersStock();
+    }
+
+    // 6. Drivers Fleet
+    if (/(السائقين|السواقين|السائقون|فريق\s*العمل|المندوبين)/i.test(query)) {
+      return this.tool_auditDriversFleet();
+    }
+
+    // 7. Today Operations
+    if (/(عقود|عمليات|تشغيل)\s*اليوم/i.test(query)) {
+      return this.tool_fetchTodayOperations();
+    }
+
+    // 8. Debts & Receivables
+    if (/(الديون|الذمم|المؤجلة|المستحقات)/i.test(query)) {
+      return this.tool_auditDebtsAndReceivables();
+    }
+
+    // 9. Top Customers
+    if (/(كبار|أفضل|افضل|أهم|اهم)\s*العملاء/i.test(query)) {
+      return this.tool_fetchTopCustomers();
+    }
+
+    return null;
+  }
+
   // ─── CONTEXTUAL MULTI-TURN REASONING ─────────────────────────────────
 
   private checkContextualFollowUp(query: string, rawQuery: string): AgentExecutionResult | null {
+
     const focusedContract = this.memory.lastFocusedContract;
     const lastTopic = this.memory.lastFocusedTopic;
 

@@ -4,7 +4,7 @@ import { HumanoidAgent } from '@/services/ai/humanoidAgent';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { prompt, context } = body;
+    const { prompt, context, memory, userId, sessionId, correlationId } = body;
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -15,16 +15,21 @@ export async function POST(req: NextRequest) {
       containers: [],
       customers: [],
       staffList: [],
-      receipts: []
+      receipts: [],
+      vehicles: []
     };
+
+    if (memory) {
+      safeContext.memory = memory;
+    }
 
     const agent = new HumanoidAgent();
     const response = await agent.handle({
       query: prompt,
       context: safeContext,
-      userId: body.userId,
-      sessionId: body.sessionId,
-      correlationId: body.correlationId
+      userId: userId || 'admin',
+      sessionId: sessionId || 'session_executive',
+      correlationId: correlationId
     });
 
     return NextResponse.json({
@@ -33,6 +38,7 @@ export async function POST(req: NextRequest) {
       correlationId: response.correlationId,
       fallback: response.fallback
     });
+
 
   } catch (error: unknown) {
     console.error('❌ AI Executive Agent execution error:', error);

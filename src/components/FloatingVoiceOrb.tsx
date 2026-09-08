@@ -238,9 +238,13 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: cleanQuery,
-          context: { contracts, containers, customers, staffList, receipts }
+          context: { contracts, containers, customers, staffList, receipts, vehicles },
+          memory: conversationalMemoryRef.current,
+          sessionId: 'admin_voice_orb',
+          userId: 'admin'
         })
       });
+
 
       const data = await response.json();
       

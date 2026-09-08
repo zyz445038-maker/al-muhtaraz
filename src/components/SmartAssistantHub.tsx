@@ -239,6 +239,14 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setTimeout(() => setSaveSuccess(false), 3500);
   };
 
+  const copilotMemoryRef = useRef<any>({
+    lastFocusedContract: null,
+    lastFocusedCustomer: null,
+    lastFocusedContainer: null,
+    lastFocusedTopic: null,
+    conversationTurns: []
+  });
+
   // Deep-Reasoning AI Copilot Query Handler
   const handleAskCopilot = async (query: string) => {
     if (!query.trim()) return;
@@ -258,7 +266,10 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           prompt: query,
-          context: { contracts, containers, customers, staffList, receipts }
+          context: { contracts, containers, customers, staffList, receipts, vehicles },
+          memory: copilotMemoryRef.current,
+          sessionId: 'admin_hub_session',
+          userId: 'admin'
         })
       });
 
@@ -269,6 +280,9 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
       let speechText = 'حدث خطأ.';
 
       if (data.success && data.result) {
+        if (data.result.updatedMemory) {
+          copilotMemoryRef.current = data.result.updatedMemory;
+        }
         displayText = data.result.displayMarkdown;
         speechText = data.result.speechResponse;
       } else {
@@ -276,6 +290,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
         displayText = fallback.displayText;
         speechText = fallback.speechText || fallback.displayText;
       }
+
 
       setChatMessages(prev => [...prev, { role: 'assistant', text: displayText, time: botTime }]);
       setIsCopilotThinking(false);

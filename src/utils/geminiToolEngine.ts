@@ -55,7 +55,10 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   }
 ];
 
-export async function determineIntentWithGemini(userQuery: string): Promise<{ toolName: string; args: any } | null> {
+export async function determineIntentWithGemini(
+  userQuery: string,
+  conversationTurns?: { query: string; response: string }[]
+): Promise<{ toolName: string; args: any } | null> {
   // Guard: only run on server — prevents client-side OpenAI crash
   if (typeof window !== 'undefined') return null;
 
@@ -66,8 +69,17 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
   const systemPrompt = `أنت مساعد عمل ومستشار إداري ذكي وودود جداً لشركة "المحترز للحاويات" في السعودية.
 تتحدث بشكل طبيعي وتلقائي 100% متكيف كلياً مع طبيعة سؤال المستخدم، دون أي ترحيب طويل أو قوالب رسمية مكررة.
 - إذا كان السؤال استفساراً رقمياً أو تشغيلياً: أجب مباشرة ودون مقدمات.
-- إذا كان السؤال نقاشاً أو فكاهة: تفاعل بذكاء، ود وحس دعابة خفيف ولطيف.
+- إذا كان السؤال متابعة لسؤال سابق (مثل: "كم مبلغه؟" أو "مين العميل؟"): أجب مباشرة بالتفصيلة المطلوبة فقط دون إعادة سرد كافة بيانات الكيان.
 - يُمنع منعاً باتاً استخدام مقدمات رسمية مكررة مثل (أهلاً بك بصفتي رفيقك وسندك). ادخل في الرد مباشرة وبأسلوب طبيعي ومرح.`;
+
+  // Build multi-turn context
+  const historyMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  if (conversationTurns && conversationTurns.length > 0) {
+    conversationTurns.slice(-3).forEach(t => {
+      if (t.query) historyMessages.push({ role: 'user', content: t.query });
+      if (t.response) historyMessages.push({ role: 'assistant', content: t.response });
+    });
+  }
 
   // Detect quick operational vs deep strategic query for Smart Model Routing
   const isQuickOperational = /حاوية|عقد|سائق|مبلغ|سند|رقم|بحث|منتهي|صيانة|كم|أين|مين/i.test(userQuery) && userQuery.length < 50;
@@ -83,11 +95,13 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       model: 'gemini-3.6-flash',
       messages: [
         { role: 'system', content: systemPrompt },
+        ...historyMessages,
         { role: 'user', content: userQuery }
       ],
       tools,
       tool_choice: 'auto'
     });
+
     const message = response.choices[0]?.message;
     const toolCall = message?.tool_calls?.[0] as any;
     if (toolCall) {
@@ -112,6 +126,7 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
+        ...historyMessages,
         { role: 'user', content: userQuery }
       ],
       tools,
@@ -141,11 +156,13 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
+        ...historyMessages,
         { role: 'user', content: userQuery }
       ],
       tools,
       tool_choice: 'auto'
     });
+
     const message = response.choices[0]?.message;
     const toolCall = message?.tool_calls?.[0] as any;
     if (toolCall) {
