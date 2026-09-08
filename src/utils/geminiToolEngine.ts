@@ -91,7 +91,8 @@ export async function determineIntentWithGemini(
     if (!geminiKey) return null;
     const client = new OpenAI({
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-      apiKey: geminiKey
+      apiKey: geminiKey,
+      timeout: 7000
     });
     const response = await client.chat.completions.create({
       model: 'gemini-3.6-flash',
