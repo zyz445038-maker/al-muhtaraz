@@ -115,6 +115,14 @@ export default async function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {/* Archive Upload Card for Managers */}
+      {canUploadArchive && (
+        <section className={styles['archive-upload']} style={{ marginTop: '2rem' }}>
+          <h2 className={styles.title} style={{ marginBottom: '1rem', color: '#fbbf24' }}>الارشيف (مدير النظام)</h2>
+          <UploadContractForm />
+        </section>
+      )}
     </main>
   );
 }

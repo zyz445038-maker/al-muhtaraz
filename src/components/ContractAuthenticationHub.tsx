@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { UploadContractForm } from './UploadContractForm';
 import { 
   Stamp, 
   ShieldCheck, 
@@ -297,6 +298,23 @@ export const ContractAuthenticationHub: React.FC<ContractAuthenticationHubProps>
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* ── 2.5 ARCHIVE UPLOAD MANAGER CARD ── */}
+      {currentRole === 'admin' && (
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%)',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          borderRadius: '18px',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)'
+        }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Upload size={20} />
+            الارشيف (رفع العقود القديمة - خاص بالمدير)
+          </h3>
+          <UploadContractForm />
         </div>
       )}
 
