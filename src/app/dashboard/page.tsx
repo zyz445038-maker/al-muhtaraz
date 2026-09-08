@@ -19,8 +19,21 @@ import { getSupabaseServerClient } from '@/lib/supabaseServer';
 export default async function DashboardPage() {
   const supabase = getSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const isAdmin = (user?.role as any) === 'admin';
-  const hasArchivePerm = (user as any)?.permissions?.can_manage_archive ?? false;
+  
+  let isAdmin = false;
+  let hasArchivePerm = false;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, permissions')
+      .eq('id', user.id)
+      .single();
+      
+    isAdmin = profile?.role === 'admin';
+    hasArchivePerm = profile?.permissions?.can_manage_archive ?? false;
+  }
+  
   const canUploadArchive = isAdmin || hasArchivePerm;
 
   // Server‑side fetch – no‑store ensures we always get the latest data.

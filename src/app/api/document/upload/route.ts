@@ -28,9 +28,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // التحقق من الصلاحيات (المدير أو موظف لديه صلاحية الأرشيف)
-    const isAdmin = (user.role as any) === 'admin';
-    const hasPermission = (user as any).permissions?.can_manage_archive ?? false;
+    // التحقق من الصلاحيات
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, permissions')
+      .eq('id', user.id)
+      .single();
+
+    const isAdmin = profile?.role === 'admin';
+    const hasPermission = profile?.permissions?.can_manage_archive ?? false;
     
     if (!isAdmin && !hasPermission) {
       return NextResponse.json({ success: false, error: 'Forbidden. You do not have permission to manage archive.' }, { status: 403 });
