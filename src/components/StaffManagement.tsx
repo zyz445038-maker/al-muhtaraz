@@ -606,6 +606,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                                 style={{ accentColor: '#8b5cf6' }}
                               />
                             </label>
+
+                            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px' }}>
+                              <span>🎁 إنشاء عقود مجانية (إهداء)</span>
+                              <input
+                                type="checkbox"
+                                checked={!!perms.can_create_free_contracts}
+                                onChange={() => handleTogglePermission(staff, 'can_create_free_contracts')}
+                                style={{ accentColor: '#f43f5e' }}
+                              />
+                            </label>
                           </div>
                         )}
                       </div>
@@ -992,6 +1002,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         />
                         <span>📱 مراسلة بالواتساب</span>
                       </label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newStaffPermissions.can_create_free_contracts || false}
+                          onChange={(e) => setNewStaffPermissions(p => ({ ...p, can_create_free_contracts: e.target.checked }))}
+                          style={{ accentColor: '#f43f5e' }}
+                        />
+                        <span>🎁 عقود مجانية (إهداء)</span>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -1331,6 +1351,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         style={{ accentColor: '#10b981' }}
                       />
                       <span>📱 مراسلة بالواتساب</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_create_free_contracts || false}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_create_free_contracts: e.target.checked }))}
+                        style={{ accentColor: '#f43f5e' }}
+                      />
+                      <span>🎁 عقود مجانية (إهداء)</span>
                     </label>
                   </div>
                 </div>

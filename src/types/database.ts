@@ -10,6 +10,7 @@ export interface StaffPermissions {
   can_manage_inventory: boolean; // سحب واستلام الحاويات للمخزون
   can_send_whatsapp: boolean; // إرسال إشعارات الواتساب
   can_manage_archive?: boolean; // رفع وتصفح العقود القديمة في الأرشيف
+  can_create_free_contracts?: boolean; // إنشاء وإصدار عقود مجانية / إهداء
 }
 
 export interface Profile {

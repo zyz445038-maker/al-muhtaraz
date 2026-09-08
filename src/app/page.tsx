@@ -2266,6 +2266,8 @@ function MainDashboard() {
         staffList={staffList}
         preSelectedContainerId={preSelectedContainerId}
         onSaveContract={handleSaveContract}
+        userRole={currentRole}
+        permissions={activePermissions}
       />
 
       {/* 5. Printable Official PDF Receipt Modal */}

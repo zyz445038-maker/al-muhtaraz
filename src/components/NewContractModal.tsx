@@ -73,6 +73,8 @@ interface NewContractModalProps {
   staffList?: Profile[];
   preSelectedContainerId?: string;
   onSaveContract: (contractData: any) => Promise<boolean>;
+  userRole?: string;
+  permissions?: any;
 }
 
 export const NewContractModal: React.FC<NewContractModalProps> = ({
@@ -81,7 +83,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   containers,
   staffList = [],
   preSelectedContainerId,
-  onSaveContract
+  onSaveContract,
+  userRole,
+  permissions
 }) => {
   // Form State
   const [contractType, setContractType] = useState<ContainerType>('debris');
@@ -1191,34 +1195,36 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               </div>
 
               {/* Free Contract Toggle Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsFreeContract(!isFreeContract);
-                  if (!isFreeContract) {
-                    setDiscountAmount(0);
-                    setDownPayment(0);
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: '10px',
-                  border: isFreeContract ? '2px solid #10b981' : '1px solid rgba(56, 189, 248, 0.5)',
-                  background: isFreeContract ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.25))' : 'linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(14, 165, 233, 0.18))',
-                  color: isFreeContract ? '#34d399' : '#38bdf8',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  boxShadow: isFreeContract ? '0 0 15px rgba(16, 185, 129, 0.35)' : '0 0 10px rgba(56, 189, 248, 0.2)',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <Gift size={16} color={isFreeContract ? '#34d399' : '#38bdf8'} />
-                <span>{isFreeContract ? '🎁 عقد مجاني مفعّل (تصفير المبالغ)' : '🎁 تعيين كعقد مجاني'}</span>
-              </button>
+              {(userRole === 'admin' || permissions?.can_create_free_contracts) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFreeContract(!isFreeContract);
+                    if (!isFreeContract) {
+                      setDiscountAmount(0);
+                      setDownPayment(0);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '10px',
+                    border: isFreeContract ? '2px solid #10b981' : '1px solid rgba(56, 189, 248, 0.5)',
+                    background: isFreeContract ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.25))' : 'linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(14, 165, 233, 0.18))',
+                    color: isFreeContract ? '#34d399' : '#38bdf8',
+                    fontWeight: 800,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    boxShadow: isFreeContract ? '0 0 15px rgba(16, 185, 129, 0.35)' : '0 0 10px rgba(56, 189, 248, 0.2)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Gift size={16} color={isFreeContract ? '#34d399' : '#38bdf8'} />
+                  <span>{isFreeContract ? '🎁 عقد مجاني مفعّل (تصفير المبالغ)' : '🎁 تعيين كعقد مجاني'}</span>
+                </button>
+              )}
             </div>
 
             {/* Top 4-Column Row: إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي */}
