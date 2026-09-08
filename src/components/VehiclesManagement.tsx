@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Truck, Search, Plus, Edit3, Trash2, Wrench, AlertTriangle, CheckCircle, Smartphone, Calendar } from 'lucide-react';
+import { Truck, Search, Plus, Edit3, Trash2, Wrench, AlertTriangle, CheckCircle, Smartphone, Calendar, Bell } from 'lucide-react';
 import { TransportVehicle, Profile } from '@/types/database';
 
 interface VehiclesManagementProps {
@@ -34,6 +34,7 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
   const [currentKm, setCurrentKm] = useState<number | ''>('');
   const [inspectionDate, setInspectionDate] = useState('');
   const [insuranceDate, setInsuranceDate] = useState('');
+  const [alertDaysBefore, setAlertDaysBefore] = useState<number | ''>(15);
   const [status, setStatus] = useState<TransportVehicle['status']>('excellent');
 
   const drivers = useMemo(() => staffList.filter(s => s.role === 'employee' && s.full_name.includes('سائق')), [staffList]);
@@ -75,6 +76,7 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
     setCurrentKm('');
     setInspectionDate('');
     setInsuranceDate('');
+    setAlertDaysBefore(15);
     setStatus('excellent');
     setIsModalOpen(true);
   };
@@ -89,6 +91,7 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
     setCurrentKm(v.current_km || '');
     setInspectionDate(v.periodic_inspection_date || '');
     setInsuranceDate(v.insurance_expiry_date || '');
+    setAlertDaysBefore(v.alert_days_before ?? 15);
     setStatus(v.status);
     setIsModalOpen(true);
   };
@@ -104,6 +107,7 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
       current_km: Number(currentKm) || 0,
       periodic_inspection_date: inspectionDate,
       insurance_expiry_date: insuranceDate,
+      alert_days_before: Number(alertDaysBefore) || 15,
       status
     };
 
@@ -151,23 +155,41 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
         {filteredVehicles.map(v => {
           const driver = staffList.find(s => s.id === v.assigned_driver_id);
-          const needsMaintenance = v.status === 'needs_maintenance' || (v.current_km >= v.next_oil_change_km && v.next_oil_change_km > 0);
+          const alertDays = v.alert_days_before ?? 15;
+          const today = new Date().getTime();
+
+          let inspectionDaysRem: number | null = null;
+          if (v.periodic_inspection_date) {
+            const inspTime = new Date(v.periodic_inspection_date).getTime();
+            inspectionDaysRem = Math.ceil((inspTime - today) / (1000 * 60 * 60 * 24));
+          }
+
+          let insuranceDaysRem: number | null = null;
+          if (v.insurance_expiry_date) {
+            const insTime = new Date(v.insurance_expiry_date).getTime();
+            insuranceDaysRem = Math.ceil((insTime - today) / (1000 * 60 * 60 * 24));
+          }
+
+          const isOilAlert = v.current_km >= v.next_oil_change_km && v.next_oil_change_km > 0;
+          const isInspectionAlert = inspectionDaysRem !== null && inspectionDaysRem <= alertDays;
+          const isInsuranceAlert = insuranceDaysRem !== null && insuranceDaysRem <= alertDays;
+          const needsMaintenance = v.status === 'needs_maintenance' || isOilAlert || isInspectionAlert || isInsuranceAlert;
 
           return (
             <div key={v.id} style={{
               background: 'linear-gradient(145deg, #0f172a 0%, #050811 100%)',
-              border: `1px solid ${needsMaintenance ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.2)'}`,
+              border: `1px solid ${needsMaintenance ? 'rgba(245, 158, 11, 0.5)' : 'rgba(56, 189, 248, 0.2)'}`,
               borderRadius: '16px',
               padding: '20px',
               position: 'relative',
-              boxShadow: needsMaintenance ? '0 0 15px rgba(245, 158, 11, 0.15)' : 'none'
+              boxShadow: needsMaintenance ? '0 0 20px rgba(245, 158, 11, 0.2)' : 'none'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 4px 0', color: '#e0f2fe' }}>{v.plate_number}</h3>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 4px 0', color: '#e0f2fe' }}>{v.plate_number}</h3>
                   <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>{v.brand_model}</span>
                 </div>
                 <span style={{
@@ -183,14 +205,69 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
                 </span>
               </div>
 
+              {/* Badges for Expiration Alerts */}
+              {(isInspectionAlert || isInsuranceAlert || isOilAlert) && (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  marginBottom: '14px',
+                  fontSize: '0.82rem',
+                  color: '#fbbf24',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  {isInspectionAlert && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={14} color="#f59e0b" />
+                      <span>
+                        {inspectionDaysRem! <= 0 
+                          ? '🔴 الفحص الدوري منتهي!' 
+                          : `⚠️ ينتهي الفحص الدوري خلال (${inspectionDaysRem}) أيام!`}
+                      </span>
+                    </div>
+                  )}
+                  {isInsuranceAlert && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={14} color="#f59e0b" />
+                      <span>
+                        {insuranceDaysRem! <= 0 
+                          ? '🔴 التأمين منتهي!' 
+                          : `⚠️ ينتهي التأمين خلال (${insuranceDaysRem}) أيام!`}
+                      </span>
+                    </div>
+                  )}
+                  {isOilAlert && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Wrench size={14} color="#ef4444" />
+                      <span>🛢️ العداد تجاوز موعد تغيير الزيت القادم!</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><Calendar size={14} style={{ display: 'inline', marginRight: '4px' }}/> الفحص الدوري:</span>
-                  <span style={{ fontWeight: 700 }}>{v.periodic_inspection_date || 'غير محدد'}</span>
+                  <span><Calendar size={14} style={{ display: 'inline', marginLeft: '4px' }}/> الفحص الدوري:</span>
+                  <span style={{ fontWeight: 700, color: isInspectionAlert ? '#f87171' : '#e0f2fe' }}>
+                    {v.periodic_inspection_date || 'غير محدد'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><Wrench size={14} style={{ display: 'inline', marginRight: '4px' }}/> الكيلومترات (الحالي/القادم):</span>
-                  <span style={{ fontWeight: 700, color: needsMaintenance ? '#f87171' : '#34d399' }}>
+                  <span><Calendar size={14} style={{ display: 'inline', marginLeft: '4px' }}/> انتهاء التأمين:</span>
+                  <span style={{ fontWeight: 700, color: isInsuranceAlert ? '#f87171' : '#e0f2fe' }}>
+                    {v.insurance_expiry_date || 'غير محدد'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><Bell size={14} style={{ display: 'inline', marginLeft: '4px' }}/> مهلة التنبيه المبكر:</span>
+                  <span style={{ fontWeight: 700, color: '#38bdf8' }}>قبل ({alertDays}) يوماً</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><Wrench size={14} style={{ display: 'inline', marginLeft: '4px' }}/> الكيلومترات (الحالي/القادم):</span>
+                  <span style={{ fontWeight: 700, color: isOilAlert ? '#f87171' : '#34d399' }}>
                     {v.current_km} / {v.next_oil_change_km}
                   </span>
                 </div>
@@ -318,6 +395,25 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
               <div>
                 <label className="form-label" style={{ color: '#e0f2fe' }}>تاريخ انتهاء التأمين</label>
                 <input type="date" className="form-input" value={insuranceDate} onChange={e => setInsuranceDate(e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1 / -1', background: 'rgba(56, 189, 248, 0.08)', padding: '12px', borderRadius: '12px', border: '1px dashed rgba(56, 189, 248, 0.3)' }}>
+                <label className="form-label" style={{ color: '#38bdf8', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Bell size={16} />
+                  إرسال التنبيه المبكر قبل الانتهاء (بالأيام)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="90"
+                  className="form-input"
+                  value={alertDaysBefore}
+                  onChange={e => setAlertDaysBefore(Number(e.target.value))}
+                  placeholder="افتراضي: 15 يوماً"
+                  style={{ marginTop: '6px' }}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                  سيتم التنبيه وإبراز الكرت باللون الأصفر عند تبقي هذا عدد من الأيام قبل تاريخ الفحص أو التأمين.
+                </span>
               </div>
               <div>
                 <label className="form-label" style={{ color: '#e0f2fe' }}>تاريخ آخر تغيير زيت</label>

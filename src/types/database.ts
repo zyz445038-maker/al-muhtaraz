@@ -67,6 +67,7 @@ export interface TransportVehicle {
   current_km: number;
   periodic_inspection_date: string;
   insurance_expiry_date: string;
+  alert_days_before?: number; // عدد أيام التنبيه المبكر قبل انتهاء التاريخ (الافتراضي 15 يوماً)
   status: VehicleStatus;
   notes?: string;
   created_at: string;
