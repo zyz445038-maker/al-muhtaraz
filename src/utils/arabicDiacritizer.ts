@@ -1,3 +1,5 @@
+import { applyPronunciationDictionarySync } from './ttsDictionary';
+
 const PHONETIC_DIALECT_MAP: [RegExp, string][] = [
   // Common Saudi Greetings & Friendly Idioms (Strict Harakat without Shaddah or Tanween on Ghain)
   [/(?<![\u0600-\u06FF])يا\s+هلا\s+وغلا(?![\u0600-\u06FF])/g, 'يَا هَلَا وَغَلَا'],
@@ -13,7 +15,7 @@ const PHONETIC_DIALECT_MAP: [RegExp, string][] = [
   [/(?<![\u0600-\u06FF])طال\s+عمرك(?![\u0600-\u06FF])/g, 'طَال عُمْرَك'],
   [/(?<![\u0600-\u06FF])أبو\s+ماجد(?![\u0600-\u06FF])/g, 'أَبُو مَاجِد'],
   [/(?<![\u0600-\u06FF])ابو\s+ماجد(?![\u0600-\u06FF])/g, 'أَبُو مَاجِد'],
-  [/(?<![\u0600-\u06FF])المحترز(?![\u0600-\u06FF])/g, 'المُحْتَرَز'],
+  [/(?<![\u0600-\u06FF])المحترز(?![\u0600-\u06FF])/g, 'المُخْتَرَز'],
   [/(?<![\u0600-\u06FF])للحاويات(?![\u0600-\u06FF])/g, 'لِلْحَاوِيَات'],
 ];
 
@@ -22,10 +24,14 @@ export function diacritizeArabicSpeech(rawText: string): string {
 
   let processed = rawText;
 
-  // Apply explicit phonetic replacements for Saudi dialect idioms
+  // 1. Apply Dynamic Supabase & Domain Pronunciation Lexicon
+  processed = applyPronunciationDictionarySync(processed);
+
+  // 2. Apply explicit phonetic replacements for Saudi dialect idioms
   PHONETIC_DIALECT_MAP.forEach(([regex, replacement]) => {
     processed = processed.replace(regex, replacement);
   });
+
 
   // Remove multiple dots, ellipses (...), or exclamation/question mark clusters that cause unnatural pauses
   processed = processed

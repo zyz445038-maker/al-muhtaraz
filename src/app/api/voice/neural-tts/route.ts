@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
+import { getPronunciationDictionary } from '@/utils/ttsDictionary';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,8 +25,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Text parameter is required' }, { status: 400 });
     }
 
+    // Refresh dynamic Supabase pronunciation dictionary in background without blocking TTS latency
+    getPronunciationDictionary().catch(() => {});
+
     // Clean all markdown, asterisks, emojis, and symbols so TTS never reads out punctuation
     const text = cleanSpeechText(rawText);
+
     const voiceId = ZARIYAH_VOICE_ID;
     const cacheKey = `${voiceId}_${rate}_${text}`;
 
