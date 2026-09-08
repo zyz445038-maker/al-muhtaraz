@@ -100,6 +100,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           .desktop-actions-view { display: none !important; }
           .mobile-top-header { display: flex !important; }
           .mobile-bottom-app-bar { display: flex !important; }
+          .mobile-bottom-app-bar > button {
+            flex-shrink: 0;
+            min-width: 56px;
+          }
         }
       `}</style>
 
@@ -772,7 +776,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         borderTop: '1px solid rgba(245, 158, 11, 0.3)',
         padding: '6px 12px 10px 12px',
         alignItems: 'center',
-        justifyContent: 'space-around',
+        justifyContent: 'flex-start',
+        gap: '15px',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
         boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.6)'
       }}>
         {/* Tab 1: Search */}
