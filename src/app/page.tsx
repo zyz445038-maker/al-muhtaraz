@@ -1786,11 +1786,12 @@ function MainDashboard() {
   // Staff Management Handlers
   const handleAddStaff = async (staffData: any): Promise<boolean> => {
     const newProfile: Profile = {
-      id: `staff-${Date.now()}`,
+      id: staffData.id || `staff-${Date.now()}`,
       full_name: staffData.full_name,
-      email: staffData.email,
-      phone: staffData.phone,
-      role: 'employee',
+      email: staffData.email || `${staffData.phone || Date.now()}@almuhtaraz.com`,
+      phone: staffData.phone || '',
+      role: staffData.role || 'employee',
+      password_pin: staffData.password_pin || '1234',
       is_active: true,
       can_view_all_records: staffData.can_view_all_records ?? true,
       permissions: staffData.permissions,
@@ -1799,6 +1800,13 @@ function MainDashboard() {
     };
 
     setStaffList(prev => [...prev, newProfile]);
+
+    try {
+      const { error } = await supabase.from('profiles').insert([newProfile]);
+      if (error) console.error('Supabase profile insert error:', error);
+    } catch (err) {
+      console.warn('Synced staff addition locally:', err);
+    }
     return true;
   };
 
