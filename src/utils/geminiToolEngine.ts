@@ -63,113 +63,123 @@ export async function determineIntentWithGemini(userQuery: string): Promise<{ to
   const githubToken = process.env.GITHUB_TOKEN;
   const groqKey = process.env.GROQ_API_KEY;
 
-  const systemPrompt = `أنت رفيق عمل ومساعد إداري ومالي ذكي وودود جداً لشركة "المحترز للحاويات" في السعودية.
-تتميز بالذكاء العالي، التفكير الإيجابي، سرعة البديهة، والقدرة على النقاش الحر، ومناقشة الحلول، وتأدية العمل بمهنية مع حس دعابة خفيف ومرح وودود.
-اختر الأداة المناسبة بدقة لتنفيذ طلب المستخدم، أو ناقشه بحرية وبطريقة ذكية ولطيفة دون قوالب مكررة.`;
+  const systemPrompt = `أنت مساعد عمل ومستشار إداري ذكي وودود جداً لشركة "المحترز للحاويات" في السعودية.
+تتحدث بشكل طبيعي وتلقائي 100% متكيف كلياً مع طبيعة سؤال المستخدم، دون أي ترحيب طويل أو قوالب رسمية مكررة.
+- إذا كان السؤال استفساراً رقمياً أو تشغيلياً: أجب مباشرة ودون مقدمات.
+- إذا كان السؤال نقاشاً أو فكاهة: تفاعل بذكاء، ود وحس دعابة خفيف ولطيف.
+- يُمنع منعاً باتاً استخدام مقدمات رسمية مكررة مثل (أهلاً بك بصفتي رفيقك وسندك). ادخل في الرد مباشرة وبأسلوب طبيعي ومرح.`;
 
-  // 1. TRY GOOGLE GEMINI (PRIMARY FREE MODEL)
-  if (geminiKey) {
-    try {
-      const geminiClient = new OpenAI({
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-        apiKey: geminiKey
-      });
+  // Detect quick operational vs deep strategic query for Smart Model Routing
+  const isQuickOperational = /حاوية|عقد|سائق|مبلغ|سند|رقم|بحث|منتهي|صيانة|كم|أين|مين/i.test(userQuery) && userQuery.length < 50;
 
-      const response = await geminiClient.chat.completions.create({
-        model: 'gemini-3.6-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userQuery }
-        ],
-        tools,
-        tool_choice: 'auto'
-      });
-
-      const message = response.choices[0]?.message;
-      const toolCall = message?.tool_calls?.[0] as any;
-
-      if (toolCall) {
-        let args = {};
-        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
-        return { toolName: toolCall.function?.name as string, args };
-      }
-
-      if (message?.content) {
-        return { toolName: 'generalConversation', args: { reply: message.content } };
-      }
-    } catch (err: any) {
-      console.warn('⚠️ Gemini Primary AI failover to GitHub Models:', err?.message || err);
+  // HELPER: Query Gemini 3.6 Flash
+  const callGemini = async () => {
+    if (!geminiKey) return null;
+    const client = new OpenAI({
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      apiKey: geminiKey
+    });
+    const response = await client.chat.completions.create({
+      model: 'gemini-3.6-flash',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userQuery }
+      ],
+      tools,
+      tool_choice: 'auto'
+    });
+    const message = response.choices[0]?.message;
+    const toolCall = message?.tool_calls?.[0] as any;
+    if (toolCall) {
+      let args = {};
+      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+      return { toolName: toolCall.function?.name as string, args };
     }
-  }
-
-  // 2. TRY GITHUB MODELS API (BACKUP FREE MODEL)
-  if (githubToken) {
-    try {
-      const githubClient = new OpenAI({
-        baseURL: 'https://models.inference.ai.azure.com',
-        apiKey: githubToken
-      });
-
-      const response = await githubClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userQuery }
-        ],
-        tools,
-        tool_choice: 'auto'
-      });
-
-      const message = response.choices[0]?.message;
-      const toolCall = message?.tool_calls?.[0] as any;
-
-      if (toolCall) {
-        let args = {};
-        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
-        return { toolName: toolCall.function?.name as string, args };
-      }
-
-      if (message?.content) {
-        return { toolName: 'generalConversation', args: { reply: message.content } };
-      }
-    } catch (err: any) {
-      console.warn('⚠️ GitHub Models Backup failover to Groq/Local:', err?.message || err);
+    if (message?.content) {
+      return { toolName: 'generalConversation', args: { reply: message.content } };
     }
-  }
+    return null;
+  };
 
-  // 3. TRY GROQ API (FALLBACK MODEL)
-  if (groqKey) {
-    try {
-      const groqClient = new OpenAI({
-        baseURL: 'https://api.groq.com/openai/v1',
-        apiKey: groqKey
-      });
-
-      const response = await groqClient.chat.completions.create({
-        model: 'openai/gpt-oss-120b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userQuery }
-        ],
-        tools,
-        tool_choice: 'auto'
-      });
-
-      const message = response.choices[0]?.message;
-      const toolCall = message?.tool_calls?.[0] as any;
-
-      if (toolCall) {
-        let args = {};
-        try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
-        return { toolName: toolCall.function?.name as string, args };
-      }
-
-      if (message?.content) {
-        return { toolName: 'generalConversation', args: { reply: message.content } };
-      }
-    } catch (err: any) {
-      console.warn('⚠️ Groq API Error:', err?.message || err);
+  // HELPER: Query Groq LPU Engine (Fastest Latency)
+  const callGroq = async () => {
+    if (!groqKey) return null;
+    const client = new OpenAI({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKey: groqKey
+    });
+    const response = await client.chat.completions.create({
+      model: 'openai/gpt-oss-120b',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userQuery }
+      ],
+      tools,
+      tool_choice: 'auto'
+    });
+    const message = response.choices[0]?.message;
+    const toolCall = message?.tool_calls?.[0] as any;
+    if (toolCall) {
+      let args = {};
+      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+      return { toolName: toolCall.function?.name as string, args };
     }
+    if (message?.content) {
+      return { toolName: 'generalConversation', args: { reply: message.content } };
+    }
+    return null;
+  };
+
+  // HELPER: Query GitHub Models API (Backup Model)
+  const callGitHub = async () => {
+    if (!githubToken) return null;
+    const client = new OpenAI({
+      baseURL: 'https://models.inference.ai.azure.com',
+      apiKey: githubToken
+    });
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userQuery }
+      ],
+      tools,
+      tool_choice: 'auto'
+    });
+    const message = response.choices[0]?.message;
+    const toolCall = message?.tool_calls?.[0] as any;
+    if (toolCall) {
+      let args = {};
+      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+      return { toolName: toolCall.function?.name as string, args };
+    }
+    if (message?.content) {
+      return { toolName: 'generalConversation', args: { reply: message.content } };
+    }
+    return null;
+  };
+
+  // 🚀 DYNAMIC SMART ROUTING:
+  // For Quick Operational queries -> Groq LPU (Fastest 1.5s) -> Gemini -> GitHub
+  // For Deep Strategy / Casual Chat -> Gemini 3.6 Flash (Rich Arabic) -> Groq -> GitHub
+  try {
+    if (isQuickOperational) {
+      const groqRes = await callGroq();
+      if (groqRes) return groqRes;
+      const geminiRes = await callGemini();
+      if (geminiRes) return geminiRes;
+    } else {
+      const geminiRes = await callGemini();
+      if (geminiRes) return geminiRes;
+      const groqRes = await callGroq();
+      if (groqRes) return groqRes;
+    }
+
+    const githubRes = await callGitHub();
+    if (githubRes) return githubRes;
+
+  } catch (err: any) {
+    console.warn('⚠️ Multi-Model Routing error:', err?.message || err);
   }
 
   return null;
