@@ -500,7 +500,7 @@ function MainDashboard() {
   }, [officialContractRecords]);
 
   // Sync seal settings
-  const handleSaveSealSettings = (settings: ContractSealSettings) => {
+  const handleSaveSealSettings = async (settings: ContractSealSettings) => {
     setContractSealSettings(settings);
     if (typeof window !== 'undefined') {
       try {
@@ -508,6 +508,16 @@ function MainDashboard() {
       } catch (e) {
         console.warn('Error saving seal settings locally:', e);
       }
+    }
+    try {
+      await supabase.from('contract_seal_settings').upsert([{
+        id: 1,
+        seal_image_url: settings.sealImageUrl,
+        manager_name: settings.managerName,
+        updated_at: new Date().toISOString()
+      }]);
+    } catch (err) {
+      console.warn('Supabase seal settings sync error:', err);
     }
   };
 
@@ -847,6 +857,15 @@ function MainDashboard() {
 
         const { data: dbVehicles } = await supabase.from('vehicles').select('*');
         if (dbVehicles && dbVehicles.length > 0) setVehicles(dbVehicles);
+
+        const { data: dbSeal } = await supabase.from('contract_seal_settings').select('*').limit(1).maybeSingle();
+        if (dbSeal) {
+          setContractSealSettings({
+            sealImageUrl: dbSeal.seal_image_url || null,
+            managerName: dbSeal.manager_name || 'أبو ماجد (المدير العام)',
+            updatedAt: dbSeal.updated_at || new Date().toISOString()
+          });
+        }
       } catch (err) {
         console.warn('Supabase local sync initialized with active state:', err);
       }

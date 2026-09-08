@@ -751,5 +751,17 @@ COMMENT ON TABLE public.vehicles IS 'جدول سيارات النقل ومواع
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow authenticated all" ON public.vehicles FOR ALL USING (true);
 
+-- ==============================================================================
+-- 16. جدول contract_seal_settings (الختم والتوقيع الرسمي واسم المدير العام)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.contract_seal_settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    seal_image_url TEXT,
+    manager_name TEXT NOT NULL DEFAULT 'المدير العام',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
+COMMENT ON TABLE public.contract_seal_settings IS 'جدول حفظ صورة الختم والتوقيع الرسمي واسم المدير العام للمصادقة على العقود';
 
+ALTER TABLE public.contract_seal_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated all" ON public.contract_seal_settings FOR ALL USING (true);
