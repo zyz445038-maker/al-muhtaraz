@@ -4,6 +4,8 @@ import React from 'react';
 import styles from './dashboard.module.css';
 // import Link from 'next/link'; // Unused
 import Image from 'next/image';
+import { UploadContractForm } from '@/components/UploadContractForm';
+import { getSupabaseServerClient } from '@/lib/supabaseServer';
 
 /**
  * Dashboard page – read‑only UI that consumes the summary API
@@ -15,6 +17,12 @@ import Image from 'next/image';
  * this file.
  */
 export default async function DashboardPage() {
+  const supabase = getSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const isAdmin = (user?.role as any) === 'admin';
+  const hasArchivePerm = (user as any)?.permissions?.can_manage_archive ?? false;
+  const canUploadArchive = isAdmin || hasArchivePerm;
+
   // Server‑side fetch – no‑store ensures we always get the latest data.
   const res = await fetch('/api/dashboard/summary', { cache: 'no-store' });
   if (!res.ok) {
@@ -33,6 +41,11 @@ export default async function DashboardPage() {
 
   return (
     <main className={styles.dashboard}>
+      
+      {canUploadArchive && (
+        <UploadContractForm />
+      )}
+
       <section className={styles.summary}>
         <h1 className="title">ملخص لوحة التحكم</h1>
         <div className={styles.grid}>

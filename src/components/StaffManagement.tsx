@@ -44,7 +44,8 @@ export const DEFAULT_DRIVER_PERMISSIONS: StaffPermissions = {
   can_collect_payments: true,
   can_send_payment_links: false,
   can_manage_inventory: true,
-  can_send_whatsapp: true
+  can_send_whatsapp: true,
+  can_manage_archive: false
 };
 
 export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
@@ -55,7 +56,8 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   can_collect_payments: true,
   can_send_payment_links: true,
   can_manage_inventory: true,
-  can_send_whatsapp: true
+  can_send_whatsapp: true,
+  can_manage_archive: false
 };
 
 export const StaffManagement: React.FC<StaffManagementProps> = ({
@@ -592,6 +594,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                                 checked={perms.can_manage_inventory}
                                 onChange={() => handleTogglePermission(staff, 'can_manage_inventory')}
                                 style={{ accentColor: '#10b981' }}
+                              />
+                            </label>
+
+                            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px' }}>
+                              <span>🗄️ الأرشيف (تصفح ورفع العقود)</span>
+                              <input
+                                type="checkbox"
+                                checked={!!perms.can_manage_archive}
+                                onChange={() => handleTogglePermission(staff, 'can_manage_archive')}
+                                style={{ accentColor: '#8b5cf6' }}
                               />
                             </label>
                           </div>

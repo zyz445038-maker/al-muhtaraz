@@ -9,6 +9,7 @@ export interface StaffPermissions {
   can_send_payment_links: boolean; // إرسال روابط سداد عبر الواتساب
   can_manage_inventory: boolean; // سحب واستلام الحاويات للمخزون
   can_send_whatsapp: boolean; // إرسال إشعارات الواتساب
+  can_manage_archive?: boolean; // رفع وتصفح العقود القديمة في الأرشيف
 }
 
 export interface Profile {
