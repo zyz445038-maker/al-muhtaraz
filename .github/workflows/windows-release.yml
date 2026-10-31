@@ -1,0 +1,88 @@
+name: Windows desktop release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-draft-release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: release.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate release configuration
+        shell: pwsh
+        run: |
+          if (-not $env:NEXT_PUBLIC_SUPABASE_URL -or -not $env:NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            throw 'Set the NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY repository variables before releasing.'
+          }
+          $packageVersion = node -p "require('./package.json').version"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not read the package.json version.'
+          }
+          if ($env:GITHUB_REF_NAME -ne "v$packageVersion") {
+            throw 'The release tag must match the package.json version.'
+          }
+
+      - name: Validate release signing secret
+        shell: pwsh
+        env:
+          UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
+        run: |
+          if (-not $env:UPDATE_ED25519_PRIVATE_KEY) {
+            throw 'Set the UPDATE_ED25519_PRIVATE_KEY secret in the release environment before releasing.'
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test signed update manifest verification
+        run: npm run test:update-manifest
+
+      - name: Build Windows installer
+        run: npm run desktop:installer
+
+      - name: Smoke-test packaged application
+        run: |
+          npm run desktop:smoke -- --relocate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run desktop:smoke:crash
+
+      - name: Create checksum and signed update manifest
+        env:
+          UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
+        run: npm run release:metadata
+
+      - name: Create draft GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*Setup*.exe \
+            dist/*.exe.sha256 \
+            dist/update-manifest.json \
+            --draft \
+            --verify-tag \
+            --title "المحترز للحاويات $GITHUB_REF_NAME" \
+            --generate-notes

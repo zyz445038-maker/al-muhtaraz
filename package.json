@@ -14,7 +14,9 @@
     "desktop:pack": "npm run build:desktop && electron-builder --dir",
     "desktop:installer": "npm run build:desktop && electron-builder --win nsis",
     "desktop:smoke": "node scripts/smoke-desktop.cjs dist/win-unpacked",
-    "desktop:smoke:crash": "node scripts/smoke-desktop.cjs dist/win-unpacked --crash-server"
+    "desktop:smoke:crash": "node scripts/smoke-desktop.cjs dist/win-unpacked --crash-server",
+    "test:update-manifest": "node --test scripts/update-manifest.test.cjs",
+    "release:metadata": "node scripts/create-release-metadata.cjs"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
@@ -56,6 +58,8 @@
     ],
     "files": [
       "electron/main.cjs",
+      "electron/updateManifest.cjs",
+      "electron/updatePublicKey.cjs",
       "package.json",
       ".next/standalone/**/*",
       "!node_modules/**"
