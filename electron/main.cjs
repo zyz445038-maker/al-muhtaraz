@@ -4,6 +4,9 @@ const path = require('node:path');
 const { appendFile, mkdir } = require('node:fs/promises');
 
 const STARTUP_TIMEOUT_MS = 30000;
+const READINESS_REQUEST_TIMEOUT_MS = 2000;
+const READINESS_RETRY_DELAY_MS = 250;
+const READINESS_LOG_INTERVAL_MS = 5000;
 const LOOPBACK_HOST = '127.0.0.1';
 const LOOPBACK_HOSTS = new Set([LOOPBACK_HOST, 'localhost', '[::1]']);
 const smokeTestMode = process.argv.includes('--smoke-test');
@@ -75,49 +78,66 @@ function findAvailablePort() {
   });
 }
 
+function formatProbeError(error) {
+  const details = [error.message, error.code, error.cause?.code, error.cause?.message]
+    .filter(Boolean);
+  return `${error.name}: ${details.join(' | ')}`;
+}
+
 function waitForServer(port, child, getOutput) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   const url = `http://${LOOPBACK_HOST}:${port}`;
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearInterval(timer);
-      error ? reject(error) : resolve(url);
-    };
-    const timer = setInterval(async () => {
+  let attempts = 0;
+  let lastProbeFailure = 'No HTTP readiness response was received.';
+  let lastLoggedFailureAt = 0;
+  log(`Checking local server readiness at ${url}/api/electron-smoke (pid=${child.pid}).`);
+
+  return (async () => {
+    while (Date.now() < deadline) {
       if (!serverIsRunning) {
-        finish(new Error(`The local Next.js server stopped unexpectedly.\n${getOutput()}`));
-        return;
+        throw new Error(
+          `The local Next.js server stopped unexpectedly during readiness checks.\n${getOutput()}`,
+        );
       }
-      if (Date.now() >= deadline) {
-        finish(new Error(`The local Next.js server did not become ready in time.\n${getOutput()}`));
-        return;
-      }
+
+      attempts += 1;
       try {
         const response = await fetch(`${url}/api/electron-smoke`, {
-          signal: AbortSignal.timeout(1000),
+          signal: AbortSignal.timeout(READINESS_REQUEST_TIMEOUT_MS),
         });
-        if (response.ok) {
-          const result = await response.json();
-          if (result?.ok === true && result?.runtime === 'nodejs') {
-            finish();
-          }
+        const body = await response.text();
+        let result;
+        try {
+          result = JSON.parse(body);
+        } catch {
+          result = undefined;
         }
-      } catch {
-        if (!serverIsRunning) {
-          finish(new Error(`The local Next.js server stopped unexpectedly.\n${getOutput()}`));
+
+        if (response.ok && result?.ok === true && result?.runtime === 'nodejs') {
+          log(`Readiness check succeeded with HTTP ${response.status} after ${attempts} attempts.`);
+          return url;
         }
+
+        const bodySummary = body.replace(/\s+/g, ' ').slice(0, 500);
+        lastProbeFailure = `HTTP ${response.status}; response body: ${bodySummary || '<empty>'}`;
+      } catch (error) {
+        lastProbeFailure = formatProbeError(error);
       }
-    }, 250);
-    timer.unref?.();
-    child.once('exit', (code) => {
-      if (!settled) {
-        finish(new Error(`The local Next.js server exited with code ${code}.\n${getOutput()}`));
+
+      const now = Date.now();
+      if (!lastLoggedFailureAt || now - lastLoggedFailureAt >= READINESS_LOG_INTERVAL_MS) {
+        log(`Readiness check attempt ${attempts} failed: ${lastProbeFailure}`);
+        lastLoggedFailureAt = now;
       }
-    });
-  });
+      await new Promise((resolve) => setTimeout(resolve, READINESS_RETRY_DELAY_MS));
+    }
+
+    throw new Error(
+      `The local Next.js server did not become ready within ${STARTUP_TIMEOUT_MS} ms. `
+      + `URL: ${url}/api/electron-smoke; PID: ${child.pid}; attempts: ${attempts}. `
+      + `Last readiness check: ${lastProbeFailure}\n${getOutput()}`,
+    );
+  })();
 }
 
 async function startServer() {
@@ -140,6 +160,10 @@ async function startServer() {
     });
     serverProcess = child;
     serverIsRunning = true;
+    log(`Started local Next.js server process (entry=${serverEntry}, port=${port}).`);
+    child.once('spawn', () => {
+      log(`Local Next.js server process spawned (pid=${child.pid}).`);
+    });
     child.stdout?.on('data', appendOutput);
     child.stderr?.on('data', appendOutput);
     child.once('exit', (code) => {

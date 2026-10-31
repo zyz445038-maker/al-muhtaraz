@@ -19,6 +19,11 @@ requests, checks that closing Electron stops its local server, and can simulate
 a stopped Next.js process. A clean Windows installation and a physically
 disconnected network still require separate validation.
 
+If the installed app cannot start its local server, inspect
+`%APPDATA%\al-muhtaraz-containers\desktop-runtime.log`. The log includes the
+server entry point, process ID, local readiness URL, and periodic HTTP or
+connection failures; attach it when reporting startup problems.
+
 ## Windows release signing
 
 Push a stable tag matching the `package.json` version (for example `v1.0.1`) to
