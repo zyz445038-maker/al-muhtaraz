@@ -20,6 +20,7 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256: ${{ vars.WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256 }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,6 +54,14 @@ jobs:
             throw 'Set the UPDATE_ED25519_PRIVATE_KEY secret in the release environment before releasing.'
           }
 
+      - name: Prepare Windows code-signing certificate
+        id: prepare-signing
+        shell: pwsh
+        env:
+          WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+        run: ./scripts/prepare-windows-signing.ps1
+
       - name: Install dependencies
         run: npm ci
 
@@ -60,7 +69,16 @@ jobs:
         run: npm run test:update-manifest
 
       - name: Build Windows installer
+        env:
+          CSC_LINK: ${{ steps.prepare-signing.outputs.certificate_path }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
         run: npm run desktop:installer
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PUBLIC_CERTIFICATE: ${{ steps.prepare-signing.outputs.public_certificate_path }}
+        run: ./scripts/verify-windows-signing.ps1
 
       - name: Smoke-test packaged application
         run: |
@@ -81,8 +99,16 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             dist/*Setup*.exe \
             dist/*.exe.sha256 \
+            dist/Al-Muhtaraz-Code-Signing.cer \
             dist/update-manifest.json \
             --draft \
             --verify-tag \
             --title "المحترز للحاويات $GITHUB_REF_NAME" \
             --generate-notes
+
+      - name: Remove signing certificate from runner
+        if: always()
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT: ${{ steps.prepare-signing.outputs.certificate_thumbprint }}
+        run: ./scripts/cleanup-windows-signing.ps1

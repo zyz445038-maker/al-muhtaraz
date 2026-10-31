@@ -29,7 +29,8 @@ connection failures; attach it when reporting startup problems.
 Push a stable tag matching the `package.json` version (for example `v1.0.1`) to
 run `.github/workflows/windows-release.yml`. The workflow builds and smoke-tests
 the Windows installer, creates a SHA-256 sidecar and an Ed25519-signed update
-manifest, then uploads them to a **draft** GitHub Release for review.
+manifest, verifies the Authenticode signatures, then uploads them with the
+public code-signing certificate to a **draft** GitHub Release for review.
 
 Before creating a release, configure these settings in the GitHub Actions
 environment named `release.` (including the trailing period):
@@ -41,6 +42,29 @@ environment named `release.` (including the trailing period):
   must match the public key pinned in the application. Keep it only in this
   environment secret; never commit it or paste it into source files, workflow
   logs, or chat.
+- Secrets: `WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64` (the base64-encoded PFX)
+  and `WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD`.
+- Variable: `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256`, the SHA-256 hash of the
+  public certificate's DER-encoded `.cer` file.
+
+The Windows certificate must be a currently valid, self-signed RSA certificate
+with a key of at least 3072 bits and the Code Signing enhanced key usage. The
+workflow checks its private key and certificate fingerprint, uses the PFX only
+on the ephemeral Windows runner, signs the application executables and
+installer, and verifies that each signature matches the pinned certificate.
+The runner temporarily trusts the public certificate only to validate those
+signatures, then removes it and the PFX. Never add the PFX or its password to
+the repository, build artifacts, or release assets.
+
+Create/export the self-signed certificate on a secured administrator-controlled
+machine, using the official company name in its subject. Store the encrypted
+PFX and its password as the two `WINDOWS_CODE_SIGNING_CERTIFICATE_*` secrets
+in the protected `release.` environment. Export the public certificate as DER
+`.cer`, calculate its SHA-256 with `Get-FileHash -Algorithm SHA256`, and store
+that fingerprint in `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256`. Never paste the
+private key or PFX password into chat or source control. The certificate
+subject is self-asserted; it does not prove a publicly verified company
+identity.
 
 The matching Ed25519 public key is pinned in
 `electron/updatePublicKey.cjs`. The packaged app includes a verifier that checks
@@ -49,11 +73,21 @@ the downloaded installer size and SHA-256. Automatic update discovery and
 installation are intentionally not enabled yet; integrate them only after a
 separate compatibility review of the Electron/NSIS installation layout.
 
-Authenticode signing remains disabled until a trusted Windows code-signing
-certificate is available.
+Authenticode signing is enabled when the protected certificate configuration
+is present. An internal self-signed certificate is not publicly trusted and
+does not establish the legal identity of its subject. Windows may still show
+SmartScreen warnings. The signed `.cer` is published only to let an
+administrator verify and deploy it to the explicitly managed devices; the
+application installer never imports certificates or changes Windows trust
+stores. Distribute trust through administrator-managed device policy, verify
+the SHA-256 fingerprint first, and limit the certificate to the three
+intended devices. Because this certificate is self-signed, an administrator
+must determine and test the required Windows trust stores; do not deploy it to
+additional devices or use it as a general-purpose root certificate.
 
 To test a Windows build without creating a release, run the **Windows desktop
 build test** workflow manually from the Actions tab. It builds and smoke-tests
-the installer, then uploads the installer and SHA-256 checksum as a temporary
-workflow artifact (14-day retention). This test does not use the signing secret
+the signed installer, verifies its Authenticode signature, then uploads the
+installer, SHA-256 checksum, and public certificate as a temporary workflow
+artifact (14-day retention). This test does not use the Ed25519 signing secret
 or publish a GitHub Release.
