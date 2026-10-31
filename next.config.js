@@ -2,6 +2,7 @@
 process.env.NEXT_TELEMETRY_DISABLED = '1';
 
 const nextConfig = {
+  output: process.env.NEXT_OUTPUT_STANDALONE === '1' ? 'standalone' : undefined,
   typescript: {
     ignoreBuildErrors: true,
   },
