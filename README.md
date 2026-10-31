@@ -46,3 +46,9 @@ separate compatibility review of the Electron/NSIS installation layout.
 
 Authenticode signing remains disabled until a trusted Windows code-signing
 certificate is available.
+
+To test a Windows build without creating a release, run the **Windows desktop
+build test** workflow manually from the Actions tab. It builds and smoke-tests
+the installer, then uploads the installer and SHA-256 checksum as a temporary
+workflow artifact (14-day retention). This test does not use the signing secret
+or publish a GitHub Release.

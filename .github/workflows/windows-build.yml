@@ -1,0 +1,73 @@
+name: Windows desktop build test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-test
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: release.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate build configuration
+        shell: pwsh
+        run: |
+          if (-not $env:NEXT_PUBLIC_SUPABASE_URL -or -not $env:NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            throw 'Set the NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY variables in the release. environment.'
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test update manifest verification
+        run: npm run test:update-manifest
+
+      - name: Build Windows installer
+        run: npm run desktop:installer
+
+      - name: Smoke-test packaged application
+        run: |
+          npm run desktop:smoke -- --relocate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run desktop:smoke:crash
+
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist -File -Filter '*Setup*.exe'
+          if ($installer.Count -ne 1) {
+            throw "Expected one Windows Setup installer; found $($installer.Count)."
+          }
+          $digest = (Get-FileHash $installer[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "$($installer[0].FullName).sha256" -Value "$digest  $($installer[0].Name)" -NoNewline
+
+      - name: Upload test build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: al-muhtaraz-windows-build-${{ github.run_number }}
+          path: |
+            dist/*Setup*.exe
+            dist/*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
