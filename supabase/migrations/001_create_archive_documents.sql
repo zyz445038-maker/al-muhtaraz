@@ -1,5 +1,5 @@
 -- Phase 3 archive foundation migration.
--- This migration stores metadata only. Files remain on the local archive server.
+-- This migration stores archive metadata; file bytes use the configured local or Supabase Storage backend.
 
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

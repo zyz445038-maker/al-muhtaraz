@@ -3,11 +3,9 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /**
- * Returns a Supabase client configured for server‑side usage with cookie‑based auth.
- * This client can be used in Next.js route handlers (App Router) to safely call
- * `auth.getUser()` and perform RBAC checks.
+ * Returns a server-side Supabase client authenticated from cookies or a verified bearer token.
  */
-export async function getSupabaseServerClient() {
+export async function getSupabaseServerClient(accessToken?: string) {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +21,7 @@ export async function getSupabaseServerClient() {
           );
         },
       },
+      ...(accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } } : {}),
     }
   );
 }

@@ -581,7 +581,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   transition: 'all 0.2s ease',
                   boxShadow: currentRole === 'admin' ? '0 0 15px rgba(245, 158, 11, 0.2)' : '0 0 15px rgba(56, 189, 248, 0.2)'
                 }}
-                title="تبديل الحساب أو تسجيل الدخول بالرمز السري"
+                title="تبديل الحساب أو تسجيل الدخول بالبريد الإلكتروني وكلمة المرور"
               >
                 <div style={{
                   width: '26px',

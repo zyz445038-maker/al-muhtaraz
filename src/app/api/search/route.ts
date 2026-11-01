@@ -1,7 +1,7 @@
 // src/app/api/search/route.ts
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getArchiveAuthorizedProfile } from '@/lib/archiveAuthorization';
 import { apiErrorResponse } from '@/lib/apiSafety';
 
 // GET /api/search?q=term&page=1&limit=10
@@ -18,6 +18,14 @@ export const runtime = 'nodejs';
  */
 export async function GET(request: Request) {
   try {
+    const authorization = await getArchiveAuthorizedProfile();
+    if (!authorization.ok) {
+      return NextResponse.json(
+        { success: false, error: authorization.error },
+        { status: authorization.status },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim() ?? '';
     const page = Math.max(parseInt(searchParams.get('page') ?? '1', 10), 1);
@@ -40,7 +48,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit;
 
     // Build the query – searching by filename for now.
-    const { data, count, error } = await supabase
+    const { data, count, error } = await authorization.supabase
       .from('documents')
       .select('id, original_filename, document_type, created_at', { count: 'exact' })
       .ilike('original_filename', `%${q}%`)
@@ -49,7 +57,7 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    const results = (data ?? []).map((doc: any) => ({
+    const results = (data ?? []).map(doc => ({
       id: doc.id,
       title: doc.original_filename ?? '(بدون عنوان)',
       type: doc.document_type,

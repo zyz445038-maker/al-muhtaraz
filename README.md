@@ -24,6 +24,32 @@ If the installed app cannot start its local server, inspect
 server entry point, process ID, local readiness URL, and periodic HTTP or
 connection failures; attach it when reporting startup problems.
 
+## Staff account management
+
+Administrators create staff accounts in the application. The Windows build
+sends this operation to the trusted Vercel API; configure
+`SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel environment secret. For
+local development, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in
+`.env.local`. Never include the service-role key in the Windows build or expose
+it through a `NEXT_PUBLIC_` variable.
+
+## Archive file storage
+
+Archive metadata remains in Supabase on both platforms. File contents use
+separate durable backends: the Windows app stores files under its Electron
+`userData\archive` directory (outside the install directory), while the web
+app stores them in the private Supabase Storage bucket named `documents`.
+Apply `supabase/migrations/003_enforce_archive_permissions.sql` and then
+`supabase/migrations/004_archive_storage.sql` in order before enabling uploads.
+The migrations are not applied automatically and must be reviewed and applied
+to the intended Supabase project.
+
+PDF uploads are queued for the existing text-extraction worker. Images are
+stored durably with OCR marked as pending, but are not queued until image OCR
+processing is implemented. Back up the Windows user-data folder separately;
+uninstalling or losing that device can otherwise make its local archive files
+unavailable.
+
 ## Windows release signing
 
 Push a stable tag matching the `package.json` version (for example `v1.0.1`) to

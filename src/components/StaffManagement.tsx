@@ -6,7 +6,6 @@ import {
   UserPlus, 
   ShieldCheck, 
   UserCheck, 
-  Trash2, 
   Key, 
   CheckCircle2, 
   Phone,
@@ -17,23 +16,28 @@ import {
   X,
   Send,
   MessageSquare,
-  Lock,
-  Eye,
-  EyeOff,
   Edit3
 } from 'lucide-react';
 import { Profile, StaffPermissions, UserRole } from '@/types/database';
 import { openDriverWhatsApp } from '@/utils/driverDispatch';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 
+export interface NewStaffAccount {
+  full_name: string;
+  email: string;
+  password: string;
+  phone: string;
+  notes?: string;
+  permissions: StaffPermissions;
+}
+
 interface StaffManagementProps {
   staffList: Profile[];
-  onAddStaff: (staffData: any) => Promise<boolean>;
+  onAddStaff: (staffData: NewStaffAccount) => Promise<boolean>;
   onEditStaff?: (profileId: string, updatedData: Partial<Profile>) => Promise<boolean>;
+  onSetStaffPassword: (profileId: string, password: string) => Promise<boolean>;
   onToggleStatus: (profileId: string, currentActive: boolean) => Promise<void>;
   onUpdatePermissions: (profileId: string, permissions: StaffPermissions) => Promise<void>;
-  onUpdatePasswordPin?: (profileId: string, newPin: string) => Promise<void>;
-  onDeleteStaff: (profileId: string) => Promise<void>;
 }
 
 export const DEFAULT_DRIVER_PERMISSIONS: StaffPermissions = {
@@ -64,34 +68,32 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   staffList,
   onAddStaff,
   onEditStaff,
+  onSetStaffPassword,
   onToggleStatus,
-  onUpdatePermissions,
-  onUpdatePasswordPin,
-  onDeleteStaff
+  onUpdatePermissions
 }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'staff' | 'drivers'>('all');
   
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [passwordPin, setPasswordPin] = useState('1234');
-  const [showAddPin, setShowAddPin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('+9665');
   const [truckNotes, setTruckNotes] = useState('');
   const [jobRole, setJobRole] = useState<'driver' | 'staff'>('driver');
   const [isPermissionsDropdownOpenInAdd, setIsPermissionsDropdownOpenInAdd] = useState(true);
-  const [newStaffPermissions, setNewStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
+  const [newStaffPermissions, setNewStaffPermissions] = useState<StaffPermissions>(DEFAULT_DRIVER_PERMISSIONS);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 📝 Comprehensive Edit Staff Modal State
   const [editingStaff, setEditingStaff] = useState<Profile | null>(null);
   const [editFullName, setEditFullName] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editPasswordPin, setEditPasswordPin] = useState('');
+  const [editPassword, setEditPassword] = useState('');
   const [editTruckNotes, setEditTruckNotes] = useState('');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editPermissions, setEditPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
-  const [showEditPin, setShowEditPin] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Table active dropdown popup ID for permissions
@@ -113,11 +115,10 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     setEditingStaff(staff);
     setEditFullName(staff.full_name);
     setEditPhone(staff.phone || '+9665');
-    setEditPasswordPin(staff.password_pin || '1234');
+    setEditPassword('');
     setEditTruckNotes(staff.notes?.replace('شاحنة: ', '') || '');
     setEditIsActive(staff.is_active);
     setEditPermissions(staff.permissions || (staff.full_name.includes('سائق') ? DEFAULT_DRIVER_PERMISSIONS : DEFAULT_STAFF_PERMISSIONS));
-    setShowEditPin(false);
   };
 
   const handleSaveFullEdit = async (e: React.FormEvent) => {
@@ -129,26 +130,31 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     const updatedData: Partial<Profile> = {
       full_name: editFullName,
       phone: editPhone,
-      password_pin: isDriver ? undefined : editPasswordPin,
       notes: isDriver && editTruckNotes ? `شاحنة: ${editTruckNotes}` : undefined,
       is_active: editIsActive,
-      permissions: isDriver ? DEFAULT_DRIVER_PERMISSIONS : editPermissions,
-      can_view_all_records: isDriver ? false : editPermissions.can_view_all_contracts
+      permissions: editPermissions,
+      can_view_all_records: editPermissions.can_view_all_contracts
     };
 
+    let saved = false;
     if (onEditStaff) {
-      await onEditStaff(editingStaff.id, updatedData);
+      saved = await onEditStaff(editingStaff.id, updatedData);
     } else {
       if (onUpdatePermissions && updatedData.permissions) {
         await onUpdatePermissions(editingStaff.id, updatedData.permissions);
-      }
-      if (onUpdatePasswordPin && updatedData.password_pin) {
-        await onUpdatePasswordPin(editingStaff.id, updatedData.password_pin);
+        saved = true;
       }
     }
 
+    if (saved && editPassword) {
+      saved = await onSetStaffPassword(editingStaff.id, editPassword);
+    }
+
     setIsSavingEdit(false);
-    setEditingStaff(null);
+    if (saved) {
+      setEditPassword('');
+      setEditingStaff(null);
+    }
   };
 
   const handleTogglePermission = async (staff: Profile, key: keyof StaffPermissions) => {
@@ -177,15 +183,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     setIsSubmitting(true);
     const isDriver = jobRole === 'driver';
     const roleTitle = isDriver ? '(سائق رافعة وتوصيل)' : '(موظف استقبال ومتابعة)';
-    const assignedPerms = isDriver ? DEFAULT_DRIVER_PERMISSIONS : newStaffPermissions;
+    const assignedPerms = newStaffPermissions;
 
     const success = await onAddStaff({
       full_name: `${fullName} ${roleTitle}`,
-      email: isDriver ? `driver.${Date.now()}@almuhtaraz.com` : `staff.${Date.now()}@almuhtaraz.com`,
-      password_pin: isDriver ? undefined : (passwordPin || '1234'),
+      email,
+      password,
       phone,
       notes: isDriver && truckNotes ? `شاحنة: ${truckNotes}` : undefined,
-      can_view_all_records: assignedPerms.can_view_all_contracts,
       permissions: assignedPerms
     });
     setIsSubmitting(false);
@@ -193,11 +198,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     if (success) {
       setIsAddModalOpen(false);
       setFullName('');
-      setPasswordPin('1234');
+      setEmail('');
+      setPassword('');
       setPhone('+9665');
       setTruckNotes('');
       setJobRole('driver');
-      setNewStaffPermissions(DEFAULT_STAFF_PERMISSIONS);
+      setNewStaffPermissions(DEFAULT_DRIVER_PERMISSIONS);
     }
   };
 
@@ -383,35 +389,11 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                             {isAdmin ? '👑 المدير العام' : isDriver ? '🚛 سائق رافعة وتوصيل ميداني' : '👷 موظف استقبال ومتابعة'}
                           </span>
 
-                          {!isDriver && (
-                            <button
-                              onClick={() => handleOpenEditModal(staff)}
-                              style={{
-                                background: 'rgba(245, 158, 11, 0.12)',
-                                border: '1px solid rgba(245, 158, 11, 0.3)',
-                                borderRadius: '6px',
-                                padding: '1px 6px',
-                                color: '#fbbf24',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                              title="تعديل الرمز السري وبيانات الموظف"
-                            >
-                              <Key size={10} />
-                              <span>الرمز: {staff.password_pin || '1234'}</span>
-                              <Edit3 size={10} />
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>
                   </td>
 
-                  {/* Phone */}
                   <td style={{ padding: '16px 20px', direction: 'ltr', textAlign: 'right' }}>
                     <span style={{ color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600 }}>
                       {staff.phone || staff.email}
@@ -665,36 +647,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                           gap: '6px',
                           transition: 'all 0.2s ease'
                         }}
-                        title="تعديل كافة بيانات الموظف وكلمة السر والصلاحيات في نافذة منبثقة"
+                        title="تعديل بيانات الموظف والصلاحيات"
                       >
                         <Edit3 size={14} />
                         <span>تعديل ✏️</span>
                       </button>
 
-                      {staff.role !== 'admin' && (
-                        <button
-                          onClick={() => {
-                            if (confirm(`هل أنت متأكد من حذف ${staff.full_name}؟`)) {
-                              onDeleteStaff(staff.id);
-                            }
-                          }}
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.12)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            color: '#f87171',
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="حذف السجل"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -715,7 +673,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                   {jobRole === 'driver' ? 'إضافة سائق أسطول ميداني 🚛' : 'إضافة موظف استقبال للنظام 👷'}
                 </h3>
                 <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {jobRole === 'driver' ? 'السائق يستلم المهام والمواقع عبر الواتساب مباشرة دون الحاجة للدخول للنظام' : 'تسجيل موظف جديد وضبط صلاحيات دخوله للنظام'}
+                    ينشئ المدير الحساب ويحدد كلمة المرور والصلاحيات من هنا
                 </p>
               </div>
 
@@ -747,7 +705,10 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div
-                    onClick={() => setJobRole('driver')}
+                    onClick={() => {
+                      setJobRole('driver');
+                      setNewStaffPermissions(DEFAULT_DRIVER_PERMISSIONS);
+                    }}
                     style={{
                       padding: '12px',
                       borderRadius: '10px',
@@ -767,7 +728,10 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                   </div>
 
                   <div
-                    onClick={() => setJobRole('staff')}
+                    onClick={() => {
+                      setJobRole('staff');
+                      setNewStaffPermissions(DEFAULT_STAFF_PERMISSIONS);
+                    }}
                     style={{
                       padding: '12px',
                       borderRadius: '10px',
@@ -803,6 +767,38 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 />
               </div>
 
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
+                  البريد الإلكتروني لتسجيل الدخول:
+                </label>
+                <input
+                  type="email"
+                  className="form-input"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
+                  كلمة المرور:
+                </label>
+                <input
+                  type="password"
+                  className="form-input"
+                  autoComplete="new-password"
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                  الحد الأدنى 8 أحرف. لا تُحفظ كلمة المرور ضمن بيانات الموظف.
+                </span>
+              </div>
+
               {/* Phone */}
               <SaudiPhoneInput
                 label={`رقم جوال الواتساب ${jobRole === 'driver' ? '(لاستلام أوامر المهام والمواقع)' : ''}:`}
@@ -827,68 +823,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 </div>
               )}
 
-              {/* Password PIN (ONLY for Office Staff) */}
-              {jobRole === 'staff' && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: '700', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Key size={14} />
-                      <span>كلمة المرور / الرمز السري للدخول:</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setPasswordPin(Math.floor(1000 + Math.random() * 9000).toString())}
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        color: '#fbbf24',
-                        borderRadius: '6px',
-                        padding: '2px 8px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      توليد رمز تلقائي 🎲
-                    </button>
-                  </div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showAddPin ? 'text' : 'password'}
-                      className="form-input"
-                      dir="ltr"
-                      placeholder="مثال: 1234 أو رمز مخصص"
-                      value={passwordPin}
-                      onChange={(e) => setPasswordPin(e.target.value)}
-                      required
-                      style={{ paddingLeft: '40px', letterSpacing: showAddPin ? '2px' : 'normal', fontWeight: 800 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowAddPin(!showAddPin)}
-                      style={{
-                        position: 'absolute',
-                        left: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showAddPin ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    يدخل الموظف بالنقر على اسمه وإدخال هذا الرمز السري مباشرة دون الحاجة لبريد إلكتروني.
-                  </span>
-                </div>
-              )}
-
-              {/* 🛡️ Permissions Dropdown (ONLY shown when jobRole === 'staff', HIDDEN for driver) */}
-              {jobRole === 'staff' && (
-                <div style={{
+              <div style={{
                   background: 'rgba(15, 23, 42, 0.7)',
                   border: '1px solid rgba(56, 189, 248, 0.3)',
                   borderRadius: '10px',
@@ -909,7 +844,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Key size={16} color="#38bdf8" />
                       <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#38bdf8' }}>
-                        قائمة صلاحيات موظف الاستقبال ▾
+                        صلاحيات الحساب ▾
                       </span>
                     </div>
                     {isPermissionsDropdownOpenInAdd ? <ChevronUp size={16} color="#38bdf8" /> : <ChevronDown size={16} color="#38bdf8" />}
@@ -1012,10 +947,19 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         />
                         <span>🎁 عقود مجانية (إهداء)</span>
                       </label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newStaffPermissions.can_manage_archive || false}
+                          onChange={(e) => setNewStaffPermissions(p => ({ ...p, can_manage_archive: e.target.checked }))}
+                          style={{ accentColor: '#f43f5e' }}
+                        />
+                        <span>🗂️ إدارة الأرشيف والوثائق</span>
+                      </label>
                     </div>
                   )}
                 </div>
-              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
@@ -1041,7 +985,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* ✏️ COMPREHENSIVE EDIT STAFF & PIN MODAL (ADMIN CONTROL)   */}
+      {/* Staff account and permissions editor */}
       {/* ======================================================== */}
       {editingStaff && (
         <div style={{
@@ -1139,66 +1083,23 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 required
               />
 
-              {/* 3. Password PIN (Only for non-drivers or staff with system login) */}
-              {!editingStaff.full_name.includes('سائق') && !editingStaff.email?.includes('driver') && (
+              {editingStaff.role !== 'admin' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Key size={14} />
-                      <span>كلمة المرور / الرمز السري للدخول:</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setEditPasswordPin(Math.floor(1000 + Math.random() * 9000).toString())}
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        color: '#fbbf24',
-                        borderRadius: '6px',
-                        padding: '2px 8px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      توليد رمز تلقائي 🎲
-                    </button>
-                  </div>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showEditPin ? 'text' : 'password'}
-                      className="form-input"
-                      dir="ltr"
-                      value={editPasswordPin}
-                      onChange={(e) => setEditPasswordPin(e.target.value)}
-                      placeholder="مثال: 1234"
-                      required
-                      style={{ paddingLeft: '40px', letterSpacing: showEditPin ? '2px' : 'normal', fontWeight: 800 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPin(!showEditPin)}
-                      style={{
-                        position: 'absolute',
-                        left: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showEditPin ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    يدخل الموظف بالنقر على اسمه وإدخال هذا الرمز السري مباشرة.
-                  </span>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#e2e8f0' }}>
+                    تعيين كلمة مرور جديدة (اختياري):
+                  </label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    autoComplete="new-password"
+                    minLength={8}
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                  />
                 </div>
               )}
 
-              {/* 4. Driver Notes / Truck Number */}
+              {/* Driver Notes / Truck Number */}
               {(editingStaff.full_name.includes('سائق') || editingStaff.email?.includes('driver')) && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '4px', color: '#94a3b8' }}>
@@ -1258,7 +1159,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               </div>
 
               {/* 6. Permissions Checklist (For office staff) */}
-              {!editingStaff.full_name.includes('سائق') && editingStaff.role !== 'admin' && (
+              {editingStaff.role !== 'admin' && (
                 <div style={{
                   background: 'rgba(15, 23, 42, 0.8)',
                   border: '1px solid rgba(56, 189, 248, 0.25)',
@@ -1362,6 +1263,16 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                       />
                       <span>🎁 عقود مجانية (إهداء)</span>
                     </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.can_manage_archive || false}
+                        onChange={(e) => setEditPermissions(p => ({ ...p, can_manage_archive: e.target.checked }))}
+                        style={{ accentColor: '#f43f5e' }}
+                      />
+                      <span>🗂️ إدارة الأرشيف والوثائق</span>
+                    </label>
                   </div>
                 </div>
               )}
@@ -1380,7 +1291,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                   className="btn-primary"
                   disabled={isSavingEdit}
                 >
-                  {isSavingEdit ? 'جارٍ حفظ التعديلات...' : 'حفظ التعديلات وكلمة السر 💾'}
+                  {isSavingEdit ? 'جارٍ حفظ التعديلات...' : 'حفظ التعديلات 💾'}
                 </button>
               </div>
 

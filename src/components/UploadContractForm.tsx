@@ -77,7 +77,7 @@ export const UploadContractForm: React.FC = () => {
         </div>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>رفع العقود القديمة للأرشيف</h2>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '4px 0 0 0' }}>سيتم تخزين الملفات على السيرفر المحلي وتحويلها للمعالجة الآلية (AI / OCR)</p>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '4px 0 0 0' }}>تُحفظ الملفات محليًا في تطبيق Windows أو في التخزين الدائم على الويب؛ معالجة الصور بـ OCR غير متاحة بعد.</p>
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export const UploadContractForm: React.FC = () => {
           {status === 'success' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontSize: '0.9rem', fontWeight: 600 }}>
               <CheckCircle2 size={18} />
-              <span>تم الرفع بنجاح! جاري معالجة المستند.</span>
+              <span>تم حفظ المستند في الأرشيف بنجاح.</span>
             </div>
           )}
           {status === 'error' && (

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Truck, Lock, ShieldCheck } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabaseBrowser as supabase } from '@/lib/supabaseBrowser';
 import { 
   Container, 
   Contract, 
@@ -27,7 +27,7 @@ import { Navbar } from '@/components/Navbar';
 import { SmartSearch } from '@/components/SmartSearch';
 import { ContainersView } from '@/components/ContainersView';
 import { ContractsView } from '@/components/ContractsView';
-import { StaffManagement, DEFAULT_DRIVER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS } from '@/components/StaffManagement';
+import { StaffManagement, DEFAULT_DRIVER_PERMISSIONS, DEFAULT_STAFF_PERMISSIONS, NewStaffAccount } from '@/components/StaffManagement';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';
 import { SmartAssistantHub } from '@/components/SmartAssistantHub';
@@ -60,7 +60,6 @@ const initialStaff: Profile[] = [
     email: 'admin@almuhtaraz.com',
     phone: '+966500000001',
     role: 'admin',
-    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: {
@@ -94,7 +93,6 @@ const initialStaff: Profile[] = [
     email: 'm.shammari@almuhtaraz.com',
     phone: '+966550000002',
     role: 'employee',
-    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: DEFAULT_STAFF_PERMISSIONS,
@@ -119,7 +117,6 @@ const initialStaff: Profile[] = [
     email: 'a.mutairi@almuhtaraz.com',
     phone: '+966550000005',
     role: 'employee',
-    password_pin: '1234',
     is_active: true,
     can_view_all_records: true,
     permissions: DEFAULT_STAFF_PERMISSIONS,
@@ -312,7 +309,7 @@ function MainDashboard() {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [notifications, setNotifications] = useState<NotificationLog[]>(initialNotifications);
   const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>(initialInAppNotifications);
-  const [staffList, setStaffList] = useState<Profile[]>(initialStaff);
+  const [staffList, setStaffList] = useState<Profile[]>([]);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [isStaffLoginModalOpen, setIsStaffLoginModalOpen] = useState(false);
@@ -366,7 +363,7 @@ function MainDashboard() {
       }
     : (currentProfile?.permissions || currentStaff?.permissions || DEFAULT_STAFF_PERMISSIONS);
 
-  // Profile selection & PIN update handlers
+  // Authenticated profile selection
   const handleSelectProfile = (profile: Profile) => {
     setCurrentProfile(profile);
     setCurrentRole(profile.role);
@@ -381,34 +378,87 @@ function MainDashboard() {
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentProfile(null);
-    setSelectedStaffId('');
-    setIsStaffLoginModalOpen(true);
+    void supabase.auth.signOut().then(({ error }) => {
+      if (error) {
+        console.error('Failed to sign out:', error);
+        return;
+      }
+      setIsAuthenticated(false);
+      setCurrentProfile(null);
+      setSelectedStaffId('');
+      setStaffList([]);
+      setIsStaffLoginModalOpen(true);
+    });
   };
 
-  const handleUpdateStaffPin = async (profileId: string, newPin: string) => {
-    setStaffList(prev => prev.map(s => s.id === profileId ? { ...s, password_pin: newPin } : s));
-    if (currentProfile?.id === profileId) {
-      setCurrentProfile(prev => prev ? { ...prev, password_pin: newPin } : null);
-    }
-    try {
-      await supabase.from('profiles').update({ password_pin: newPin }).eq('id', profileId);
-    } catch (err) {
-      console.error('Failed to sync PIN with Supabase:', err);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreAuthenticatedProfile = async () => {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error('Could not restore the authenticated user:', authError);
+        return;
+      }
+      if (!user) return;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role, is_active, can_view_all_records, permissions, notes, created_at, updated_at')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profileError) {
+        console.error('Could not load the authenticated staff profile:', profileError);
+        return;
+      }
+      if (!profile || !profile.is_active) {
+        const { error } = await supabase.auth.signOut();
+        if (error) console.error('Could not sign out an inactive profile:', error);
+        return;
+      }
+      if (!cancelled) handleSelectProfile(profile);
+    };
+
+    void restoreAuthenticatedProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentProfile) return;
+    let cancelled = false;
+
+    const loadStaffProfiles = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role, is_active, can_view_all_records, permissions, notes, created_at, updated_at')
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.error('Could not load staff profiles:', error);
+        alert('تعذر تحميل قائمة الموظفين. أعد المحاولة بعد التحقق من الاتصال.');
+        return;
+      }
+      if (!cancelled && data) setStaffList(data);
+    };
+
+    void loadStaffProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProfile?.id]);
 
   const handleEditStaff = async (profileId: string, updatedData: Partial<Profile>): Promise<boolean> => {
-    setStaffList(prev => prev.map(s => s.id === profileId ? { ...s, ...updatedData, updated_at: new Date().toISOString() } : s));
-    if (currentProfile?.id === profileId) {
-      setCurrentProfile(prev => prev ? { ...prev, ...updatedData, updated_at: new Date().toISOString() } : null);
+    const { error } = await supabase.from('profiles').update(updatedData).eq('id', profileId);
+    if (error) {
+      console.error('Could not update staff profile:', error);
+      alert('تعذر حفظ بيانات الموظف.');
+      return false;
     }
-    try {
-      const { error } = await supabase.from('profiles').update(updatedData).eq('id', profileId);
-      if (error) console.error('Supabase profile update error:', error);
-    } catch (err) {
-      console.error('Failed to sync updated profile with Supabase:', err);
+    const updatedAt = new Date().toISOString();
+    setStaffList(prev => prev.map(s => s.id === profileId ? { ...s, ...updatedData, updated_at: updatedAt } : s));
+    if (currentProfile?.id === profileId) {
+      setCurrentProfile(prev => prev ? { ...prev, ...updatedData, updated_at: updatedAt } : null);
     }
     return true;
   };
@@ -821,6 +871,8 @@ function MainDashboard() {
 
   // Fetch initial data from Supabase if connected
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const fetchSupabaseData = async () => {
       try {
         const { data: dbContainers } = await supabase.from('containers').select('*');
@@ -872,7 +924,7 @@ function MainDashboard() {
     };
 
     fetchSupabaseData();
-  }, []);
+  }, [isAuthenticated]);
 
   // WhatsApp Sender Helper (Fallback wa.me – for manual send buttons only)
   const handleSendWhatsApp = (phone: string, message: string) => {
@@ -1806,42 +1858,104 @@ function MainDashboard() {
   };
 
   // Staff Management Handlers
-  const handleAddStaff = async (staffData: any): Promise<boolean> => {
-    const newProfile: Profile = {
-      id: staffData.id || `staff-${Date.now()}`,
-      full_name: staffData.full_name,
-      email: staffData.email || `${staffData.phone || Date.now()}@almuhtaraz.com`,
-      phone: staffData.phone || '',
-      role: staffData.role || 'employee',
-      password_pin: staffData.password_pin || '1234',
-      is_active: true,
-      can_view_all_records: staffData.can_view_all_records ?? true,
-      permissions: staffData.permissions,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    setStaffList(prev => [...prev, newProfile]);
-
+  const handleAddStaff = async (staffData: NewStaffAccount): Promise<boolean> => {
     try {
-      const { error } = await supabase.from('profiles').insert([newProfile]);
-      if (error) console.error('Supabase profile insert error:', error);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        alert('انتهت جلسة المدير. سجّل الدخول مجددًا ثم أعد المحاولة.');
+        return false;
+      }
+      const apiBaseUrl = process.env.NEXT_PUBLIC_STAFF_ADMIN_API_BASE_URL?.replace(/\/+$/, '') || '';
+      const response = await fetch(`${apiBaseUrl}/api/admin/staff`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(staffData)
+      });
+      const result = await response.json() as { profile?: Profile; error?: string };
+      const createdProfile = result.profile;
+      if (!response.ok || !createdProfile) {
+        alert(result.error || 'تعذر إنشاء حساب الموظف.');
+        return false;
+      }
+      setStaffList(prev => [...prev.filter(profile => profile.id !== createdProfile.id), createdProfile]);
+      return true;
     } catch (err) {
-      console.warn('Synced staff addition locally:', err);
+      console.error('Staff account creation failed:', err);
+      alert('تعذر الاتصال بالخادم لإنشاء حساب الموظف.');
+      return false;
     }
-    return true;
+  };
+
+  const handleSetStaffPassword = async (profileId: string, password: string): Promise<boolean> => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        alert('انتهت جلسة المدير. سجّل الدخول مجددًا ثم أعد المحاولة.');
+        return false;
+      }
+      const apiBaseUrl = process.env.NEXT_PUBLIC_STAFF_ADMIN_API_BASE_URL?.replace(/\/+$/, '') || '';
+      const response = await fetch(`${apiBaseUrl}/api/admin/staff/${encodeURIComponent(profileId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ password })
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) {
+        alert(result.error || 'تعذر تحديث كلمة مرور الموظف.');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Staff password update failed:', error);
+      alert('تعذر الاتصال بالخادم لتحديث كلمة مرور الموظف.');
+      return false;
+    }
   };
 
   const handleToggleStaffStatus = async (profileId: string, currentActive: boolean) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_active: !currentActive })
+      .eq('id', profileId);
+    if (error) {
+      console.error('Could not update staff account status:', error);
+      alert('تعذر تحديث حالة حساب الموظف.');
+      return;
+    }
     setStaffList(prev => prev.map(p => p.id === profileId ? { ...p, is_active: !currentActive } : p));
+    if (currentProfile?.id === profileId) {
+      setCurrentProfile(prev => prev ? { ...prev, is_active: !currentActive } : null);
+    }
   };
 
   const handleUpdateStaffPermissions = async (profileId: string, permissions: StaffPermissions) => {
+    const { error } = await supabase.from('profiles').update({
+      permissions,
+      can_view_all_records: permissions.can_view_all_contracts
+    }).eq('id', profileId);
+    if (error) {
+      console.error('Could not update staff permissions:', error);
+      alert('تعذر حفظ صلاحيات الموظف.');
+      return;
+    }
     setStaffList(prev => prev.map(p => p.id === profileId ? {
       ...p,
       permissions,
       can_view_all_records: permissions.can_view_all_contracts
     } : p));
+    if (currentProfile?.id === profileId) {
+      setCurrentProfile(prev => prev ? {
+        ...prev,
+        permissions,
+        can_view_all_records: permissions.can_view_all_contracts
+      } : null);
+    }
 
     // In-app notification
     const staffMember = staffList.find(s => s.id === profileId);
@@ -1854,19 +1968,6 @@ function MainDashboard() {
       created_at: new Date().toISOString()
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
-
-    try {
-      await supabase.from('profiles').update({
-        permissions,
-        can_view_all_records: permissions.can_view_all_contracts
-      }).eq('id', profileId);
-    } catch (err) {
-      console.warn('Synced permissions locally:', err);
-    }
-  };
-
-  const handleDeleteStaff = async (profileId: string) => {
-    setStaffList(prev => prev.filter(p => p.id !== profileId));
   };
 
   const handleMarkNotificationSent = async (notifId: string) => {
@@ -2085,7 +2186,7 @@ function MainDashboard() {
         padding: '30px 24px 60px 24px'
       }}>
         {!isAuthenticated || !currentProfile ? (
-          /* 🔒 LOCKED APPLICATION SCREEN (BEFORE PIN VERIFICATION) */
+          /* 🔒 LOCKED APPLICATION SCREEN */
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -2116,7 +2217,7 @@ function MainDashboard() {
               المحترز للحاويات 🏗️
             </h2>
             <p style={{ fontSize: '1.05rem', color: '#94a3b8', maxWidth: '440px', margin: '0 auto 24px', lineHeight: 1.6 }}>
-              🔒 مساحة العمل مقفلة بأمان. يرجى اختيار حسابك وإدخال الرمز السري للدخول بصلاحياتك المعتمدة.
+              🔒 مساحة العمل مقفلة. سجّل الدخول بالبريد الإلكتروني وكلمة المرور المعتمدين.
             </p>
             <button
               onClick={() => setIsStaffLoginModalOpen(true)}
@@ -2188,10 +2289,9 @@ function MainDashboard() {
                 staffList={staffList}
                 onAddStaff={handleAddStaff}
                 onEditStaff={handleEditStaff}
+                onSetStaffPassword={handleSetStaffPassword}
                 onToggleStatus={handleToggleStaffStatus}
                 onUpdatePermissions={handleUpdateStaffPermissions}
-                onUpdatePasswordPin={handleUpdateStaffPin}
-                onDeleteStaff={handleDeleteStaff}
               />
             )}
 
@@ -2356,7 +2456,7 @@ function MainDashboard() {
         }}
       />
 
-      {/* 8. 🔐 Luxury Staff & Admin PIN Login Modal */}
+      {/* 8. 🔐 Staff and Admin Login Modal */}
       <StaffLoginModal
         isOpen={!showSplash && (!isAuthenticated || isStaffLoginModalOpen)}
         onClose={() => {
@@ -2364,8 +2464,6 @@ function MainDashboard() {
             setIsStaffLoginModalOpen(false);
           }
         }}
-        staffList={staffList}
-        currentProfile={currentProfile}
         onSelectProfile={handleSelectProfile}
         isMandatory={!isAuthenticated}
       />

@@ -48,6 +48,7 @@ function getServerDirectory() {
 }
 
 function getRuntimeEnvironment(port) {
+  const archiveStorageRoot = path.join(app.getPath('userData'), 'archive');
   const inheritedKeys = [
     'APPDATA',
     'HOMEDRIVE',
@@ -71,6 +72,7 @@ function getRuntimeEnvironment(port) {
     NEXT_TELEMETRY_DISABLED: '1',
     NODE_ENV: 'production',
     PORT: String(port),
+    ARCHIVE_STORAGE_ROOT: archiveStorageRoot,
   };
 }
 
@@ -154,6 +156,7 @@ function waitForServer(port, child, getOutput) {
 async function startServer() {
   const serverDirectory = getServerDirectory();
   const serverEntry = path.join(serverDirectory, 'server.js');
+  await mkdir(path.join(app.getPath('userData'), 'archive'), { recursive: true });
   let lastError;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
