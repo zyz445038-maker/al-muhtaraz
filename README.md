@@ -72,7 +72,9 @@ Before creating a release, configure these settings in the GitHub Actions
 environment named `release.` (including the trailing period):
 
 - Secrets: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-- Secret: `UPDATE_ED25519_PRIVATE_KEY`, containing the PEM private key.
+- Secret: `UPDATE_ED25519_PRIVATE_KEY`, containing an unencrypted PKCS#8 PEM
+  Ed25519 private key. Normal PEM line breaks and literal `\n` separators are
+  supported.
   Configure required reviewers for this environment and protect the `v*` tag
   pattern so only trusted maintainers can start a signing run. The private key
   must match the public key pinned in the application. Keep it only in this

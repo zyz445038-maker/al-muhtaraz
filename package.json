@@ -15,7 +15,7 @@
     "desktop:installer": "npm run build:desktop && electron-builder --win nsis --publish never",
     "desktop:smoke": "node scripts/smoke-desktop.cjs dist/win-unpacked",
     "desktop:smoke:crash": "node scripts/smoke-desktop.cjs dist/win-unpacked --crash-server",
-    "test:update-manifest": "node --test scripts/update-manifest.test.cjs",
+    "test:update-manifest": "node --test scripts/update-manifest.test.cjs scripts/release-key.test.cjs",
     "release:metadata": "node scripts/create-release-metadata.cjs"
   },
   "dependencies": {

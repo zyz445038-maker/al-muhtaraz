@@ -2,6 +2,7 @@ const { createHash, createPublicKey, sign } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const UPDATE_PUBLIC_KEY = require('../electron/updatePublicKey.cjs');
+const { loadEd25519PrivateKey } = require('./release-key.cjs');
 const { verifyUpdateAsset, verifyUpdateManifest } = require('../electron/updateManifest.cjs');
 
 const PRODUCT_ID = 'com.almuhtaraz.containers';
@@ -11,16 +12,14 @@ const DIST_DIRECTORY = path.resolve(__dirname, '..', 'dist');
 async function main() {
   const repository = process.env.GITHUB_REPOSITORY;
   const tag = process.env.GITHUB_REF_NAME;
-  const privateKey = process.env.UPDATE_ED25519_PRIVATE_KEY;
+  const privateKeyValue = process.env.UPDATE_ED25519_PRIVATE_KEY;
   if (!repository || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new Error('GITHUB_REPOSITORY must identify an owner/repository.');
   }
   if (!tag || !/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tag)) {
     throw new Error('GITHUB_REF_NAME must be a stable vMAJOR.MINOR.PATCH release tag.');
   }
-  if (!privateKey) {
-    throw new Error('UPDATE_ED25519_PRIVATE_KEY secret is required to sign release metadata.');
-  }
+  const privateKey = loadEd25519PrivateKey(privateKeyValue);
   const signingPublicKey = createPublicKey(privateKey).export({ type: 'spki', format: 'der' });
   const trustedPublicKey = createPublicKey(UPDATE_PUBLIC_KEY).export({ type: 'spki', format: 'der' });
   if (!signingPublicKey.equals(trustedPublicKey)) {
