@@ -63,6 +63,15 @@ test('rejects another product and an untrusted download origin', () => {
   );
 });
 
+test('rejects installer filenames that are unsafe on Windows', () => {
+  for (const fileName of ['..\\outside.exe', 'folder/file.exe', 'CON.exe']) {
+    assert.throws(
+      () => verifyUpdateManifest(createManifest({ ...validPayload, fileName }), { publicKey }),
+      /installer filename is invalid/,
+    );
+  }
+});
+
 test('rejects same-version and downgrade manifests', () => {
   assert.throws(
     () => verifyUpdateManifest(createManifest(), { publicKey, currentVersion: '1.0.1' }),

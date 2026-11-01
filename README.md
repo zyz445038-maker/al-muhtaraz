@@ -30,7 +30,8 @@ Push a stable tag matching the `package.json` version (for example `v1.0.1`) to
 run `.github/workflows/windows-release.yml`. The workflow builds and smoke-tests
 the Windows installer, creates a SHA-256 sidecar and an Ed25519-signed update
 manifest, verifies the Authenticode signatures, then uploads them with the
-public code-signing certificate to a **draft** GitHub Release for review.
+public code-signing certificate to a **draft** GitHub Release for review. Publish
+the reviewed release to make it available to the updater.
 
 Before creating a release, configure these settings in the GitHub Actions
 environment named `release.` (including the trailing period):
@@ -67,11 +68,16 @@ subject is self-asserted; it does not prove a publicly verified company
 identity.
 
 The matching Ed25519 public key is pinned in
-`electron/updatePublicKey.cjs`. The packaged app includes a verifier that checks
-the signed manifest, release URL, product, platform, and version, and can check
-the downloaded installer size and SHA-256. Automatic update discovery and
-installation are intentionally not enabled yet; integrate them only after a
-separate compatibility review of the Electron/NSIS installation layout.
+`electron/updatePublicKey.cjs`. The Vercel endpoint
+`/api/desktop-update` reads the latest **published** GitHub Release and returns
+its signed manifest; the installer itself remains hosted by GitHub. The
+packaged app checks this endpoint after startup, verifies the manifest and
+repository, and prompts before downloading. It verifies the downloaded
+installer's exact size and SHA-256 before asking whether to launch it. The user
+must confirm the Windows installer; it is not run silently. The installer
+should be installed over the existing copy, preserving the app's user data.
+Test this upgrade flow on a managed device before publishing updates broadly.
+The endpoint caches release metadata for up to five minutes.
 
 Authenticode signing is enabled when the protected certificate configuration
 is present. An internal self-signed certificate is not publicly trusted and

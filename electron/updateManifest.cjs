@@ -52,6 +52,13 @@ function validatePayload(payload, currentVersion) {
   if (typeof payload.fileName !== 'string' || !payload.fileName.endsWith('.exe')) {
     throw new Error('Update manifest installer filename is invalid.');
   }
+  if (
+    /[\\/:*?"<>|\0]/u.test(payload.fileName)
+    || payload.fileName.trim() !== payload.fileName
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(payload.fileName)
+  ) {
+    throw new Error('Update manifest installer filename is invalid.');
+  }
   if (typeof payload.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(payload.sha256)) {
     throw new Error('Update manifest SHA-256 digest is invalid.');
   }

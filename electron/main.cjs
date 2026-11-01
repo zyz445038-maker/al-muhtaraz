@@ -1,12 +1,23 @@
 const { app, BrowserWindow, dialog, session, utilityProcess } = require('electron');
+const { createHash } = require('node:crypto');
+const { spawn } = require('node:child_process');
+const { createWriteStream } = require('node:fs');
+const { appendFile, mkdir, rm } = require('node:fs/promises');
 const net = require('node:net');
 const path = require('node:path');
-const { appendFile, mkdir } = require('node:fs/promises');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
+const { compareStableVersions, verifyUpdateManifest } = require('./updateManifest.cjs');
 
 const STARTUP_TIMEOUT_MS = 30000;
 const READINESS_REQUEST_TIMEOUT_MS = 2000;
 const READINESS_RETRY_DELAY_MS = 250;
 const READINESS_LOG_INTERVAL_MS = 5000;
+const UPDATE_CHECK_URL = 'https://al-muhtaraz.vercel.app/api/desktop-update';
+const UPDATE_REPOSITORY = 'zyz445038-maker/al-muhtaraz';
+const UPDATE_REQUEST_TIMEOUT_MS = 15000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const MAX_UPDATE_SIZE_BYTES = 1024 * 1024 * 1024;
 const LOOPBACK_HOST = '127.0.0.1';
 const LOOPBACK_HOSTS = new Set([LOOPBACK_HOST, 'localhost', '[::1]']);
 const smokeTestMode = process.argv.includes('--smoke-test');
@@ -213,6 +224,151 @@ async function showFatalError(message) {
   app.quit();
 }
 
+async function downloadUpdate(payload) {
+  if (payload.sizeBytes > MAX_UPDATE_SIZE_BYTES) {
+    throw new Error('The signed update installer exceeds the 1 GiB safety limit.');
+  }
+
+  const updateDirectory = path.join(app.getPath('userData'), 'updates');
+  await mkdir(updateDirectory, { recursive: true });
+  const installerPath = path.join(updateDirectory, payload.fileName);
+  await rm(installerPath, { force: true });
+  const response = await fetch(payload.downloadUrl, {
+    signal: AbortSignal.timeout(UPDATE_DOWNLOAD_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Installer download failed with HTTP ${response.status}.`);
+  }
+  if (!response.body) {
+    throw new Error('Installer download returned an empty response stream.');
+  }
+
+  const hash = createHash('sha256');
+  let downloadedBytes = 0;
+  const verifier = new Transform({
+    transform(chunk, _encoding, callback) {
+      downloadedBytes += chunk.length;
+      if (downloadedBytes > payload.sizeBytes) {
+        callback(new Error('Downloaded installer is larger than the signed size.'));
+        return;
+      }
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+  });
+
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body),
+      verifier,
+      createWriteStream(installerPath, { flags: 'wx' }),
+    );
+    if (downloadedBytes !== payload.sizeBytes) {
+      throw new Error(
+        `Downloaded installer size mismatch: expected ${payload.sizeBytes}, received ${downloadedBytes}.`,
+      );
+    }
+    const actualHash = hash.digest('hex');
+    if (actualHash !== payload.sha256) {
+      throw new Error('Downloaded installer SHA-256 does not match the signed update manifest.');
+    }
+    return installerPath;
+  } catch (error) {
+    await rm(installerPath, { force: true });
+    throw error;
+  }
+}
+
+async function checkForUpdate() {
+  if (!app.isPackaged || smokeTestMode) {
+    return;
+  }
+
+  const response = await fetch(UPDATE_CHECK_URL, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(UPDATE_REQUEST_TIMEOUT_MS),
+  });
+  if (response.status === 204) {
+    log('Update check completed; no published update is available.');
+    return;
+  }
+  if (!response.ok) {
+    throw new Error(`Update check failed with HTTP ${response.status}.`);
+  }
+
+  const manifestText = await response.text();
+  if (Buffer.byteLength(manifestText, 'utf8') > 64 * 1024) {
+    throw new Error('Update service returned a manifest larger than 64 KiB.');
+  }
+  const manifest = JSON.parse(manifestText);
+  const payload = verifyUpdateManifest(manifest);
+  if (payload.repository !== UPDATE_REPOSITORY) {
+    throw new Error('Update manifest belongs to an unexpected GitHub repository.');
+  }
+  if (compareStableVersions(payload.version, app.getVersion()) <= 0) {
+    log(`Update check completed; current version ${app.getVersion()} is up to date.`);
+    return;
+  }
+
+  log(`Found signed update ${payload.version} (current=${app.getVersion()}).`);
+  const downloadChoice = await dialog.showMessageBox({
+    type: 'info',
+    title: 'يتوفر تحديث جديد',
+    message: `يتوفر تحديث جديد للمحترز للحاويات (${payload.version}).`,
+    detail: 'هل تريد تنزيل ملف التحديث الآن؟ سيتم التحقق من توقيعه وبصمته قبل عرضه للتثبيت.',
+    buttons: ['تنزيل التحديث', 'لاحقًا'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (downloadChoice.response !== 0) {
+    log(`User postponed update ${payload.version}.`);
+    return;
+  }
+
+  let installerPath;
+  try {
+    log(`Downloading update ${payload.version} from ${payload.downloadUrl}.`);
+    installerPath = await downloadUpdate(payload);
+    log(`Downloaded and verified update ${payload.version} at ${installerPath}.`);
+    const installChoice = await dialog.showMessageBox({
+      type: 'info',
+      title: 'اكتمل تنزيل التحديث',
+      message: `تم تنزيل التحديث ${payload.version} والتحقق منه بنجاح.`,
+      detail: 'سيُغلق التطبيق لتشغيل برنامج التثبيت. وافق على التثبيت فوق النسخة الحالية عند ظهور نافذة Windows.',
+      buttons: ['تشغيل برنامج التثبيت', 'إلغاء'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (installChoice.response !== 0) {
+      await rm(installerPath, { force: true });
+      log(`User cancelled installation of update ${payload.version}.`);
+      return;
+    }
+
+    await new Promise((resolve, reject) => {
+      const installer = spawn(installerPath, [], { detached: true, stdio: 'ignore' });
+      installer.once('error', reject);
+      installer.once('spawn', () => {
+        installer.unref();
+        resolve();
+      });
+    });
+    log(`Started installer for update ${payload.version}.`);
+    app.quit();
+  } catch (error) {
+    if (installerPath) {
+      await rm(installerPath, { force: true });
+    }
+    log(`Could not download or start update ${payload.version}: ${error.stack || error.message}`);
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'تعذر إكمال التحديث',
+      message: `تعذر تنزيل التحديث ${payload.version} أو تشغيله.`,
+      detail: error.message,
+    });
+  }
+}
+
 function registerExternalRequestLog() {
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
     try {
@@ -266,6 +422,12 @@ async function createWindow() {
   log('[smoke-test] window loaded');
   if (smokeTestMode) {
     setTimeout(() => app.quit(), 5000);
+  } else {
+    setTimeout(() => {
+      void checkForUpdate().catch((error) => {
+        log(`Update check failed: ${error.stack || error.message}`);
+      });
+    }, 3000);
   }
 }
 
