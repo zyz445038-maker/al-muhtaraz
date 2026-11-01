@@ -79,8 +79,9 @@ environment named `release.` (including the trailing period):
   logs, or chat.
 - Secrets: `WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64` (the base64-encoded PFX)
   and `WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD`.
-- Variable: `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256`, the SHA-256 hash of the
-  public certificate's DER-encoded `.cer` file.
+- `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256`, the SHA-256 hash of the public
+  certificate's DER-encoded `.cer` file. It can be an environment variable or
+  secret; if both are configured, the variable takes precedence.
 
 The Windows certificate must be a currently valid, self-signed RSA certificate
 with a key of at least 3072 bits and the Code Signing enhanced key usage. The
@@ -101,10 +102,10 @@ machine, using the official company name in its subject. Store the encrypted
 PFX and its password as the two `WINDOWS_CODE_SIGNING_CERTIFICATE_*` secrets
 in the protected `release.` environment. Export the public certificate as DER
 `.cer`, calculate its SHA-256 with `Get-FileHash -Algorithm SHA256`, and store
-that fingerprint in `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256`. Never paste the
-private key or PFX password into chat or source control. The certificate
-subject is self-asserted; it does not prove a publicly verified company
-identity.
+that fingerprint in `WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256` as an environment
+variable or secret. Never paste the private key or PFX password into chat or
+source control. The certificate subject is self-asserted; it does not prove a
+publicly verified company identity.
 
 The matching Ed25519 public key is pinned in
 `electron/updatePublicKey.cjs`. The Vercel endpoint
