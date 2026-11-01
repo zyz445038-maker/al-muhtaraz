@@ -17,6 +17,7 @@ const UPDATE_CHECK_URL = 'https://al-muhtaraz.vercel.app/api/desktop-update';
 const UPDATE_REPOSITORY = 'zyz445038-maker/al-muhtaraz';
 const UPDATE_REQUEST_TIMEOUT_MS = 15000;
 const UPDATE_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const MAX_UPDATE_SIZE_BYTES = 1024 * 1024 * 1024;
 const LOOPBACK_HOST = '127.0.0.1';
 const LOOPBACK_HOSTS = new Set([LOOPBACK_HOST, 'localhost', '[::1]']);
@@ -29,6 +30,7 @@ let allowQuit = false;
 let serverUrl;
 let logPath;
 let logWrite = Promise.resolve();
+let updateCheckInProgress = false;
 
 function log(message) {
   const line = `${new Date().toISOString()} ${message}\n`;
@@ -372,6 +374,21 @@ async function checkForUpdate() {
   }
 }
 
+async function runScheduledUpdateCheck() {
+  if (updateCheckInProgress || isQuitting) {
+    return;
+  }
+
+  updateCheckInProgress = true;
+  try {
+    await checkForUpdate();
+  } catch (error) {
+    log(`Update check failed: ${error.stack || error.message}`);
+  } finally {
+    updateCheckInProgress = false;
+  }
+}
+
 function registerExternalRequestLog() {
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
     try {
@@ -426,11 +443,12 @@ async function createWindow() {
   if (smokeTestMode) {
     setTimeout(() => app.quit(), 5000);
   } else {
-    setTimeout(() => {
-      void checkForUpdate().catch((error) => {
-        log(`Update check failed: ${error.stack || error.message}`);
-      });
-    }, 3000);
+    setTimeout(() => void runScheduledUpdateCheck(), 3000);
+    const updateCheckTimer = setInterval(
+      () => void runScheduledUpdateCheck(),
+      UPDATE_CHECK_INTERVAL_MS,
+    );
+    updateCheckTimer.unref?.();
   }
 }
 
