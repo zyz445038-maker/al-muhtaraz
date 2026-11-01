@@ -77,7 +77,7 @@ export const UploadContractForm: React.FC = () => {
         </div>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>رفع العقود القديمة للأرشيف</h2>
-          <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '4px 0 0 0' }}>تُحفظ الملفات محليًا في تطبيق Windows أو في التخزين الدائم على الويب؛ معالجة الصور بـ OCR غير متاحة بعد.</p>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '4px 0 0 0' }}>ارفع ملف PDF حتى 4 ميجابايت. تُعالج الملفات في تطبيق Windows أو عبر عامل الويب.</p>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export const UploadContractForm: React.FC = () => {
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".pdf,.png,.jpg,.jpeg"
+          accept=".pdf,application/pdf"
           style={{
             position: 'absolute',
             top: 0, left: 0, width: '100%', height: '100%',
@@ -107,7 +107,7 @@ export const UploadContractForm: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
             <UploadCloud size={36} color="#94a3b8" />
             <span style={{ fontSize: '1rem', fontWeight: 600 }}>اضغط هنا لاختيار ملف أو اسحب الملف وأفلته</span>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>صيغ مدعومة: PDF, JPG, PNG</span>
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>الصيغة المدعومة: PDF (حتى 4 ميجابايت)</span>
           </div>
         ) : (
           <div style={{ position: 'relative', zIndex: 10 }}>
@@ -133,7 +133,7 @@ export const UploadContractForm: React.FC = () => {
           {status === 'success' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontSize: '0.9rem', fontWeight: 600 }}>
               <CheckCircle2 size={18} />
-              <span>تم حفظ المستند في الأرشيف بنجاح.</span>
+              <span>تم حفظ المستند وإضافته إلى طابور المعالجة.</span>
             </div>
           )}
           {status === 'error' && (

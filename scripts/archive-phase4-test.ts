@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { DocumentImportService } from '@/services/archive/import/documentImportService';
-import { LocalDocumentIndexer } from '@/services/archive/indexing/documentIndexer';
+import { ArchiveDocumentIndexer } from '@/services/archive/indexing/documentIndexer';
 import { BasicPdfTextExtractor } from '@/services/archive/indexing/textExtractor';
 import { LocalArchiveStorageService } from '@/services/archive/storage/localStorageService';
 import { ArchiveDocument, ArchiveDocumentVersion, DocumentImportJob } from '@/services/archive/types';
@@ -16,6 +16,7 @@ class FakeArchiveRepositories {
   versions = new Map<string, ArchiveDocumentVersion>();
   jobs = new Map<string, DocumentImportJob>();
   duplicateVersion: { id: string; document_id: string } | null = null;
+  failImportJobRegistration = false;
   nextId = 0;
 
   private id(prefix: string) { this.nextId += 1; return `${prefix}-${this.nextId}`; }
@@ -34,8 +35,11 @@ class FakeArchiveRepositories {
   }
 
   async registerImportJob(input: any) {
+    if (this.failImportJobRegistration) {
+      return { ok: false, data: null, error: 'Could not create import job' };
+    }
     const now = new Date().toISOString();
-    const job = { id: this.id('job'), status: 'queued', attempts: 0, max_attempts: 3, last_error: null, locked_at: null, worker_id: null, started_at: null, completed_at: null, created_at: now, updated_at: now, priority: 0, metadata: {}, ...input } as DocumentImportJob;
+    const job = { id: this.id('job'), status: 'queued', attempts: 0, max_attempts: 3, next_attempt_at: null, last_error: null, locked_at: null, worker_id: null, started_at: null, completed_at: null, created_at: now, updated_at: now, priority: 0, metadata: {}, ...input } as DocumentImportJob;
     this.jobs.set(job.id, job);
     return { ok: true, data: job };
   }
@@ -48,6 +52,12 @@ class FakeArchiveRepositories {
   async getImportJob(id: string) { return { ok: true, data: this.jobs.get(id) || null }; }
   async updateStatus(id: string, status: any) { const document = this.documents.get(id)!; document.status = status; return { ok: true, data: document }; }
   async updateImportJob(id: string, updates: any) { const job = this.jobs.get(id)!; Object.assign(job, updates); return { ok: true, data: job }; }
+  async updateClaimedImportJob(id: string, workerId: string, updates: any) {
+    const job = this.jobs.get(id);
+    if (!job || job.status !== 'processing' || job.worker_id !== workerId) return { ok: true, data: null };
+    Object.assign(job, updates);
+    return { ok: true, data: job };
+  }
 
   async createVersion(input: any) {
     const version = { id: this.id('version'), created_at: new Date().toISOString(), original_filename: null, extraction_status: 'pending', ocr_status: 'not_required', extraction_error: null, ...input } as ArchiveDocumentVersion;
@@ -70,7 +80,7 @@ async function main() {
   await storage.ensureDirectories();
   const repositories = new FakeArchiveRepositories();
   const extractor = new BasicPdfTextExtractor();
-  const indexer = new LocalDocumentIndexer(storage);
+  const indexer = new ArchiveDocumentIndexer(storage);
   const service = new DocumentImportService(
     repositories as any,
     { create: repositories.createVersion.bind(repositories), getLatestByDocument: repositories.getLatestByDocument.bind(repositories), update: repositories.updateVersion.bind(repositories) } as any,
@@ -105,7 +115,11 @@ async function main() {
   assert.equal(imported.duplicate, false);
   assert.ok(imported.jobId && imported.versionId);
 
-  const processed = await service.processImportJob(imported.jobId!);
+  const importedJob = repositories.jobs.get(imported.jobId!)!;
+  importedJob.status = 'processing';
+  importedJob.worker_id = 'test-worker';
+  importedJob.attempts = 1;
+  const processed = await service.processImportJob(imported.jobId!, 'test-worker');
   assert.equal(processed.status, 'indexed');
   const indexedVersion = repositories.versions.get(imported.versionId!)!;
   const indexedJson = await readFile(path.join(root, indexedVersion.json_path), 'utf8');
@@ -119,14 +133,35 @@ async function main() {
 
   repositories.duplicateVersion = null;
   const emptyImport = await service.importPdf({ document_type: 'contract', source_type: 'upload', source_filename: 'scan.pdf', file: emptyPdf });
-  const emptyProcessed = await service.processImportJob(emptyImport.jobId!);
+  const emptyJob = repositories.jobs.get(emptyImport.jobId!)!;
+  emptyJob.status = 'processing';
+  emptyJob.worker_id = 'test-worker';
+  emptyJob.attempts = 1;
+  const emptyProcessed = await service.processImportJob(emptyImport.jobId!, 'test-worker');
   assert.equal(emptyProcessed.status, 'needs_ocr');
 
   const brokenJob = await service.importPdf({ document_type: 'contract', source_type: 'upload', source_filename: 'read-failure.pdf', file: textPdf });
   const brokenVersion = repositories.versions.get(brokenJob.versionId!)!;
   brokenVersion.file_path = 'contracts/pdf/missing.pdf';
-  await assert.rejects(() => service.processImportJob(brokenJob.jobId!), /ENOENT|no such file/i);
-  assert.equal(repositories.jobs.get(brokenJob.jobId!)?.status, 'failed');
+  const brokenImportJob = repositories.jobs.get(brokenJob.jobId!)!;
+  brokenImportJob.status = 'processing';
+  brokenImportJob.worker_id = 'test-worker';
+  brokenImportJob.attempts = 1;
+  await assert.rejects(() => service.processImportJob(brokenJob.jobId!, 'test-worker'), /ENOENT|no such file/i);
+  assert.equal(repositories.jobs.get(brokenJob.jobId!)?.status, 'processing');
+
+  repositories.failImportJobRegistration = true;
+  await assert.rejects(() => service.importPdf({
+    document_type: 'contract',
+    source_type: 'upload',
+    source_filename: 'rollback.pdf',
+    file: textPdf
+  }), /Could not create import job/);
+  const rolledBackDocument = [...repositories.documents.values()].find(document => document.status === 'failed');
+  assert.ok(rolledBackDocument);
+  const rolledBackVersion = [...repositories.versions.values()].find(version => version.document_id === rolledBackDocument.id);
+  assert.ok(rolledBackVersion);
+  assert.equal(await storage.exists(rolledBackVersion.file_path), false);
 
   console.log('Archive phase 4 tests passed.');
   await rm(root, { recursive: true, force: true });

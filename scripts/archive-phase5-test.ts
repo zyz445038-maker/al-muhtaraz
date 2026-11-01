@@ -16,6 +16,7 @@ function makeJob(id: string, status: DocumentImportJob['status'] = 'queued', att
     priority: 0,
     attempts,
     max_attempts: maxAttempts,
+    next_attempt_at: null,
     last_error: null,
     locked_at: status === 'processing' ? new Date(Date.now() - 60_000).toISOString() : null,
     worker_id: status === 'processing' ? 'old-worker' : null,
@@ -35,16 +36,18 @@ class FakeQueueRepository {
   }
 
   async findNextQueuedJob() {
-    const job = [...this.jobs.values()].find(item => item.status === 'queued') || null;
+    const job = [...this.jobs.values()].find(item => item.status === 'queued' && (!item.next_attempt_at || new Date(item.next_attempt_at).getTime() <= Date.now())) || null;
     return { ok: true, data: job };
   }
 
-  async claimImportJob(id: string, workerId: string) {
+  async claimImportJob(id: string, workerId: string, attempt: number) {
     const job = this.jobs.get(id);
     if (!job || job.status !== 'queued') return { ok: true, data: null };
     job.status = 'processing';
     job.worker_id = workerId;
     job.locked_at = new Date().toISOString();
+    job.attempts = attempt;
+    job.next_attempt_at = null;
     this.claimCount += 1;
     return { ok: true, data: job };
   }
@@ -59,8 +62,26 @@ class FakeQueueRepository {
     return { ok: true, data: job };
   }
 
+  async updateClaimedImportJob(id: string, workerId: string, updates: Partial<DocumentImportJob>) {
+    const job = this.jobs.get(id);
+    if (!job || job.status !== 'processing' || job.worker_id !== workerId) return { ok: true, data: null };
+    Object.assign(job, updates);
+    return { ok: true, data: job };
+  }
+
+  async recoverStaleImportJob(job: DocumentImportJob, updates: Partial<DocumentImportJob>) {
+    const current = this.jobs.get(job.id);
+    if (!current || current.status !== 'processing' || current.worker_id !== job.worker_id) return { ok: true, data: null };
+    Object.assign(current, updates);
+    return { ok: true, data: current };
+  }
+
   async getImportJob(id: string) {
     return { ok: true, data: this.jobs.get(id) || null };
+  }
+
+  async updateStatus(id: string, status: 'failed') {
+    return { ok: true, data: { id, status } };
   }
 }
 
@@ -93,6 +114,15 @@ async function main() {
   assert.equal(secondClaim?.id, 'two');
   assert.equal(repository.claimCount, 2);
 
+  const concurrentRepository = new FakeQueueRepository([makeJob('a'), makeJob('b')]);
+  const concurrentQueues = [
+    new DocumentJobQueue(concurrentRepository as any, { workerId: 'worker-a' }),
+    new DocumentJobQueue(concurrentRepository as any, { workerId: 'worker-b' })
+  ];
+  const concurrentClaims = await Promise.all(concurrentQueues.map(item => item.claimNext()));
+  assert.ok(concurrentClaims[0] && concurrentClaims[1]);
+  assert.notEqual(concurrentClaims[0]?.id, concurrentClaims[1]?.id);
+
   const importer = new FakeImporter();
   importer.failures.add('three');
   const worker = new DocumentWorker(queue, importer as any);
@@ -102,8 +132,11 @@ async function main() {
   assert.equal(batch.failed, 0);
   assert.deepEqual(importer.processed, ['three']);
   assert.equal(repository.jobs.get('three')?.status, 'queued');
+  assert.ok(new Date(repository.jobs.get('three')!.next_attempt_at!).getTime() > Date.now());
+  assert.equal(await queue.claimNext(), null);
 
-  repository.jobs.get('three')!.attempts = 3;
+  repository.jobs.get('three')!.attempts = 2;
+  repository.jobs.get('three')!.next_attempt_at = null;
   const deadBatch = await worker.processBatch(1);
   assert.equal(deadBatch.failed, 1);
   assert.equal(repository.jobs.get('three')?.status, 'failed');
@@ -116,6 +149,7 @@ async function main() {
   const recovered = await staleQueue.recoverStaleJobs();
   assert.equal(recovered, 2);
   assert.equal(staleRepository.jobs.get('retryable')?.status, 'queued');
+  assert.ok(staleRepository.jobs.get('retryable')?.next_attempt_at);
   assert.equal(staleRepository.jobs.get('dead')?.status, 'failed');
 
   await assert.rejects(() => worker.processBatch(0), /between 1 and 100/);

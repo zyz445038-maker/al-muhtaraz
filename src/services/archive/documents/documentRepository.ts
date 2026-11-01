@@ -83,7 +83,7 @@ export class DocumentRepository {
       .maybeSingle());
   }
 
-  async updateImportJob(id: string, updates: Partial<Pick<DocumentImportJob, 'status' | 'attempts' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at'>>) {
+  async updateImportJob(id: string, updates: Partial<Pick<DocumentImportJob, 'status' | 'attempts' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at' | 'next_attempt_at'>>) {
     if (updates.status) {
       const current = await this.getImportJob(id);
       if (!current.ok || !current.data) return current;
@@ -104,22 +104,42 @@ export class DocumentRepository {
       .single());
   }
 
-  async findNextQueuedJob() {
-    return runDbQuery<DocumentImportJob>('archive.import-jobs.find-next', () => this.client
+  async updateClaimedImportJob(
+    id: string,
+    workerId: string,
+    updates: Partial<Pick<DocumentImportJob, 'status' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at' | 'next_attempt_at'>>
+  ) {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.update-claimed', () => this.client
       .from('document_import_jobs')
-      .select('*')
-      .eq('status', 'queued')
-      .order('priority', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(1)
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('status', 'processing')
+      .eq('worker_id', workerId)
+      .select()
       .maybeSingle());
   }
 
-  async claimImportJob(id: string, workerId: string) {
+  async findNextQueuedJob(storageBackend?: 'local' | 'supabase') {
+    let query = this.client
+      .from('document_import_jobs')
+      .select('*')
+      .eq('status', 'queued')
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${new Date().toISOString()}`)
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true });
+    if (storageBackend) {
+      query = query.contains('metadata', { storage_backend: storageBackend });
+    }
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.find-next', () => query.limit(1).maybeSingle());
+  }
+
+  async claimImportJob(id: string, workerId: string, attempt: number) {
     return runDbQuery<DocumentImportJob>('archive.import-jobs.claim', () => this.client
       .from('document_import_jobs')
       .update({
         status: 'processing',
+        attempts: attempt,
+        next_attempt_at: null,
         worker_id: workerId,
         locked_at: new Date().toISOString(),
         started_at: new Date().toISOString(),
@@ -131,19 +151,39 @@ export class DocumentRepository {
       .maybeSingle());
   }
 
-  async listStaleProcessingJobs(staleBefore: string) {
-    return runDbQuery<DocumentImportJob[]>('archive.import-jobs.list-stale', () => this.client
+  async listStaleProcessingJobs(staleBefore: string, storageBackend?: 'local' | 'supabase') {
+    let query = this.client
       .from('document_import_jobs')
       .select('*')
       .eq('status', 'processing')
-      .lt('locked_at', staleBefore));
+      .lt('locked_at', staleBefore);
+    if (storageBackend) {
+      query = query.contains('metadata', { storage_backend: storageBackend });
+    }
+    return runDbQuery<DocumentImportJob[]>('archive.import-jobs.list-stale', () => query);
+  }
+
+  async recoverStaleImportJob(
+    job: DocumentImportJob,
+    updates: Pick<DocumentImportJob, 'status' | 'last_error' | 'locked_at' | 'worker_id' | 'completed_at' | 'next_attempt_at'>
+  ) {
+    return runDbQuery<DocumentImportJob>('archive.import-jobs.recover-stale', () => this.client
+      .from('document_import_jobs')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', job.id)
+      .eq('status', 'processing')
+      .eq('worker_id', job.worker_id)
+      .eq('locked_at', job.locked_at)
+      .select()
+      .maybeSingle());
   }
 
   async findVersionBySha256(sha256: string) {
     return runDbQuery<{ id: string; document_id: string }>('archive.document-versions.find-sha256', () => this.client
       .from('document_versions')
-      .select('id, document_id')
+      .select('id, document_id, documents!inner(status)')
       .eq('sha256', sha256)
+      .eq('documents.status', 'active')
       .limit(1)
       .maybeSingle());
   }

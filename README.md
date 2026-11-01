@@ -40,15 +40,23 @@ separate durable backends: the Windows app stores files under its Electron
 `userData\archive` directory (outside the install directory), while the web
 app stores them in the private Supabase Storage bucket named `documents`.
 Apply `supabase/migrations/003_enforce_archive_permissions.sql` and then
-`supabase/migrations/004_archive_storage.sql` in order before enabling uploads.
+`supabase/migrations/004_archive_storage.sql` and
+`supabase/migrations/005_archive_import_worker.sql` in order before enabling
+uploads.
 The migrations are not applied automatically and must be reviewed and applied
 to the intended Supabase project.
 
-PDF uploads are queued for the existing text-extraction worker. Images are
-stored durably with OCR marked as pending, but are not queued until image OCR
-processing is implemented. Back up the Windows user-data folder separately;
-uninstalling or losing that device can otherwise make its local archive files
-unavailable.
+Only verified PDF uploads up to 4 MB are accepted. The limit keeps multipart
+uploads within the hosted serverless request-size ceiling. Web jobs are
+processed by the scheduled GitHub Actions workflow every five minutes. Set a
+strong `CRON_SECRET` in both the GitHub Actions secrets and Vercel production
+environment; they must match. Windows jobs are processed while the
+desktop app is open and an authorized archive user is signed in. Processing
+uses bounded exponential retries and stale-job recovery; job claiming is
+conditional so concurrent workers cannot claim the same queued job.
+
+Back up the Windows user-data folder separately; uninstalling or losing that
+device can otherwise make its local archive files unavailable.
 
 ## Windows release signing
 

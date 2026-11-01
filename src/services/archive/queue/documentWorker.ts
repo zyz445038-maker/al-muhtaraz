@@ -21,7 +21,7 @@ export class DocumentWorker {
     if (!job) return null;
 
     try {
-      const result = await this.importer.processImportJob(job.id);
+      const result = await this.importer.processImportJob(job.id, this.queue.getWorkerId());
       logEvent('archive.worker.completed', { jobId: job.id, status: result.status, workerId: this.queue.getWorkerId() });
       return { jobId: job.id, status: result.status };
     } catch (error) {

@@ -1,9 +1,10 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import { getArchiveDirectories, getArchiveStorageRoot, resolveArchivePath } from '@/services/archive/storage/storagePath';
+import { ArchiveStorageService } from '@/services/archive/storage/archiveStorageService';
 
-export class LocalArchiveStorageService {
+export class LocalArchiveStorageService implements ArchiveStorageService {
   async ensureDirectories(): Promise<void> {
     const root = getArchiveStorageRoot();
     await mkdir(root, { recursive: true });
@@ -29,7 +30,7 @@ export class LocalArchiveStorageService {
   async writeAtomically(relativePath: string, content: string | Uint8Array): Promise<void> {
     const destination = resolveArchivePath(relativePath);
     await mkdir(path.dirname(destination), { recursive: true });
-    const temporary = `${destination}.${process.pid}.tmp`;
+    const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(temporary, content);
     await rename(temporary, destination);
   }

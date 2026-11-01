@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import { ArchiveImportWorkerPoller } from '@/components/ArchiveImportWorkerPoller';
 
 export const metadata: Metadata = {
   title: 'المحترز للحاويات | إدارة وتأجير الحاويات التجارية والأنقاض',
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <ServiceWorkerRegister />
+        <ArchiveImportWorkerPoller />
         {children}
       </body>
     </html>

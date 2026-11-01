@@ -1,4 +1,5 @@
 import { ArchiveDocument, ArchiveDocumentVersion, ArchiveIndexData } from '@/services/archive/types';
+import { ArchiveStorageService } from '@/services/archive/storage/archiveStorageService';
 import { LocalArchiveStorageService } from '@/services/archive/storage/localStorageService';
 
 export interface DocumentIndexer {
@@ -15,8 +16,8 @@ export interface DocumentIndexer {
   }): Promise<ArchiveIndexData>;
 }
 
-export class LocalDocumentIndexer implements DocumentIndexer {
-  constructor(private readonly storage = new LocalArchiveStorageService()) {}
+export class ArchiveDocumentIndexer implements DocumentIndexer {
+  constructor(private readonly storage: ArchiveStorageService = new LocalArchiveStorageService()) {}
 
   async writeIndex(input: Parameters<DocumentIndexer['writeIndex']>[0]): Promise<ArchiveIndexData> {
     const index: ArchiveIndexData = {

@@ -3,8 +3,8 @@ VALUES (
     'documents',
     'documents',
     false,
-    52428800,
-    ARRAY['application/pdf', 'image/png', 'image/jpeg']
+    4194304,
+    ARRAY['application/pdf']
 )
 ON CONFLICT (id) DO UPDATE SET
     public = false,

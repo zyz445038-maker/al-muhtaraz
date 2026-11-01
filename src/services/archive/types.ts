@@ -73,6 +73,7 @@ export interface DocumentImportJob {
   priority: number;
   attempts: number;
   max_attempts: number;
+  next_attempt_at: string | null;
   last_error: string | null;
   locked_at: string | null;
   worker_id: string | null;

@@ -20,8 +20,13 @@ CREATE INDEX IF NOT EXISTS idx_ai_memory_intent_type ON public.ai_memory (intent
 -- Row Level Security (RLS) Policy
 ALTER TABLE public.ai_memory ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated and service_role full access to ai_memory"
+DROP POLICY IF EXISTS
+    "Allow authenticated and service_role full access to ai_memory"
+ON public.ai_memory;
+
+CREATE POLICY "Admins manage ai_memory"
 ON public.ai_memory
 FOR ALL
-USING (true)
-WITH CHECK (true);
+TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
