@@ -24,10 +24,27 @@ test('normalizes literal escaped newlines in the PEM secret', () => {
   );
 });
 
+test('loads Base64-encoded PEM and PKCS#8 DER secrets', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pem = privateKey.export({ format: 'pem', type: 'pkcs8' });
+  const der = privateKey.export({ format: 'der', type: 'pkcs8' });
+
+  for (const encoded of [
+    Buffer.from(pem).toString('base64'),
+    der.toString('base64'),
+  ]) {
+    const loaded = loadEd25519PrivateKey(encoded);
+    assert.deepEqual(
+      createPublicKey(loaded).export({ type: 'spki', format: 'der' }),
+      publicKey.export({ type: 'spki', format: 'der' }),
+    );
+  }
+});
+
 test('reports invalid PEM and rejects other key algorithms', () => {
   assert.throws(
     () => loadEd25519PrivateKey('invalid'),
-    /must be an unencrypted PEM-encoded Ed25519 private key/,
+    /must be an unencrypted Ed25519 PKCS#8 private key/,
   );
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });

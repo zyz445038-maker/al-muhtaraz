@@ -46,14 +46,11 @@ jobs:
             throw 'The release tag must match the package.json version.'
           }
 
-      - name: Validate release signing secret
+      - name: Validate release signing key
         shell: pwsh
         env:
           UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
-        run: |
-          if (-not $env:UPDATE_ED25519_PRIVATE_KEY) {
-            throw 'Set the UPDATE_ED25519_PRIVATE_KEY secret in the release environment before releasing.'
-          }
+        run: node scripts/validate-release-key.cjs
 
       - name: Prepare Windows code-signing certificate
         id: prepare-signing
