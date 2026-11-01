@@ -91,6 +91,11 @@ The runner temporarily trusts the public certificate only to validate those
 signatures, then removes it and the PFX. Never add the PFX or its password to
 the repository, build artifacts, or release assets.
 
+The manually triggered Windows test build can run without code-signing settings;
+its artifact is clearly named `unsigned` and Windows may show an untrusted
+publisher or security warning. If any signing setting is configured, all three
+must be present and valid. Tagged Windows releases always require signing.
+
 Create/export the self-signed certificate on a secured administrator-controlled
 machine, using the official company name in its subject. Store the encrypted
 PFX and its password as the two `WINDOWS_CODE_SIGNING_CERTIFICATE_*` secrets

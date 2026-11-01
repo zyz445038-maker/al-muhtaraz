@@ -39,8 +39,38 @@ jobs:
             throw 'Set the NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY secrets in the release. environment.'
           }
 
+      - name: Determine signing mode
+        id: signing-mode
+        shell: pwsh
+        env:
+          WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+          WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256: ${{ vars.WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256 }}
+        run: |
+          $configuredValues = @(
+            $env:WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64,
+            $env:WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD,
+            $env:WINDOWS_CODE_SIGNING_CERTIFICATE_SHA256
+          ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+          if ($configuredValues.Count -ne 0 -and $configuredValues.Count -ne 3) {
+            throw 'Configure all three Windows code-signing settings, or leave all three unset for an unsigned test build.'
+          }
+
+          $signingEnabled = $configuredValues.Count -eq 3
+          "signing_enabled=$($signingEnabled.ToString().ToLowerInvariant())" |
+            Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          if ($signingEnabled) {
+            Write-Output 'A complete Windows signing configuration was found; this test build will be signed.'
+          }
+          else {
+            Write-Warning 'No Windows signing configuration was found; this test build will be unsigned.'
+          }
+
       - name: Prepare Windows code-signing certificate
         id: prepare-signing
+        if: steps.signing-mode.outputs.signing_enabled == 'true'
         shell: pwsh
         env:
           WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}
@@ -57,9 +87,11 @@ jobs:
         env:
           CSC_LINK: ${{ steps.prepare-signing.outputs.certificate_path }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing-mode.outputs.signing_enabled == 'true' && 'true' || 'false' }}
         run: npm run desktop:installer
 
       - name: Verify Authenticode signatures
+        if: steps.signing-mode.outputs.signing_enabled == 'true'
         shell: pwsh
         env:
           WINDOWS_SIGNING_PUBLIC_CERTIFICATE: ${{ steps.prepare-signing.outputs.public_certificate_path }}
@@ -84,7 +116,7 @@ jobs:
       - name: Upload test build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: al-muhtaraz-windows-build-${{ github.run_number }}
+          name: al-muhtaraz-windows-build-${{ github.run_number }}-${{ steps.signing-mode.outputs.signing_enabled == 'true' && 'signed' || 'unsigned' }}
           path: |
             dist/*Setup*.exe
             dist/*.exe.sha256
