@@ -78,10 +78,12 @@ try {
     "certificate_thumbprint=$sha1Thumbprint"
   ) | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+  # Use the LocalMachine stores: adding to CurrentUser\Root shows an interactive
+  # confirmation dialog that hangs forever on headless CI runners.
   foreach ($storeName in @('Root', 'TrustedPublisher')) {
     $store = [Security.Cryptography.X509Certificates.X509Store]::new(
       $storeName,
-      [Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+      [Security.Cryptography.X509Certificates.StoreLocation]::LocalMachine
     )
     $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
     $stores += $store
