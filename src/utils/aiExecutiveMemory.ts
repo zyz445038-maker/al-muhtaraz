@@ -1,36 +1,61 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { logError } from '@/lib/eventLogger';
 
 export interface AIMemoryRecord {
   id?: string;
   user_id?: string;
-  query: string;
-  intent: string;
-  entities?: Record<string, any>;
+  user_query: string;
+  intent_type: string;
+  entities?: Record<string, unknown>;
+  findings_json?: Record<string, unknown>;
   analysis_summary: string;
-  recommendation?: string;
+  recommendations?: string[];
   created_at?: string;
 }
 
 let inMemoryDecisionLogs: AIMemoryRecord[] = [];
 
-function getSupabaseClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  try {
-    const { createClient } = require('@supabase/supabase-js');
-    return createClient(url, key);
-  } catch (e) {
+function parseMemoryRecord(value: unknown): AIMemoryRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.user_query !== 'string'
+    || typeof record.intent_type !== 'string'
+    || typeof record.analysis_summary !== 'string'
+  ) {
     return null;
   }
+
+  const recommendations = Array.isArray(record.recommendations)
+    ? record.recommendations.filter((item): item is string => typeof item === 'string')
+    : [];
+  return {
+    id: typeof record.id === 'string' ? record.id : undefined,
+    user_id: typeof record.user_id === 'string' ? record.user_id : undefined,
+    user_query: record.user_query,
+    intent_type: record.intent_type,
+    entities: record.entities && typeof record.entities === 'object' && !Array.isArray(record.entities)
+      ? record.entities as Record<string, unknown>
+      : {},
+    findings_json: record.findings_json && typeof record.findings_json === 'object' && !Array.isArray(record.findings_json)
+      ? record.findings_json as Record<string, unknown>
+      : {},
+    analysis_summary: record.analysis_summary,
+    recommendations,
+    created_at: typeof record.created_at === 'string' ? record.created_at : undefined,
+  };
 }
 
 /**
  * Persists an AI executive decision, analytical insight & recommendation into Supabase ai_memory
  */
-export async function saveAIDecisionMemory(record: AIMemoryRecord): Promise<void> {
+export async function saveAIDecisionMemory(
+  record: AIMemoryRecord,
+  client?: SupabaseClient,
+): Promise<void> {
   const entry: AIMemoryRecord = {
     ...record,
+    user_id: record.user_id || 'admin',
     created_at: record.created_at || new Date().toISOString()
   };
 
@@ -39,20 +64,21 @@ export async function saveAIDecisionMemory(record: AIMemoryRecord): Promise<void
     inMemoryDecisionLogs.pop();
   }
 
-  const client = getSupabaseClient();
   if (client) {
     try {
-      await client.from('ai_memory').insert([{
-        user_id: record.user_id || 'admin',
-        query: record.query,
-        intent: record.intent,
+      const { error } = await client.from('ai_memory').insert([{
+        user_id: entry.user_id,
+        user_query: record.user_query,
+        intent_type: record.intent_type,
         entities: record.entities || {},
+        findings_json: record.findings_json || {},
         analysis_summary: record.analysis_summary,
-        recommendation: record.recommendation || '',
+        recommendations: record.recommendations || [],
         created_at: entry.created_at
       }]);
-    } catch (err) {
-      // Failover silently to in-memory decision logs if table doesn't exist yet
+      if (error) logError('ai.memory.save', error, { intent: record.intent_type });
+    } catch (error) {
+      logError('ai.memory.save', error, { intent: record.intent_type });
     }
   }
 }
@@ -60,20 +86,34 @@ export async function saveAIDecisionMemory(record: AIMemoryRecord): Promise<void
 /**
  * Retrieves past AI executive recommendations and decisions
  */
-export async function queryAIDecisionMemory(searchQuery: string = ''): Promise<AIMemoryRecord[]> {
-  const client = getSupabaseClient();
+export async function queryAIDecisionMemory(
+  limit = 10,
+  client?: SupabaseClient,
+  userId?: string,
+): Promise<AIMemoryRecord[]> {
+  const safeLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 50) : 10;
   if (client) {
     try {
-      const { data, error } = await client
+      let query = client
         .from('ai_memory')
-        .select('*')
+        .select('id, user_id, user_query, intent_type, entities, findings_json, analysis_summary, recommendations, created_at')
         .order('created_at', { ascending: false })
-        .limit(10);
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data;
+        .limit(safeLimit);
+      if (userId) query = query.eq('user_id', userId);
+      const { data, error } = await query;
+      if (error) {
+        logError('ai.memory.read', error, { userId });
+      } else if (Array.isArray(data)) {
+        return data
+          .map(parseMemoryRecord)
+          .filter((record): record is AIMemoryRecord => record !== null);
       }
-    } catch (err) {}
+    } catch (error) {
+      logError('ai.memory.read', error, { userId });
+    }
   }
 
-  return inMemoryDecisionLogs;
+  return inMemoryDecisionLogs
+    .filter(record => !userId || record.user_id === userId)
+    .slice(0, safeLimit);
 }

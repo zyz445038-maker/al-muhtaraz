@@ -124,11 +124,15 @@ export async function POST(req: NextRequest) {
     const canViewFinancials = authorization.profile.role === 'admin'
       || authorization.profile.permissions?.can_view_financials === true;
     const context = await loadAssistantContext(authorization.supabase, canViewFinancials);
+    context.currentUserId = authorization.user.id;
     if (isAgentMemoryState(memory)) {
       context.memory = memory;
     }
 
-    const agent = new HumanoidAgent();
+    const agent = new HumanoidAgent(
+      undefined,
+      authorization.profile.role === 'admin' ? authorization.supabase : undefined,
+    );
     const response = await agent.handle({
       query: prompt,
       context,

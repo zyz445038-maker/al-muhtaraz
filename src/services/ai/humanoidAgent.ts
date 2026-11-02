@@ -4,14 +4,20 @@ import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
 import { MemoryProvider } from '@/services/ai/memory/memoryProvider';
 import { NoopMemoryProvider } from '@/services/ai/memory/noopMemoryProvider';
 import { AgentRequest, AgentResponse } from '@/services/ai/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const SAFE_FALLBACK_RESPONSE = 'تعذر تنفيذ الطلب الذكي حالياً، لكن النظام الأساسي ما زال يعمل. حاول مرة أخرى بعد قليل.';
 
 export class HumanoidAgent {
   private readonly memoryProvider: MemoryProvider;
+  private readonly decisionMemoryClient?: SupabaseClient;
 
-  constructor(memoryProvider: MemoryProvider = new NoopMemoryProvider()) {
+  constructor(
+    memoryProvider: MemoryProvider = new NoopMemoryProvider(),
+    decisionMemoryClient?: SupabaseClient,
+  ) {
     this.memoryProvider = memoryProvider;
+    this.decisionMemoryClient = decisionMemoryClient;
   }
 
   async handle(request: AgentRequest): Promise<AgentResponse> {
@@ -38,7 +44,11 @@ export class HumanoidAgent {
       logError('ai.agent.memory.load', error, { correlationId });
     }
 
-    const agent = new AlMuhtarazExecutiveAgent(request.context, request.context.memory || memoryState);
+    const agent = new AlMuhtarazExecutiveAgent(
+      request.context,
+      request.context.memory || memoryState,
+      this.decisionMemoryClient,
+    );
 
     try {
       const result = await agent.executeUserCommand(query);

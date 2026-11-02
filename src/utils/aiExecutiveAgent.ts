@@ -11,6 +11,7 @@ import { formatCleanArabicDate } from '@/utils/dateFormatter';
 import { determineIntentWithGemini } from '@/utils/geminiToolEngine';
 import { analyzeBusinessPerformance } from '@/utils/aiExecutiveAnalytics';
 import { saveAIDecisionMemory, queryAIDecisionMemory } from '@/utils/aiExecutiveMemory';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 
 export interface AgentContext {
@@ -21,6 +22,7 @@ export interface AgentContext {
   receipts: Receipt[];
   vehicles: TransportVehicle[];
   currentUserName?: string;
+  currentUserId?: string;
   memory?: AgentMemoryState;
 }
 
@@ -55,9 +57,15 @@ export interface AgentExecutionResult {
 export class AlMuhtarazExecutiveAgent {
   private context: AgentContext;
   private memory: AgentMemoryState;
+  private readonly decisionMemoryClient?: SupabaseClient;
 
-  constructor(context: AgentContext, initialMemory?: AgentMemoryState) {
+  constructor(
+    context: AgentContext,
+    initialMemory?: AgentMemoryState,
+    decisionMemoryClient?: SupabaseClient,
+  ) {
     this.context = context;
+    this.decisionMemoryClient = decisionMemoryClient;
     this.memory = initialMemory || context.memory || {
       lastFocusedContract: null,
       lastFocusedCustomer: null,
@@ -1192,6 +1200,7 @@ export class AlMuhtarazExecutiveAgent {
 
     // Save decision to ai_memory table in Supabase
     await saveAIDecisionMemory({
+      user_id: this.context.currentUserId || 'admin',
       user_query: rawQuery,
       intent_type: 'executive_analysis',
       analysis_summary: analysis.analysisText,
@@ -1203,7 +1212,7 @@ export class AlMuhtarazExecutiveAgent {
         topReason: analysis.topReason
       },
       recommendations: analysis.recommendationList
-    });
+    }, this.decisionMemoryClient);
 
     const speech = cleanSpeechText(analysis.speechSummary);
     const recsFormatted = analysis.recommendationList.map((r, i) => `${i + 1}. ${r}`).join('\n');
@@ -1227,7 +1236,7 @@ export class AlMuhtarazExecutiveAgent {
 
   // 💾 Tool 12: Memory Recall (استرجاع قرارات وتوصيات المستشار الإداري السابقة)
   private async tool_memoryRecall(rawQuery: string): Promise<AgentExecutionResult> {
-    const memoryRecords = await queryAIDecisionMemory(rawQuery, 3);
+    const memoryRecords = await queryAIDecisionMemory(3, this.decisionMemoryClient, this.context.currentUserId);
 
     if (!memoryRecords || memoryRecords.length === 0) {
       const speech = cleanSpeechText('لم أجد أي توصيات أو قرارات إدارية محفوظة سابقاً في ذاكرة النظام.');
