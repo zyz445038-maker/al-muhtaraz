@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
+import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,14 +46,15 @@ export async function POST(req: NextRequest) {
       && typeof responseData.data === 'object'
       ? responseData.data
       : null;
-    const code = codeData && 'code' in codeData && typeof codeData.code === 'string'
+    const rawCode = codeData && 'code' in codeData && typeof codeData.code === 'string'
       ? codeData.code
       : null;
+    const code = rawCode ? normalizeWhatsAppPairingCode(rawCode) : null;
 
     if (!addonRes.ok || !responseData || !('success' in responseData) || responseData.success !== true || !code) {
       const error = responseData && 'error' in responseData && typeof responseData.error === 'string'
         ? responseData.error
-        : 'لم يتمكن خادم الواتساب من إنشاء رمز الربط. تحقق من اتصال الجلسة وحاول مجددًا.';
+        : 'رد خادم الواتساب برمز غير صالح. أعد تشغيل جلسة الخادم ثم اطلب رمزًا جديدًا.';
       return NextResponse.json({ success: false, error }, { status: 502 });
     }
 

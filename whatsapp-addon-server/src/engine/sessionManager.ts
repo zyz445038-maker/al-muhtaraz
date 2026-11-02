@@ -32,6 +32,7 @@ class SessionManager {
   private userJid: string | null = null;
   private lastError: string | null = null;
   private isConnectingLock: boolean = false;
+  private isRequestingPairingCode: boolean = false;
 
   constructor() {
     const baseDir = process.env.SESSION_DIR || './sessions';
@@ -169,53 +170,61 @@ class SessionManager {
   }
 
   public async requestPairingCode(phone: string): Promise<string> {
-    let cleaned = phone.replace(/[^0-9]/g, '');
-    if (cleaned.startsWith('00966')) {
-      cleaned = cleaned.substring(5);
-    } else if (cleaned.startsWith('966')) {
-      cleaned = cleaned.substring(3);
+    if (this.isRequestingPairingCode) {
+      throw new Error('يجري إنشاء رمز ربط بالفعل. انتظر قليلًا قبل طلب رمز آخر.');
     }
 
-    if (/^5\d{8}$/.test(cleaned)) {
-      cleaned = `0${cleaned}`;
-    }
-    if (!/^05\d{8}$/.test(cleaned)) {
-      throw new Error('أدخل رقم جوال سعودي صحيحًا يبدأ بـ 05 ويتكون من 10 أرقام.');
-    }
-    const internationalPhone = `966${cleaned.substring(1)}`;
-
-    if (this.status === 'connected') {
-      throw new Error('الواتساب متصل بالفعل. افصل الجهاز الحالي أولاً قبل ربط رقم جديد.');
-    }
-
-    if (!this.socket && !this.isConnectingLock) {
-      await this.initSession();
-    }
-
-    const initializationDeadline = Date.now() + 30_000;
-    while (!this.socket && this.isConnectingLock && Date.now() < initializationDeadline) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-
-    if (!this.socket || !this.socket.requestPairingCode) {
-      throw new Error('تعذر تهيئة جلسة الواتساب. أعد تشغيل خادم الربط ثم حاول مجددًا.');
-    }
-
-    const socket = this.socket;
-    const socketDeadline = Date.now() + 30_000;
-    while (!socket.ws.isOpen && Date.now() < socketDeadline) {
-      if (this.socket !== socket || socket.ws.isClosed) {
-        throw new Error('انقطع اتصال خادم الواتساب قبل إنشاء كود الربط. حاول مجددًا.');
+    this.isRequestingPairingCode = true;
+    try {
+      let cleaned = phone.replace(/[^0-9]/g, '');
+      if (cleaned.startsWith('00966')) {
+        cleaned = cleaned.substring(5);
+      } else if (cleaned.startsWith('966')) {
+        cleaned = cleaned.substring(3);
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
 
-    if (!socket.ws.isOpen) {
-      throw new Error('انتهت مهلة الاتصال بخادم الواتساب. تحقق من اتصال الخادم ثم حاول مجددًا.');
-    }
+      if (/^5\d{8}$/.test(cleaned)) {
+        cleaned = `0${cleaned}`;
+      }
+      if (!/^05\d{8}$/.test(cleaned)) {
+        throw new Error('أدخل رقم جوال سعودي صحيحًا يبدأ بـ 05 ويتكون من 10 أرقام.');
+      }
+      const internationalPhone = `966${cleaned.substring(1)}`;
 
-    const code = await socket.requestPairingCode(internationalPhone);
-    return code?.match(/.{1,4}/g)?.join('-') || code;
+      if (this.status === 'connected') {
+        throw new Error('الواتساب متصل بالفعل. افصل الجهاز الحالي أولاً قبل ربط رقم جديد.');
+      }
+
+      if (!this.socket && !this.isConnectingLock) {
+        await this.initSession();
+      }
+
+      const initializationDeadline = Date.now() + 30_000;
+      while (!this.socket && this.isConnectingLock && Date.now() < initializationDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      if (!this.socket || !this.socket.requestPairingCode) {
+        throw new Error('تعذر تهيئة جلسة الواتساب. أعد تشغيل خادم الربط ثم حاول مجددًا.');
+      }
+
+      const socket = this.socket;
+      const readyDeadline = Date.now() + 30_000;
+      while (this.status !== 'qr_ready' && Date.now() < readyDeadline) {
+        if (this.socket !== socket || socket.ws.isClosed) {
+          throw new Error('انقطع اتصال خادم الواتساب أثناء تهيئة الربط. حاول مجددًا.');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      if (this.status !== 'qr_ready' || !socket.ws.isOpen) {
+        throw new Error('لم تكتمل تهيئة جلسة واتساب لطلب رمز الربط. انتظر ظهور رمز QR ثم حاول مجددًا.');
+      }
+
+      return await socket.requestPairingCode(internationalPhone);
+    } finally {
+      this.isRequestingPairingCode = false;
+    }
   }
 
   public async logout(): Promise<void> {

@@ -43,6 +43,7 @@ import {
 import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
+import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -182,7 +183,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         });
         const json = await res.json();
         if (json.success && json.code) {
-          code = json.code;
+          code = normalizeWhatsAppPairingCode(json.code);
+          if (!code) {
+            throw new Error('استلم التطبيق رمز ربط غير مكتمل. أعد الطلب مرة واحدة.');
+          }
         } else {
           throw new Error(json.error || 'تعذر توليد كود الاقتران. تحقق من إعدادات خادم المحرك.');
         }
@@ -204,7 +208,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           if (directRes.ok) {
             const directJson = await directRes.json();
             if (directJson.success && directJson.data?.code) {
-              code = directJson.data.code;
+              code = normalizeWhatsAppPairingCode(directJson.data.code);
             }
           }
         } catch (directErr) {}
@@ -775,7 +779,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                       />
                       <button
                         onClick={handleRequestPairCode}
-                        disabled={isRequestingPair || !normalizeSaudiMobileNumber(pairPhoneInput)}
+                        disabled={isRequestingPair || !!generatedPairCode || !normalizeSaudiMobileNumber(pairPhoneInput)}
                         style={{
                           width: '100%',
                           padding: '12px',
@@ -818,8 +822,22 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                             {generatedPairCode}
                           </div>
                           <p style={{ fontSize: '0.76rem', color: '#cbd5e1', marginTop: '10px', lineHeight: 1.7 }}>
-                            من واتساب في الجوال: <strong>الأجهزة المرتبطة</strong> ← <strong>ربط جهاز</strong> ← <strong>الربط برقم الهاتف بدلاً من ذلك</strong>، ثم أدخل الرمز أعلاه.
+                            أدخل الأحرف الثمانية المتصلة كما تظهر، <strong>من دون شرطة</strong>. في واتساب: <strong>الأجهزة المرتبطة</strong> ← <strong>ربط جهاز</strong> ← <strong>الربط برقم الهاتف بدلاً من ذلك</strong>.
                           </p>
+                          <button
+                            onClick={() => setGeneratedPairCode(null)}
+                            style={{
+                              marginTop: '8px',
+                              padding: '7px 12px',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              borderRadius: '8px',
+                              background: 'rgba(0,0,0,0.25)',
+                              color: '#cbd5e1',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            إلغاء هذا الرمز وطلب رمز جديد
+                          </button>
                         </div>
                       )}
                     </div>
