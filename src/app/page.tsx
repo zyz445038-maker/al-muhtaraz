@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { Truck, Lock, ShieldCheck } from 'lucide-react';
 import { supabaseBrowser as supabase } from '@/lib/supabaseBrowser';
@@ -297,6 +297,14 @@ const initialAssistantSettings: SmartAssistantSettings = {
   auto_dispatch_enabled: true,
 };
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات.';
+}
+
 function MainDashboard() {
   // App State
   const [showSplash, setShowSplash] = useState(true);
@@ -305,11 +313,16 @@ function MainDashboard() {
   const [currentRole, setCurrentRole] = useState<UserRole>('employee');
   
   // Data State
-  const [containers, setContainers] = useState<Container[]>(initialContainers);
-  const [contracts, setContracts] = useState<Contract[]>(initialContracts);
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [notifications, setNotifications] = useState<NotificationLog[]>(initialNotifications);
-  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>(initialInAppNotifications);
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [notifications, setNotifications] = useState<NotificationLog[]>([]);
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([]);
+  const [isBusinessDataLoading, setIsBusinessDataLoading] = useState(false);
+  const [businessDataError, setBusinessDataError] = useState<string | null>(null);
+  const [businessDataReloadKey, setBusinessDataReloadKey] = useState(0);
+  const [realtimeSyncError, setRealtimeSyncError] = useState<string | null>(null);
+  const realtimeReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [staffList, setStaffList] = useState<Profile[]>([]);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
@@ -870,26 +883,43 @@ function MainDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch initial data from Supabase if connected
+  // Load shared business records from Supabase; empty tables are authoritative.
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    let isCurrent = true;
     const fetchSupabaseData = async () => {
+      const errors: string[] = [];
+      setIsBusinessDataLoading(true);
+      setBusinessDataError(null);
+      setContainers([]);
+      setContracts([]);
+      setCustomers([]);
+
       try {
-        const { data: dbContainers } = await supabase.from('containers').select('*');
-        if (dbContainers && dbContainers.length > 0) setContainers(dbContainers);
+        const [containersResult, customersResult, contractsResult] = await Promise.all([
+          supabase.from('containers').select('*'),
+          supabase.from('customers').select('*'),
+          supabase.from('contracts').select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
+        ]);
+        if (!isCurrent) return;
 
-        const { data: dbCustomers } = await supabase.from('customers').select('*');
-        if (dbCustomers && dbCustomers.length > 0) setCustomers(dbCustomers);
+        const coreErrors = [
+          containersResult.error && `الحاويات: ${containersResult.error.message}`,
+          customersResult.error && `العملاء: ${customersResult.error.message}`,
+          contractsResult.error && `العقود: ${contractsResult.error.message}`
+        ].filter((error): error is string => Boolean(error));
 
-        const { data: dbContracts } = await supabase.from('contracts').select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)');
-        if (dbContracts && dbContracts.length > 0) setContracts(dbContracts);
-
-        const { data: dbNotifs } = await supabase.from('notification_logs').select('*');
-        if (dbNotifs && dbNotifs.length > 0) setNotifications(dbNotifs);
-
-        const { data: dbInApp } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-        if (dbInApp && dbInApp.length > 0) setInAppNotifications(dbInApp);
+        if (coreErrors.length) {
+          setContainers([]);
+          setCustomers([]);
+          setContracts([]);
+          errors.push(...coreErrors);
+        } else {
+          setContainers(containersResult.data ?? []);
+          setCustomers(customersResult.data ?? []);
+          setContracts(contractsResult.data ?? []);
+        }
 
         // Restore from localStorage first for instant display
         try {
@@ -899,32 +929,108 @@ function MainDashboard() {
           if (localPay) setPaymentSettings(JSON.parse(localPay));
         } catch (e) {}
 
-        const { data: dbSettings } = await supabase.from('whatsapp_settings').select('*').limit(1).maybeSingle();
-        if (dbSettings) setGatewaySettings(dbSettings);
+        const [
+          notificationsResult,
+          inAppResult,
+          settingsResult,
+          paymentSettingsResult,
+          receiptsResult,
+          vehiclesResult,
+          sealResult
+        ] = await Promise.all([
+          supabase.from('notification_logs').select('*'),
+          supabase.from('notifications').select('*').order('created_at', { ascending: false }),
+          supabase.from('whatsapp_settings').select('*').limit(1).maybeSingle(),
+          supabase.from('payment_settings').select('*').limit(1).maybeSingle(),
+          supabase.from('receipts').select('*'),
+          supabase.from('vehicles').select('*'),
+          supabase.from('contract_seal_settings').select('*').limit(1).maybeSingle()
+        ]);
+        if (!isCurrent) return;
 
-        const { data: dbPaySettings } = await supabase.from('payment_settings').select('*').limit(1).maybeSingle();
-        if (dbPaySettings) setPaymentSettings(dbPaySettings);
+        if (notificationsResult.error) errors.push(`الإشعارات: ${notificationsResult.error.message}`);
+        else setNotifications(notificationsResult.data ?? []);
 
-        const { data: dbReceipts } = await supabase.from('receipts').select('*');
-        if (dbReceipts && dbReceipts.length > 0) setReceipts(dbReceipts);
+        if (inAppResult.error) errors.push(`التنبيهات الداخلية: ${inAppResult.error.message}`);
+        else setInAppNotifications(inAppResult.data ?? []);
 
-        const { data: dbVehicles } = await supabase.from('vehicles').select('*');
-        if (dbVehicles && dbVehicles.length > 0) setVehicles(dbVehicles);
+        if (settingsResult.error) errors.push(`إعدادات واتساب: ${settingsResult.error.message}`);
+        else if (settingsResult.data) setGatewaySettings(settingsResult.data);
 
-        const { data: dbSeal } = await supabase.from('contract_seal_settings').select('*').limit(1).maybeSingle();
-        if (dbSeal) {
+        if (paymentSettingsResult.error) errors.push(`إعدادات الدفع: ${paymentSettingsResult.error.message}`);
+        else if (paymentSettingsResult.data) setPaymentSettings(paymentSettingsResult.data);
+
+        if (receiptsResult.error) errors.push(`السندات: ${receiptsResult.error.message}`);
+        else setReceipts(receiptsResult.data ?? []);
+
+        if (vehiclesResult.error) errors.push(`المركبات: ${vehiclesResult.error.message}`);
+        else setVehicles(vehiclesResult.data ?? []);
+
+        if (sealResult.error) errors.push(`ختم العقود: ${sealResult.error.message}`);
+        else if (sealResult.data) {
           setContractSealSettings({
-            sealImageUrl: dbSeal.seal_image_url || null,
-            managerName: dbSeal.manager_name || 'أبو ماجد (المدير العام)',
-            updatedAt: dbSeal.updated_at || new Date().toISOString()
+            sealImageUrl: sealResult.data.seal_image_url || null,
+            managerName: sealResult.data.manager_name || 'أبو ماجد (المدير العام)',
+            updatedAt: sealResult.data.updated_at || new Date().toISOString()
           });
         }
       } catch (err) {
-        console.warn('Supabase local sync initialized with active state:', err);
+        if (!isCurrent) return;
+        setContainers([]);
+        setCustomers([]);
+        setContracts([]);
+        errors.push(getErrorMessage(err));
+      } finally {
+        if (isCurrent) {
+          setBusinessDataError(errors.length ? errors.join(' • ') : null);
+          setIsBusinessDataLoading(false);
+        }
       }
     };
 
-    fetchSupabaseData();
+    void fetchSupabaseData();
+    return () => {
+      isCurrent = false;
+    };
+  }, [isAuthenticated, businessDataReloadKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const scheduleReload = () => {
+      if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current);
+      realtimeReloadTimer.current = setTimeout(() => {
+        setBusinessDataReloadKey(key => key + 1);
+      }, 300);
+    };
+
+    const channel = supabase
+      .channel('shared-business-records')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'containers' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_logs' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, scheduleReload)
+      .subscribe(status => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setRealtimeSyncError('تعذر الاتصال بالمزامنة اللحظية. تحقق من اتصال الشبكة وإعداد Realtime في Supabase.');
+        } else if (status === 'SUBSCRIBED') {
+          setRealtimeSyncError(null);
+          scheduleReload();
+        }
+      });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleReload();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (realtimeReloadTimer.current) clearTimeout(realtimeReloadTimer.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
   }, [isAuthenticated]);
 
   // WhatsApp Sender Helper (Fallback wa.me – for manual send buttons only)
@@ -1366,8 +1472,22 @@ function MainDashboard() {
   // Container Status Update Handler
   const handleUpdateContainerStatus = async (containerId: string, status: ContainerStatus) => {
     const cont = containers.find(c => c.id === containerId);
-    setContainers(prev => prev.map(c => c.id === containerId ? { ...c, status } : c));
-    
+    try {
+      const { data, error } = await supabase
+        .from('containers')
+        .update({ status })
+        .eq('id', containerId)
+        .select('*')
+        .single();
+      if (error) throw error;
+
+      setContainers(prev => prev.map(c => c.id === containerId ? data : c));
+      setBusinessDataError(null);
+    } catch (error) {
+      setBusinessDataError(`تعذر تحديث حالة الحاوية: ${getErrorMessage(error)}`);
+      return;
+    }
+
     // Add in-app notification for container status change
     const statusText = status === 'available' ? 'متاحة للتأجير' : status === 'rented' ? 'مؤجرة' : 'في الصيانة';
     const statusNotif: InAppNotification = {
@@ -1380,87 +1500,71 @@ function MainDashboard() {
     };
     setInAppNotifications(prev => [statusNotif, ...prev]);
 
-    try {
-      await supabase.from('containers').update({ status }).eq('id', containerId);
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   // Add Container Handler (Single)
   const handleAddContainer = async (data: Partial<Container>): Promise<boolean> => {
-    const newCont: Container = {
-      id: `cont-${Date.now()}`,
-      container_number: data.container_number || 'CONT-NEW',
-      type: data.type || 'debris',
-      status: 'available',
-      daily_rate: data.daily_rate || 0,
-      monthly_rate: data.monthly_rate || 0,
-      notes: data.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    setContainers(prev => [newCont, ...prev]);
-
     try {
-      await supabase.from('containers').insert([{
-        container_number: newCont.container_number,
-        type: newCont.type,
-        status: newCont.status,
-        daily_rate: newCont.daily_rate,
-        monthly_rate: newCont.monthly_rate,
-        notes: newCont.notes
-      }]);
-    } catch (err) {
-      console.error(err);
-    }
+      const { data: createdContainer, error } = await supabase
+        .from('containers')
+        .insert([{
+          container_number: data.container_number?.trim(),
+          type: data.type || 'debris',
+          status: 'available',
+          daily_rate: data.daily_rate ?? 0,
+          monthly_rate: data.monthly_rate ?? 0,
+          notes: data.notes
+        }])
+        .select('*')
+        .single();
+      if (error) throw error;
+      if (!createdContainer?.id) throw new Error('لم تُرجع قاعدة البيانات سجل الحاوية بعد الحفظ.');
 
-    return true;
+      setContainers(prev => [createdContainer, ...prev]);
+      setBusinessDataError(null);
+      return true;
+    } catch (error) {
+      setBusinessDataError(`تعذر حفظ الحاوية: ${getErrorMessage(error)}`);
+      return false;
+    }
   };
 
   // 📦 Batch Add Containers Handler (Bulk Intake)
   const handleBatchAddContainers = async (newContainers: Partial<Container>[]): Promise<boolean> => {
-    const createdList: Container[] = newContainers.map((item, idx) => ({
-      id: `cont-${Date.now()}-${idx}`,
-      container_number: item.container_number || `CONT-${idx}`,
-      type: item.type || 'debris',
-      status: 'available',
-      daily_rate: item.daily_rate || 0,
-      monthly_rate: item.monthly_rate || 0,
-      notes: item.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
-
-    setContainers(prev => [...createdList, ...prev]);
-
-    // In-App Notification (🔔)
-    const inAppNotif: InAppNotification = {
-      id: `inapp-${Date.now()}`,
-      title: `📦 تم توريد دفعة مخزون جديدة (${createdList.length} حاوية)`,
-      message: `تم إدراج (${createdList.length}) حاوية جديدة إلى مخزون الحاويات المتاحة بنجاح.`,
-      type: 'system_alert',
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
-    setInAppNotifications(prev => [inAppNotif, ...prev]);
-
     try {
-      const insertRows = createdList.map(c => ({
-        container_number: c.container_number,
-        type: c.type,
-        status: c.status,
-        daily_rate: c.daily_rate,
-        monthly_rate: c.monthly_rate,
-        notes: c.notes
+      const insertRows = newContainers.map(item => ({
+        container_number: item.container_number?.trim(),
+        type: item.type || 'debris',
+        status: 'available' as const,
+        daily_rate: item.daily_rate ?? 0,
+        monthly_rate: item.monthly_rate ?? 0,
+        notes: item.notes
       }));
-      await supabase.from('containers').insert(insertRows);
-    } catch (err) {
-      console.warn('Synced batch locally:', err);
-    }
+      const { data: createdList, error } = await supabase
+        .from('containers')
+        .insert(insertRows)
+        .select('*');
+      if (error) throw error;
+      if (!createdList || createdList.length !== insertRows.length) {
+        throw new Error('لم تؤكد قاعدة البيانات حفظ جميع الحاويات في الدفعة.');
+      }
 
-    return true;
+      setContainers(prev => [...createdList, ...prev]);
+      setBusinessDataError(null);
+      const inAppNotif: InAppNotification = {
+        id: `inapp-${Date.now()}`,
+        title: `📦 تم توريد دفعة مخزون جديدة (${createdList.length} حاوية)`,
+        message: `تم إدراج (${createdList.length}) حاوية جديدة إلى مخزون الحاويات المتاحة بنجاح.`,
+        type: 'system_alert',
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      setInAppNotifications(prev => [inAppNotif, ...prev]);
+      return true;
+    } catch (error) {
+      setBusinessDataError(`تعذر حفظ دفعة الحاويات: ${getErrorMessage(error)}`);
+      return false;
+    }
   };
 
   // 📥 Two-Way Return to Stock: Complete Contract & Set Container to Available 🟢
@@ -1468,11 +1572,29 @@ function MainDashboard() {
     const contract = contracts.find(c => c.id === contractId);
     const container = containers.find(c => c.id === containerId);
 
-    // 1. Update Contract to 'completed'
-    setContracts(prev => prev.map(c => c.id === contractId ? { ...c, status: 'completed' } : c));
+    try {
+      const { data, error } = await supabase.rpc('complete_container_rental_contract', {
+        p_contract_id: contractId,
+        p_container_id: containerId
+      });
+      if (error) throw error;
+      if (!data || typeof data !== 'object' || !('contract' in data) || !('container' in data)) {
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد إنهاء العقد وتحديث الحاوية.');
+      }
 
-    // 2. Return Container to 'available' 🟢
-    setContainers(prev => prev.map(c => c.id === containerId ? { ...c, status: 'available' } : c));
+      const completedContract = data.contract as Contract;
+      const availableContainer = data.container as Container;
+      if (!completedContract.id || !availableContainer.id) {
+        throw new Error('بيانات التأكيد التي أعادتها قاعدة البيانات غير مكتملة.');
+      }
+
+      setContracts(prev => prev.map(c => c.id === contractId ? { ...c, ...completedContract } : c));
+      setContainers(prev => prev.map(c => c.id === containerId ? availableContainer : c));
+      setBusinessDataError(null);
+    } catch (error) {
+      setBusinessDataError(`تعذر إنهاء العقد وإعادة الحاوية للمخزون: ${getErrorMessage(error)}`);
+      return;
+    }
 
     // 3. In-App Notification (🔔)
     const inAppNotif: InAppNotification = {
@@ -1493,58 +1615,84 @@ function MainDashboard() {
       origin: { y: 0.6 }
     });
 
-    try {
-      await supabase.from('contracts').update({ status: 'completed' }).eq('id', contractId);
-      await supabase.from('containers').update({ status: 'available' }).eq('id', containerId);
-    } catch (err) {
-      console.warn('Synced return to stock locally:', err);
-    }
   };
 
   // Delete Container Handler (Admin)
   const handleDeleteContainer = async (containerId: string) => {
-    setContainers(prev => prev.filter(c => c.id !== containerId));
     try {
-      await supabase.from('containers').delete().eq('id', containerId);
-    } catch (err) {
-      console.error(err);
+      const { data, error } = await supabase
+        .from('containers')
+        .delete()
+        .eq('id', containerId)
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('لم تُحذف الحاوية؛ قد تكون مرتبطة بعقد أو لا تملك صلاحية الحذف.');
+      setContainers(prev => prev.filter(c => c.id !== containerId));
+      setBusinessDataError(null);
+    } catch (error) {
+      setBusinessDataError(`تعذر حذف الحاوية: ${getErrorMessage(error)}`);
     }
   };
 
   // Contract Status Update Handler
   const handleUpdateContractStatus = async (contractId: string, status: ContractStatus) => {
-    setContracts(prev => prev.map(c => c.id === contractId ? { ...c, status } : c));
     try {
-      await supabase.from('contracts').update({ status }).eq('id', contractId);
-    } catch (err) {
-      console.error(err);
+      const { data, error } = await supabase
+        .from('contracts')
+        .update({ status })
+        .eq('id', contractId)
+        .select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
+        .single();
+      if (error) throw error;
+      if (!data?.id) throw new Error('لم تُرجع قاعدة البيانات العقد بعد تحديثه.');
+      setContracts(prev => prev.map(c => c.id === contractId ? data : c));
+      if (data.container) {
+        setContainers(prev => prev.map(c => c.id === data.container_id ? data.container as Container : c));
+      }
+      setBusinessDataError(null);
+    } catch (error) {
+      setBusinessDataError(`تعذر تحديث حالة العقد: ${getErrorMessage(error)}`);
     }
   };
 
   // Delete Contract Handler (Admin)
   const handleDeleteContract = async (contractId: string) => {
-    setContracts(prev => prev.filter(c => c.id !== contractId));
     try {
-      await supabase.from('contracts').delete().eq('id', contractId);
-    } catch (err) {
-      console.error(err);
+      const { data, error } = await supabase
+        .from('contracts')
+        .delete()
+        .eq('id', contractId)
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('لم يُحذف العقد أو لا تملك صلاحية الحذف.');
+      setContracts(prev => prev.filter(c => c.id !== contractId));
+      setBusinessDataError(null);
+    } catch (error) {
+      setBusinessDataError(`تعذر حذف العقد: ${getErrorMessage(error)}`);
     }
   };
 
   // Save New Contract Handler
   const handleSaveContract = async (contractData: any): Promise<boolean> => {
-    const customerObj: Customer = {
-      id: `cust-${Date.now()}`,
+    let customerObj: Customer = {
+      id: '',
       name: contractData.customer_name,
       phone: contractData.customer_phone,
       customer_type: 'individual',
       address: contractData.location_address,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: '',
+      updated_at: ''
     };
 
-    const containerObj = containers.find(c => c.id === contractData.container_id);
-    const assignedStaff = staffList.find(s => s.id === contractData.assigned_employee_id) || staffList[1];
+    let containerObj = containers.find(c => c.id === contractData.container_id);
+    if (!containerObj || containerObj.status !== 'available') {
+      setBusinessDataError('الحاوية المختارة غير موجودة أو لم تعد متاحة. حدّث القائمة واختر حاوية متاحة.');
+      return false;
+    }
+
+    const assignedStaff = staffList.find(s => s.id === contractData.assigned_employee_id);
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const isFree = !!contractData.is_free;
@@ -1556,8 +1704,8 @@ function MainDashboard() {
     const paymentStatus: PaymentStatus = isFree ? 'paid' : (remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid'));
     const paymentMethod: PaymentMethod = isFree ? 'free' : (isCash ? 'cash' : (isSadad ? 'mada' : 'cash'));
 
-    const newContract: Contract = {
-      id: `contract-${Date.now()}`,
+    let newContract: Contract = {
+      id: '',
       contract_number: contractData.contract_number,
       customer_id: customerObj.id,
       container_id: contractData.container_id,
@@ -1582,35 +1730,111 @@ function MainDashboard() {
       receipt_number: (isFree || isCash || paidAmount > 0) ? receiptNumber : undefined,
       status: 'active',
       notes: contractData.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: '',
+      updated_at: '',
       customer: customerObj,
       container: containerObj
     };
 
+    const shouldCreateReceipt = isFree || isCash || paidAmount > 0;
+    const receiptAmount = isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost);
+    const receiptNotes = isFree
+      ? 'عقد تأجير معتمد'
+      : `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`;
+    let persistedReceipt: Partial<Receipt> | null = null;
+
+    try {
+      const { data, error } = await supabase.rpc('create_container_rental_contract', {
+        p_payload: {
+          contract_number: newContract.contract_number,
+          container_id: newContract.container_id,
+          customer_name: customerObj.name,
+          customer_phone: customerObj.phone,
+          customer_type: customerObj.customer_type,
+          assigned_employee_id: newContract.assigned_employee_id,
+          contract_type: newContract.contract_type,
+          period_type: newContract.period_type,
+          duration_days: newContract.duration_days,
+          start_date: newContract.start_date,
+          end_date: newContract.end_date,
+          expected_pickup_time: newContract.expected_pickup_time,
+          location_latitude: newContract.location_latitude,
+          location_longitude: newContract.location_longitude,
+          google_maps_url: newContract.google_maps_url,
+          location_address: newContract.location_address,
+          total_cost: totalCost,
+          paid_amount: paidAmount,
+          payment_status: paymentStatus,
+          payment_method: paymentMethod,
+          is_free: isFree,
+          notes: newContract.notes,
+          receipt_number: shouldCreateReceipt ? receiptNumber : null,
+          receipt_amount: shouldCreateReceipt ? receiptAmount : null,
+          receipt_notes: shouldCreateReceipt ? receiptNotes : null
+        }
+      });
+      if (error) throw error;
+
+      const savedRental = data as {
+        customer?: Customer;
+        contract?: Partial<Contract>;
+        container?: Container;
+        receipt?: Partial<Receipt> | null;
+      } | null;
+      if (
+        !savedRental?.customer?.id
+        || !savedRental.contract?.id
+        || !savedRental.container?.id
+        || Boolean(savedRental.receipt) !== shouldCreateReceipt
+      ) {
+        throw new Error('لم تُرجع قاعدة البيانات سجلات العميل والعقد والحاوية بعد الحفظ.');
+      }
+
+      customerObj = savedRental.customer;
+      containerObj = savedRental.container;
+      persistedReceipt = savedRental.receipt || null;
+      newContract = {
+        ...newContract,
+        ...savedRental.contract,
+        customer_id: customerObj.id,
+        container_id: containerObj.id,
+        payment_method: paymentMethod,
+        is_free: isFree,
+        customer: customerObj,
+        container: containerObj,
+        assigned_employee: assignedStaff
+      };
+      setBusinessDataError(null);
+    } catch (error) {
+      const message = `تعذر حفظ العقد والحاوية: ${getErrorMessage(error)}`;
+      setBusinessDataError(message);
+      alert(message);
+      return false;
+    }
+
     // Update Local State
     setCustomers(prev => [customerObj, ...prev]);
     setContracts(prev => [newContract, ...prev]);
-    setContainers(prev => prev.map(c => c.id === contractData.container_id ? { ...c, status: 'rented' } : c));
+    setContainers(prev => prev.map(c => c.id === containerObj?.id ? containerObj : c));
 
     // If Free, Cash or partial down payment: Create Receipt immediately
     if (isFree || isCash || paidAmount > 0) {
       const newReceipt: Receipt = {
-        id: `rcp-${Date.now()}`,
+        id: persistedReceipt?.id || '',
         receipt_number: receiptNumber,
         contract_id: newContract.id,
         customer_id: customerObj.id,
         customer_name: customerObj.name,
-        amount: isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost),
+        amount: receiptAmount,
         payment_method: isFree ? 'free' : (isCash ? 'cash' : 'mada'),
         contract_number: newContract.contract_number,
         container_number: containerObj?.container_number,
         container_type: newContract.contract_type,
         issued_at: new Date().toISOString(),
-        notes: isFree ? 'عقد تأجير معتمد' : `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`,
+        notes: receiptNotes,
         created_at: new Date().toISOString()
       };
-      setReceipts(prev => [newReceipt, ...prev]);
+      setReceipts(prev => [{ ...newReceipt, ...persistedReceipt }, ...prev]);
     }
 
     // Always display the full official contract & receipt voucher directly on screen
@@ -1824,40 +2048,6 @@ function MainDashboard() {
       spread: 70,
       origin: { y: 0.6 }
     });
-
-    // Save to Supabase
-    try {
-      const { data: createdCust } = await supabase.from('customers').insert([{
-        name: customerObj.name,
-        phone: customerObj.phone,
-        address: customerObj.address
-      }]).select().single();
-
-      if (createdCust) {
-        await supabase.from('contracts').insert([{
-          contract_number: newContract.contract_number,
-          customer_id: createdCust.id,
-          container_id: newContract.container_id,
-          assigned_employee_id: newContract.assigned_employee_id,
-          contract_type: newContract.contract_type,
-          period_type: newContract.period_type,
-          duration_days: newContract.duration_days,
-          start_date: newContract.start_date,
-          end_date: newContract.end_date,
-          expected_pickup_time: newContract.expected_pickup_time,
-          location_latitude: newContract.location_latitude,
-          location_longitude: newContract.location_longitude,
-          google_maps_url: newContract.google_maps_url,
-          location_address: newContract.location_address,
-          total_cost: newContract.total_cost,
-          paid_amount: newContract.paid_amount,
-          receipt_number: receiptNumber,
-          status: 'active'
-        }]);
-      }
-    } catch (err) {
-      console.warn('Database insert synced locally:', err);
-    }
 
     return true;
   };
@@ -2190,6 +2380,48 @@ function MainDashboard() {
         margin: '0 auto',
         padding: '30px 24px 60px 24px'
       }}>
+        {isAuthenticated && isBusinessDataLoading && (
+          <div role="status" style={{
+            marginBottom: '18px',
+            padding: '14px 18px',
+            borderRadius: '12px',
+            background: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            color: '#bfdbfe',
+            direction: 'rtl'
+          }}>
+            جارٍ تحميل البيانات المشتركة من قاعدة البيانات...
+          </div>
+        )}
+        {isAuthenticated && (businessDataError || realtimeSyncError) && (
+          <div role="alert" style={{
+            marginBottom: '18px',
+            padding: '14px 18px',
+            borderRadius: '12px',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: '#fecaca',
+            direction: 'rtl'
+          }}>
+            <div style={{ marginBottom: '10px' }}>
+              {businessDataError || realtimeSyncError}
+            </div>
+            <button
+              type="button"
+              onClick={() => setBusinessDataReloadKey(key => key + 1)}
+              style={{
+                padding: '7px 12px',
+                border: '1px solid rgba(255,255,255,0.35)',
+                borderRadius: '8px',
+                background: 'rgba(255,255,255,0.1)',
+                color: '#fff',
+                cursor: 'pointer'
+              }}
+            >
+              إعادة تحميل البيانات الآن
+            </button>
+          </div>
+        )}
         {!isAuthenticated || !currentProfile ? (
           /* 🔒 LOCKED APPLICATION SCREEN */
           <div style={{
