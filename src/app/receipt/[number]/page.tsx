@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
-import { 
-  decodeUtf8Base64, 
+import {
+  decodeReceiptVerificationPayload,
   PublicReceiptPayload, 
   PublicOfficialContractPayload, 
   PublicVerificationPayload 
@@ -14,6 +14,7 @@ import {
   CONTRACT_PLEDGE_TEXT, 
   COMPANY_OFFICIAL_INFO 
 } from '@/types/officialContract';
+import { PUBLIC_APP_ORIGIN } from '@/utils/publicAppUrl';
 import { generateContractClause1 } from '@/utils/contractGrammar';
 import { ShieldCheck, CheckCircle2, FileText, Printer, Building2, Phone, MapPin, Calendar, Lock } from 'lucide-react';
 
@@ -68,7 +69,10 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
     async function loadDocument() {
       setIsLoading(true);
       if (typeof window !== 'undefined') {
-        setSelfUrl(window.location.href);
+        const verificationData = new URLSearchParams(window.location.search).get('d');
+        setSelfUrl(verificationData
+          ? `${PUBLIC_APP_ORIGIN}/api/receipts/image?d=${encodeURIComponent(verificationData)}`
+          : window.location.href);
       }
 
       // 1. Check if encoded payload 'd' exists in query string
@@ -79,7 +83,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           const typeParam = search.get('type');
 
           if (encoded) {
-            const parsed = decodeUtf8Base64(encoded);
+            const parsed = await decodeReceiptVerificationPayload(encoded);
             if (parsed) {
               if (typeParam === 'official' || parsed.type === 'official_contract' || ('secondPartyName' in parsed && 'approvalNumber' in parsed)) {
                 setDocType('official_contract');
@@ -98,7 +102,10 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           }
         }
       } catch (e) {
-        console.warn('URLSearchParams decode error:', e);
+        console.error('Receipt verification link could not be loaded:', e);
+        setError(true);
+        setIsLoading(false);
+        return;
       }
 
       // 2. Resolve param number
@@ -1040,7 +1047,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
                 <div className="qr-img">
                   <QRCodeSVG
                     value={selfUrl || `https://al-muhtaraz.vercel.app/receipt/${data.receiptNumber}`}
-                    size={90}
+                    size={200}
                     level="M"
                     includeMargin={true}
                     fgColor="#000000"

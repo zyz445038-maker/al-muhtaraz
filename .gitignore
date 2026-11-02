@@ -51,3 +51,6 @@ cloudflared.exe
 /scratch/
 test_*.js
 
+
+.vercel
+.env*

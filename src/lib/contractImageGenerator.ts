@@ -193,7 +193,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   }
 
   // 6. Bottom Footer & Verification QR Code
-  const footerY = height - 260;
+  const footerY = height - 420;
   ctx.strokeStyle = 'rgba(245, 158, 11, 0.2)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -204,20 +204,31 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   // Generate QR Code onto Image
   const verifyUrl = params.verificationUrl || `https://al-muhtaraz.vercel.app/receipt/${params.receiptNumber || params.contractNumber}`;
   try {
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-      width: 140,
-      margin: 1,
-      color: { dark: '#000000', light: '#ffffff' }
-    });
+    const qr = QRCode.create(verifyUrl, { errorCorrectionLevel: 'L' });
+    const moduleSize = Math.floor(330 / (qr.modules.size + 8));
+    if (moduleSize < 3) {
+      throw new Error('Verification link is too long to render a reliably readable QR code.');
+    }
 
-    const qrImg = await loadImage(qrDataUrl);
-    // Draw white container for QR
+    const qrX = 45;
+    const qrY = footerY + 20;
     ctx.fillStyle = '#ffffff';
-    roundRect(ctx, 60, footerY + 25, 150, 150, 12);
-    ctx.fill();
-    ctx.drawImage(qrImg, 65, footerY + 30, 140, 140);
-  } catch (e) {
-    console.warn('QR generation error:', e);
+    ctx.fillRect(35, footerY + 10, 350, 350);
+    ctx.fillStyle = '#000000';
+    for (let row = 0; row < qr.modules.size; row++) {
+      for (let column = 0; column < qr.modules.size; column++) {
+        if (qr.modules.get(row, column)) {
+          ctx.fillRect(
+            qrX + (column + 4) * moduleSize,
+            qrY + (row + 4) * moduleSize,
+            moduleSize,
+            moduleSize
+          );
+        }
+      }
+    }
+  } catch (error) {
+    throw new Error('Could not generate the invoice verification QR code.', { cause: error });
   }
 
   // Verification text next to QR
@@ -228,7 +239,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '600 15px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('امسح كود الـ QR للتحقق من صحة العقد والسند عبر النظام السحابي', width - 260, footerY + 90);
+  ctx.fillText('امسح الـ QR لفتح صورة السند الأصلية مباشرة', width - 260, footerY + 90);
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';
@@ -255,7 +266,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.fillText('هذا الإشعار صادر آلياً من نظام إدارة الحاويات ويعد مستنداً رسمياً ملزماً لطرفي العقد.', width / 2, height - 35);
 
   // Convert Canvas to High-Quality JPEG DataURL
-  return canvas.toDataURL('image/jpeg', 0.92);
+  return canvas.toDataURL('image/jpeg', 0.98);
 }
 
 // ─── Helper Functions ────────────────────────────────────────────────────────

@@ -2,6 +2,8 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { createReceiptImageUrl } from '@/lib/receiptVerification';
+import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import {
   X,
   Printer,
@@ -24,7 +26,11 @@ interface ReceiptModalProps {
   onClose: () => void;
   contract: Contract | null;
   receipt?: Receipt | null;
-  onSendWhatsAppReceipt?: (phone: string, message: string) => void;
+  onSendWhatsAppReceipt?: (
+    phone: string,
+    message: string,
+    imageBase64: string
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,20 +71,6 @@ function getPaymentMethodLabel(method?: PaymentMethod): { label: string; icon: s
   }
 }
 
-function encodeUtf8Base64(data: any): string {
-  try {
-    const jsonStr = JSON.stringify(data);
-    const bytes = new TextEncoder().encode(jsonStr);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return encodeURIComponent(btoa(binary));
-  } catch (e) {
-    return '';
-  }
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
@@ -89,6 +81,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const [receiptUrl, setReceiptUrl] = useState('');
+  const [receiptUrlError, setReceiptUrlError] = useState('');
+  const [receiptImage, setReceiptImage] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
 
   // ── Derived values (safe to compute even when contract is null) ────────────
   const receiptNumber = (receipt?.receipt_number
@@ -104,15 +99,26 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const issueDate     = receipt?.issued_at
     ? new Date(receipt.issued_at)
     : new Date(contract?.updated_at || contract?.created_at || Date.now());
+  const isFree = contract?.is_free || contract?.payment_method === 'free';
   const contractType  = contract?.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
   const startDate     = contract?.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-';
   const endDate       = contract?.end_date   ? new Date(contract.end_date).toLocaleDateString('ar-SA')   : '-';
 
   // ── Build QR URL (needs window, so inside useEffect) ─────────────────────
   useEffect(() => {
-    if (!isOpen || !contract) { setReceiptUrl(''); return; }
+    if (!isOpen || !contract) {
+      setReceiptUrl('');
+      setReceiptUrlError('');
+      setReceiptImage('');
+      return;
+    }
+
+    let cancelled = false;
+    setReceiptUrl('');
+    setReceiptUrlError('');
+    setReceiptImage('');
     const receiptData = {
-      type: 'receipt',
+      type: 'receipt' as const,
       receiptNumber,
       contractNumber: contract.contract_number,
       customerName: contract.customer?.name || '-',
@@ -128,16 +134,63 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       issueDate: issueDate.toISOString(),
       notes: receipt?.notes || contract?.notes || ''
     };
-    try {
-      const encoded = encodeUtf8Base64(receiptData);
-      const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://al-muhtaraz.vercel.app';
-      const cleanUrl = `${origin}/receipt/${encodeURIComponent(receiptNumber)}?d=${encoded}`;
-      setReceiptUrl(cleanUrl);
-    } catch {
-      setReceiptUrl(typeof window !== 'undefined' ? window.location.href : '');
-    }
+
+    void (async () => {
+      try {
+        const imageUrl = await createReceiptImageUrl(receiptData);
+        const image = await generateContractVoucherImage({
+          contractNumber: contract.contract_number,
+          receiptNumber,
+          customerName: contract.customer?.name || '-',
+          customerPhone: contract.customer?.phone || '-',
+          containerNumber: contract.container?.container_number || '-',
+          contractType,
+          totalCost,
+          paidAmount,
+          remainingAmount: remaining,
+          paymentMethod: methodInfo.label,
+          startDate,
+          endDate,
+          locationAddress: contract.location_address || '',
+          verificationUrl: imageUrl,
+          isFree
+        });
+        if (!cancelled) {
+          setReceiptUrl(imageUrl);
+          setReceiptImage(image);
+        }
+      } catch (error) {
+        console.error('Could not create receipt verification link:', error);
+        if (!cancelled) setReceiptUrlError('تعذر تجهيز صورة السند ورمز QR. تحقق من الاتصال ثم أعد فتح السند.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, contract?.id, receiptNumber, paidAmount, totalCost, paymentMethod]);
+  }, [
+    isOpen,
+    contract?.id,
+    contract?.contract_number,
+    contract?.customer?.name,
+    contract?.customer?.phone,
+    contract?.container?.container_number,
+    contract?.contract_type,
+    contract?.start_date,
+    contract?.end_date,
+    contract?.location_address,
+    contract?.notes,
+    contract?.updated_at,
+    contract?.created_at,
+    receipt?.notes,
+    receipt?.issued_at,
+    receiptNumber,
+    paidAmount,
+    totalCost,
+    paymentMethod,
+    isFree
+  ]);
 
   // ── Early return after all hooks ─────────────────────────────────────────
   if (!isOpen || !contract) return null;
@@ -223,14 +276,30 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     win.document.close();
   };
 
-  const isFree = contract?.is_free || contract?.payment_method === 'free';
+  const handleShare = async () => {
+    if (!contract.customer?.phone || !onSendWhatsAppReceipt || isSharing) return;
+    if (!receiptUrl || !receiptImage) {
+      alert(receiptUrlError || 'جارٍ تجهيز رمز QR، يرجى المحاولة بعد لحظات.');
+      return;
+    }
 
-  const handleShare = () => {
-    if (contract.customer?.phone && onSendWhatsAppReceipt) {
-      const msg = isFree
-        ? `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند تأجير الحاوية المعتمد رقم (${receiptNumber}) الخاص بعقد رقم (${contract.contract_number}).\nالحاوية: ${contract.container?.container_number || '-'}\nالفترة: ${startDate} إلى ${endDate}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
-        : `مرحباً ${contract.customer.name || 'عزيزنا العميل'}،\nمرفق سند القبض الرسمي رقم (${receiptNumber}) الخاص بعقد الحاوية (${contract.contract_number}).\n\n💰 المبلغ المسدد: ${paidAmount.toLocaleString('ar-SA')} ر.س\n(${arabicWords})\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\n📱 اضغط للاطلاع على السند الإلكتروني:\n${receiptUrl}\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
-      onSendWhatsAppReceipt(contract.customer.phone, msg);
+    setIsSharing(true);
+    try {
+      const customerName = contract.customer.name || 'عزيزنا العميل';
+      const containerNumber = contract.container?.container_number || '-';
+      const contractType = contract.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
+      const message = isFree
+        ? `مرحباً ${customerName}، مرفق صورة السند الرسمي رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتح صورة السند مباشرة.\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
+        : `مرحباً ${customerName}، مرفق صورة سند القبض رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتح صورة السند مباشرة.\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
+      const result = await onSendWhatsAppReceipt(contract.customer.phone, message, receiptImage);
+      if (!result.success) {
+        throw new Error(result.error || 'تعذر إرسال صورة السند عبر واتساب.');
+      }
+    } catch (error) {
+      console.error('Could not send receipt image with embedded QR:', error);
+      alert(error instanceof Error ? error.message : 'تعذر إرسال صورة السند مع رمز QR.');
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -321,14 +390,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <Printer size={14} /> طباعة
               </button>
               {contract.customer?.phone && (
-                <button onClick={handleShare} style={{
+                <button onClick={handleShare} disabled={isSharing || !receiptUrl} style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
                   padding: '7px 14px', borderRadius: '8px',
                   background: 'rgba(14,165,233,0.18)',
                   border: '1px solid rgba(14,165,233,0.4)',
-                  color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+                  color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem', cursor: isSharing || !receiptUrl ? 'wait' : 'pointer',
+                  opacity: isSharing || !receiptUrl ? 0.6 : 1
                 }}>
-                  <Share2 size={14} /> واتساب
+                  <Share2 size={14} /> {isSharing ? 'جارٍ إرسال صورة السند...' : 'إرسال صورة السند عبر واتساب'}
                 </button>
               )}
               <button onClick={onClose} style={{
@@ -576,15 +646,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   {receiptUrl ? (
                     <QRCodeSVG
                       value={receiptUrl}
-                      size={98}
+                      size={156}
                       level="M"
                       includeMargin={true}
                       fgColor="#000000"
                       bgColor="#ffffff"
                     />
                   ) : (
-                    <div style={{ width: 98, height: 98, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.65rem' }}>
-                      جارٍ التوليد...
+                    <div style={{ width: 156, height: 156, display: 'flex', alignItems: 'center', justifyContent: 'center', color: receiptUrlError ? '#b91c1c' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center', padding: '8px' }}>
+                      {receiptUrlError || 'جارٍ تجهيز الرمز...'}
                     </div>
                   )}
                 </div>

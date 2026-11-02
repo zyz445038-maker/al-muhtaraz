@@ -45,6 +45,100 @@ export interface PublicOfficialContractPayload {
 
 export type PublicVerificationPayload = PublicReceiptPayload | PublicOfficialContractPayload;
 
+export async function encodeCompactReceiptPayload(payload: PublicReceiptPayload): Promise<string> {
+  const compact = [
+    1,
+    payload.receiptNumber,
+    payload.contractNumber,
+    payload.customerName,
+    payload.customerPhone,
+    payload.containerNumber,
+    payload.contractType,
+    payload.paidAmount,
+    payload.totalCost,
+    payload.paymentMethod,
+    payload.startDate,
+    payload.endDate,
+    payload.locationAddress,
+    payload.issueDate
+  ];
+  const json = JSON.stringify(compact);
+  const plainBytes = new TextEncoder().encode(json);
+
+  if (typeof CompressionStream !== 'undefined') {
+    try {
+      const compressed = await new Response(
+        new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))
+      ).arrayBuffer();
+      return `z1.${encodeBase64Url(new Uint8Array(compressed))}`;
+    } catch (error) {
+      console.warn('Could not compress receipt verification data; using compact uncompressed data:', error);
+    }
+  }
+
+  return `j1.${encodeBase64Url(plainBytes)}`;
+}
+
+export async function decodeReceiptVerificationPayload(encoded: string): Promise<PublicVerificationPayload | null> {
+  if (!encoded.startsWith('z1.') && !encoded.startsWith('j1.')) {
+    return decodeUtf8Base64(encoded);
+  }
+
+  try {
+    let bytes = decodeBase64Url(encoded.slice(3));
+    if (encoded.startsWith('z1.')) {
+      if (typeof DecompressionStream === 'undefined') return null;
+      bytes = new Uint8Array(await new Response(
+        new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer])
+          .stream()
+          .pipeThrough(new DecompressionStream('gzip'))
+      ).arrayBuffer());
+    }
+
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!Array.isArray(value) || value.length !== 14 || value[0] !== 1) return null;
+    if (
+      !value.slice(1, 7).every(item => typeof item === 'string')
+      || !value.slice(7, 9).every(item => typeof item === 'number' && Number.isFinite(item))
+      || !value.slice(9, 14).every(item => typeof item === 'string')
+    ) {
+      return null;
+    }
+
+    return {
+      type: 'receipt',
+      receiptNumber: value[1],
+      contractNumber: value[2],
+      customerName: value[3],
+      customerPhone: value[4],
+      containerNumber: value[5],
+      contractType: value[6],
+      paidAmount: value[7],
+      totalCost: value[8],
+      paymentMethod: value[9],
+      startDate: value[10],
+      endDate: value[11],
+      locationAddress: value[12],
+      issueDate: value[13]
+    };
+  } catch (error) {
+    console.error('Could not decode compact receipt verification data:', error);
+    return null;
+  }
+}
+
+function encodeBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
 /**
  * Safely encode object into UTF-8 Base64 string for URL parameters
  */

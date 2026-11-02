@@ -47,6 +47,7 @@ import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings } from '@/types/officialContract';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
+import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
 import { VehiclesManagement } from '@/components/VehiclesManagement';
@@ -1672,11 +1673,10 @@ function MainDashboard() {
         issueDate: new Date().toISOString(),
         notes: newContract.notes || ''
       };
-      const encodedPayload = encodeUtf8Base64(receiptPayload);
-      const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://al-muhtaraz.vercel.app';
-      const receiptUrl = `${origin}/receipt/${encodeURIComponent(receiptNumber)}?d=${encodedPayload}`;
 
       try {
+        const verificationImageUrl = await createReceiptImageUrl(receiptPayload);
+
         // Generate High-Definition Digital Card Image
         const imageBase64 = await generateContractVoucherImage({
           contractNumber: newContract.contract_number,
@@ -1692,7 +1692,7 @@ function MainDashboard() {
           startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
           endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
           locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',
-          verificationUrl: receiptUrl
+          verificationUrl: verificationImageUrl
         });
 
         const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وسند عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
@@ -2433,7 +2433,18 @@ function MainDashboard() {
         isOpen={!!selectedReceiptContract}
         onClose={() => setSelectedReceiptContract(null)}
         contract={selectedReceiptContract}
-        onSendWhatsAppReceipt={handleSendWhatsApp}
+        onSendWhatsAppReceipt={(phone, message, imageBase64) => sendSilentWhatsApp(
+          phone,
+          message,
+          'customer',
+          selectedReceiptContract?.customer?.name || 'العميل',
+          selectedReceiptContract?.contract_number || '',
+          {
+            mediaBase64: imageBase64,
+            mediaType: 'image',
+            caption: message
+          }
+        )}
       />
 
       {/* 6. Extend / Renew Contract Modal */}
