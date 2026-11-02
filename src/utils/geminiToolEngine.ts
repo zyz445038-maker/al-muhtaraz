@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 
+const AI_PROVIDER_TIMEOUT_MS = 7000;
+
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   { type: 'function', function: { name: 'fetchLatestContract', description: 'يجلب أحدث عقد تم تسجيله في النظام.' } },
   { type: 'function', function: { name: 'fetchPreviousContract', description: 'يجلب العقد الذي يسبق العقد الأخير.' } },
@@ -57,6 +59,25 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
   }
 ];
 
+async function callProvider(
+  providerName: string,
+  request: () => Promise<{ toolName: string; args: any } | null>,
+): Promise<{ toolName: string; args: any } | null> {
+  try {
+    return await request();
+  } catch (error) {
+    const details = error instanceof Error
+      ? error as Error & { status?: number; code?: string }
+      : undefined;
+    console.warn(`AI provider ${providerName} failed.`, {
+      status: details?.status,
+      code: details?.code,
+      errorName: details?.name || typeof error,
+    });
+    return null;
+  }
+}
+
 export async function determineIntentWithGemini(
   userQuery: string,
   conversationTurns?: { query: string; response: string }[]
@@ -92,7 +113,7 @@ export async function determineIntentWithGemini(
     const client = new OpenAI({
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       apiKey: geminiKey,
-      timeout: 7000
+      timeout: AI_PROVIDER_TIMEOUT_MS
     });
     const response = await client.chat.completions.create({
       model: 'gemini-3.6-flash',
@@ -123,7 +144,8 @@ export async function determineIntentWithGemini(
     if (!groqKey) return null;
     const client = new OpenAI({
       baseURL: 'https://api.groq.com/openai/v1',
-      apiKey: groqKey
+      apiKey: groqKey,
+      timeout: AI_PROVIDER_TIMEOUT_MS
     });
     const response = await client.chat.completions.create({
       model: 'openai/gpt-oss-120b',
@@ -153,7 +175,8 @@ export async function determineIntentWithGemini(
     if (!githubToken) return null;
     const client = new OpenAI({
       baseURL: 'https://models.inference.ai.azure.com',
-      apiKey: githubToken
+      apiKey: githubToken,
+      timeout: AI_PROVIDER_TIMEOUT_MS
     });
     const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -182,25 +205,20 @@ export async function determineIntentWithGemini(
   // 🚀 DYNAMIC SMART ROUTING:
   // For Quick Operational queries -> Groq LPU (Fastest 1.5s) -> Gemini -> GitHub
   // For Deep Strategy / Casual Chat -> Gemini 3.6 Flash (Rich Arabic) -> Groq -> GitHub
-  try {
-    if (isQuickOperational) {
-      const groqRes = await callGroq();
-      if (groqRes) return groqRes;
-      const geminiRes = await callGemini();
-      if (geminiRes) return geminiRes;
-    } else {
-      const geminiRes = await callGemini();
-      if (geminiRes) return geminiRes;
-      const groqRes = await callGroq();
-      if (groqRes) return groqRes;
-    }
-
-    const githubRes = await callGitHub();
-    if (githubRes) return githubRes;
-
-  } catch (err: any) {
-    console.warn('⚠️ Multi-Model Routing error:', err?.message || err);
+  if (isQuickOperational) {
+    const groqRes = await callProvider('Groq', callGroq);
+    if (groqRes) return groqRes;
+    const geminiRes = await callProvider('Gemini', callGemini);
+    if (geminiRes) return geminiRes;
+  } else {
+    const geminiRes = await callProvider('Gemini', callGemini);
+    if (geminiRes) return geminiRes;
+    const groqRes = await callProvider('Groq', callGroq);
+    if (groqRes) return groqRes;
   }
+
+  const githubRes = await callProvider('GitHub Models', callGitHub);
+  if (githubRes) return githubRes;
 
   return null;
 }

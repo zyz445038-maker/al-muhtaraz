@@ -881,7 +881,7 @@ function MainDashboard() {
         const { data: dbCustomers } = await supabase.from('customers').select('*');
         if (dbCustomers && dbCustomers.length > 0) setCustomers(dbCustomers);
 
-        const { data: dbContracts } = await supabase.from('contracts').select('*, customer:customers(*), container:containers(*), assigned_employee:profiles(*)');
+        const { data: dbContracts } = await supabase.from('contracts').select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)');
         if (dbContracts && dbContracts.length > 0) setContracts(dbContracts);
 
         const { data: dbNotifs } = await supabase.from('notification_logs').select('*');

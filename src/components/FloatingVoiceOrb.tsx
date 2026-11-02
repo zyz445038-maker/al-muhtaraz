@@ -273,7 +273,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       const actualError = err.message || String(err);
       console.error('Voice processing error:', actualError);
       setIsThinking(false);
-      setLastResponse(`❌ **فشل الاتصال بالمحرك الذكي:**\n\n\`${actualError}\`\n\n*(يرجى التأكد من إعدادات الشبكة ومفتاح API)*`);
+      setLastResponse(`❌ **تعذر تنفيذ طلب المساعد الذكي:**\n\n\`${actualError}\`\n\n*(تحقق من اتصال التطبيق وتسجيل الدخول، ثم أعد المحاولة. إذا استمرت المشكلة، راجع سجل الخادم.)*`);
       setLastSpeechText('عذراً، فشل الاتصال بمحرك الذكاء الاصطناعي.');
       if (autoSpeak) {
         handlePlayVoice('عذراً، فشل الاتصال بمحرك الذكاء الاصطناعي.');

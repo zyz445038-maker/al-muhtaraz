@@ -369,7 +369,7 @@ export const DevLab: React.FC<DevLabProps> = ({
         agentResult = {
           toolExecuted: 'error',
           speechResponse: 'عذراً، حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي.',
-          displayMarkdown: `❌ **فشل الاتصال بالمحرك الذكي:**\n\n\`${err.message || String(err)}\`\n\n*(يرجى التأكد من إعدادات الشبكة ومفتاح API)*`
+          displayMarkdown: `❌ **تعذر تنفيذ طلب المساعد الذكي:**\n\n\`${err.message || String(err)}\`\n\n*(تحقق من اتصال التطبيق وتسجيل الدخول، ثم أعد المحاولة. إذا استمرت المشكلة، راجع سجل الخادم.)*`
         };
       }
 

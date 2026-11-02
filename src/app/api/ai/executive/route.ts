@@ -15,7 +15,7 @@ async function loadAssistantContext(
   const [contracts, containers, customers, staffList, vehicles] = await Promise.all([
     supabase
       .from('contracts')
-      .select('*, customer:customers(*), container:containers(*), assigned_employee:profiles(id, full_name, phone, role)')
+      .select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(id, full_name, phone, role)')
       .order('created_at', { ascending: false })
       .limit(500),
     supabase.from('containers').select('*').limit(500),
