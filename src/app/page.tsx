@@ -1357,10 +1357,6 @@ function MainDashboard() {
 
     const netCost = Number(additionalCost) || 0;
     const effectivePaid = Number(paidAmount ?? (isCash ? netCost : 0));
-    const newTotalCost = (contract.total_cost || 0) + netCost;
-    const newPaidAmount = (contract.paid_amount || 0) + effectivePaid;
-    const newRemainingAmount = Math.max(0, newTotalCost - newPaidAmount);
-    const newStatus: ContractStatus = 'extended';
 
     let extensionNotes = `تمديد (+${additionalDays} يوم)`;
     const notesParts = [];
@@ -1370,42 +1366,84 @@ function MainDashboard() {
       extensionNotes += ` [${notesParts.join(' - ')}]`;
     }
 
-    const updatedContract: Contract = {
-      ...contract,
-      duration_days: (contract.duration_days || 1) + additionalDays,
-      end_date: newEndDate,
-      expected_pickup_time: newEndDate,
-      total_cost: newTotalCost,
-      paid_amount: newPaidAmount,
-      remaining_amount: newRemainingAmount,
-      status: newStatus,
-      receipt_number: (isCash || effectivePaid > 0) ? receiptNumber : contract.receipt_number,
-      notes: contract.notes ? `${contract.notes} | ${extensionNotes}` : extensionNotes
-    };
+    const shouldCreateReceipt = isCash || effectivePaid > 0;
+    const receiptAmount = effectivePaid;
+    const receiptNotes = `سند قبض تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${Math.max(0, netCost - effectivePaid)} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`;
+    let updatedContract: Contract;
+    let persistedReceipt: Receipt | null = null;
 
-    // Update Local State
-    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
+    try {
+      const { data, error } = await supabase.rpc('extend_container_rental_contract', {
+        p_contract_id: contract.id,
+        p_additional_days: additionalDays,
+        p_additional_cost: netCost,
+        p_new_end_date: newEndDate,
+        p_paid_amount: effectivePaid,
+        p_payment_choice: paymentChoice,
+        p_extension_notes: extensionNotes,
+        p_receipt_number: shouldCreateReceipt ? receiptNumber : null,
+        p_receipt_amount: shouldCreateReceipt ? receiptAmount : null,
+        p_receipt_notes: shouldCreateReceipt ? receiptNotes : null
+      });
+      if (error) throw error;
 
-    // If Cash or partial down payment on extension: Create Receipt
-    if (isCash || effectivePaid > 0) {
-      const newReceipt: Receipt = {
-        id: `rcp-${Date.now()}`,
-        receipt_number: receiptNumber,
-        contract_id: contract.id,
-        customer_id: contract.customer_id,
-        customer_name: contract.customer?.name || 'العميل',
-        amount: effectivePaid > 0 ? effectivePaid : netCost,
-        payment_method: isCash ? 'cash' : 'mada',
-        contract_number: contract.contract_number,
-        container_number: contract.container?.container_number,
-        container_type: contract.contract_type,
-        issued_at: new Date().toISOString(),
-        notes: `سند قبض تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${newRemainingAmount} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`
+      const extension = data as {
+        contract?: Partial<Contract>;
+        receipt?: Partial<Receipt> | null;
+      } | null;
+      if (
+        !extension?.contract?.id
+        || Boolean(extension.receipt) !== shouldCreateReceipt
+        || (shouldCreateReceipt && (
+          !extension.receipt?.id
+          || extension.receipt.contract_id !== contract.id
+          || extension.receipt.receipt_number !== receiptNumber
+        ))
+      ) {
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ التمديد وسند القبض.');
+      }
+
+      updatedContract = {
+        ...contract,
+        ...extension.contract,
+        customer: contract.customer,
+        container: contract.container
       };
-      setReceipts(prev => [newReceipt, ...prev]);
+
+      if (extension.receipt) {
+        const persistedAmount = Number(extension.receipt.amount);
+        if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
+          throw new Error('أعادت قاعدة البيانات مبلغ سند غير صالح.');
+        }
+        persistedReceipt = {
+          ...extension.receipt,
+          id: extension.receipt.id!,
+          receipt_number: extension.receipt.receipt_number!,
+          contract_id: contract.id,
+          customer_id: contract.customer_id,
+          customer_name: contract.customer?.name || 'العميل',
+          amount: persistedAmount,
+          payment_method: isCash ? 'cash' : 'mada',
+          contract_number: contract.contract_number,
+          container_number: contract.container?.container_number,
+          container_type: contract.contract_type,
+          issued_at: extension.receipt.issued_at || new Date().toISOString(),
+          notes: extension.receipt.notes || receiptNotes
+        };
+      }
+      setBusinessDataError(null);
+    } catch (error) {
+      const message = `تعذر حفظ تمديد العقد وسند القبض: ${getErrorMessage(error)}`;
+      setBusinessDataError(message);
+      alert(message);
+      return false;
     }
 
-    // Always display the full updated contract & extension receipt directly on screen
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
+    if (persistedReceipt) {
+      const receiptToAdd = persistedReceipt;
+      setReceipts(prev => [receiptToAdd, ...prev]);
+    }
     setSelectedReceiptContract(updatedContract);
 
     // Prepare WhatsApp Message
@@ -1454,26 +1492,11 @@ function MainDashboard() {
       );
     }
 
-    // Trigger celebration
     confetti({
       particleCount: 60,
       spread: 50,
       origin: { y: 0.6 }
     });
-
-    // Sync to Supabase
-    try {
-      await supabase.from('contracts').update({
-        duration_days: updatedContract.duration_days,
-        end_date: updatedContract.end_date,
-        expected_pickup_time: updatedContract.expected_pickup_time,
-        total_cost: updatedContract.total_cost,
-        paid_amount: updatedContract.paid_amount,
-        status: updatedContract.status
-      }).eq('id', contract.id);
-    } catch (e) {
-      console.warn('Synced extension locally:', e);
-    }
 
     return true;
   };
