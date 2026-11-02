@@ -76,7 +76,7 @@ export function analyzeBusinessPerformance(
   let analysisText = '';
   let changePercent = 0;
   const topReason = cancelledContracts.length > 0
-    ? (cancelledContracts[0].cancellation_reason || 'زيادة الإلغاءات في قطاع الحاويات التجارية وتأخر التسديد')
+    ? 'لم يُسجل سبب الإلغاء في بيانات العقد'
     : 'تغييرات موسمية في حركة سوق الإنشاءات والمقاولات';
 
   if (prevRevenue > 0 && currRevenue < prevRevenue) {

@@ -8,11 +8,20 @@ import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { querySystemKnowledge } from '@/utils/aiCopilotKnowledge';
 import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatCleanArabicDate } from '@/utils/dateFormatter';
+import { logError } from '@/lib/eventLogger';
 import { determineIntentWithGemini } from '@/utils/geminiToolEngine';
 import { analyzeBusinessPerformance } from '@/utils/aiExecutiveAnalytics';
 import { saveAIDecisionMemory, queryAIDecisionMemory } from '@/utils/aiExecutiveMemory';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+function getVehicleStatusLabel(status: TransportVehicle['status']): string {
+  switch (status) {
+    case 'excellent': return 'بحالة ممتازة';
+    case 'needs_maintenance': return 'تحتاج إلى صيانة';
+    case 'in_maintenance': return 'في الصيانة';
+    case 'broken': return 'معطلة';
+  }
+}
 
 export interface AgentContext {
   contracts: Contract[];
@@ -298,19 +307,21 @@ export class AlMuhtarazExecutiveAgent {
       if (focusedVehicle) {
         // A. Maintenance / Days Remaining / Exit Date
         if (/(كم\s*باقي|متى\s*تطلع|متى\s*تخلص|تخرج|خروجها|مدة\s*الصيانة|صيانة)/i.test(query)) {
-          const vName = focusedVehicle.name || focusedVehicle.plate_number || 'السيارة';
-          const plate = focusedVehicle.plate_number || '';
-          const status = focusedVehicle.status === 'maintenance' ? 'في الصيانة' : focusedVehicle.status === 'active' ? 'نشطة بالميدان' : 'متوقفة';
-          const remainingDays = (focusedVehicle as any)?.estimated_completion_days || 2;
+          const vName = focusedVehicle.brand_model || focusedVehicle.plate_number || 'السيارة';
+          const plate = focusedVehicle.plate_number;
+          const status = getVehicleStatusLabel(focusedVehicle.status);
+          const maintenanceDate = focusedVehicle.status === 'in_maintenance'
+            ? 'موعد انتهاء الصيانة غير مسجل في بيانات المركبة.'
+            : 'لا توجد بيانات عن موعد خروج المركبة من الصيانة.';
 
           const speech = cleanSpeechText(
-            `السيارة ${vName} ${plate} حالياً ${status} ، والمتوقع خروجها واكتمال صيانة خلال ${remainingDays} أيام.`
+            `السيارة ${vName} ذات اللوحة ${plate} حالياً ${status}. ${maintenanceDate}`
           );
 
           const md = `### 🚛 حالة صيانة السيارة (${vName})\n\n` +
             `* **رقم اللوحة:** \`${plate}\`\n` +
             `* **الحالة الحالية:** **${status}**\n` +
-            `* **المدة المتبقية للصيانة:** **${remainingDays} أيام**`;
+            `* **موعد انتهاء الصيانة:** غير مسجل`;
 
           return {
             toolExecuted: 'vehicleMaintenanceFollowUp',
@@ -321,8 +332,10 @@ export class AlMuhtarazExecutiveAgent {
 
         // B. Driver / Assigned Person
         if (/(مين\s*سائقها|من\s*سائقها|من\s*يسوقها|سائق|سواق|مين\s*عليها)/i.test(query)) {
-          const vName = focusedVehicle.name || focusedVehicle.plate_number || 'السيارة';
-          const driverName = (focusedVehicle as any)?.assigned_driver_name || 'سائق الميدان';
+          const vName = focusedVehicle.brand_model || focusedVehicle.plate_number || 'السيارة';
+          const driverName = this.context.staffList.find(
+            profile => profile.id === focusedVehicle.assigned_driver_id,
+          )?.full_name || 'غير مسجل';
 
           const speech = cleanSpeechText(`السائق المكلف بالسيارة ${vName} هو ${driverName}.`);
           const md = `### 👤 سائق السيارة (${vName})\n\n* **السائق المكلف:** **${driverName}**`;
@@ -898,9 +911,9 @@ export class AlMuhtarazExecutiveAgent {
       .trim()
       .toLowerCase();
 
-    let foundVehicle = vehicles.find(v => 
-      (v.name && v.name.toLowerCase().includes(cleanQuery)) ||
-      (v.plate_number && v.plate_number.toLowerCase().includes(cleanQuery))
+    let foundVehicle = vehicles.find(v =>
+      v.brand_model.toLowerCase().includes(cleanQuery)
+      || v.plate_number.toLowerCase().includes(cleanQuery)
     );
 
     if (!foundVehicle && vehicles.length > 0) {
@@ -911,21 +924,25 @@ export class AlMuhtarazExecutiveAgent {
       this.memory.lastFocusedVehicle = foundVehicle;
       this.memory.lastFocusedTopic = 'vehicle';
 
-      const vName = foundVehicle.name || foundVehicle.plate_number || 'السيارة';
-      const plate = foundVehicle.plate_number || '';
-      const status = foundVehicle.status === 'maintenance' ? 'في الصيانة حالياً' : foundVehicle.status === 'active' ? 'نشطة بالميدان' : 'متوقفة';
-      const estDays = (foundVehicle as any)?.estimated_completion_days || 2;
-      const driver = (foundVehicle as any)?.assigned_driver_name || 'سائق الميدان';
+      const vName = foundVehicle.brand_model || foundVehicle.plate_number || 'السيارة';
+      const plate = foundVehicle.plate_number;
+      const status = getVehicleStatusLabel(foundVehicle.status);
+      const driver = this.context.staffList.find(
+        profile => profile.id === foundVehicle.assigned_driver_id,
+      )?.full_name || 'غير مسجل';
+      const maintenanceTiming = foundVehicle.status === 'in_maintenance'
+        ? 'موعد انتهاء الصيانة غير مسجل'
+        : 'لا يوجد موعد صيانة مسجل';
 
       const speech = cleanSpeechText(
-        `السيارة ${vName} ${plate} ${status} ، السائق المكلف بها ${driver} ، والمتبقي لصيانتها ${estDays} أيام.`
+        `السيارة ${vName} ذات اللوحة ${plate} ${status} ، السائق المكلف بها ${driver} ، ${maintenanceTiming}.`
       );
 
       const md = `### 🚛 بيانات الشاحنة والسيارة (${vName})\n\n` +
         `* **رقم اللوحة:** \`${plate}\`\n` +
         `* **الحالة الحالية:** **${status}**\n` +
         `* **السائق المكلف:** **${driver}**\n` +
-        `* **المدة المتبقية للصيانة:** **${estDays} أيام**`;
+        `* **موعد الصيانة:** ${maintenanceTiming}`;
 
       return {
         toolExecuted: 'searchVehicleEntity',
