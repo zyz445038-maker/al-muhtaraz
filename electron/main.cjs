@@ -51,6 +51,7 @@ function getServerDirectory() {
 
 function getRuntimeEnvironment(port) {
   const archiveStorageRoot = path.join(app.getPath('userData'), 'archive');
+  const archiveDatabasePath = path.join(archiveStorageRoot, 'archive.sqlite');
   const inheritedKeys = [
     'APPDATA',
     'HOMEDRIVE',
@@ -75,6 +76,7 @@ function getRuntimeEnvironment(port) {
     NODE_ENV: 'production',
     PORT: String(port),
     ARCHIVE_STORAGE_ROOT: archiveStorageRoot,
+    ARCHIVE_DATABASE_PATH: archiveDatabasePath,
   };
 }
 

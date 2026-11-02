@@ -7,6 +7,8 @@ import { runDbQuery } from '@/lib/db';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { DocumentRepository } from '@/services/archive/documents/documentRepository';
 import { apiErrorResponse } from '@/lib/apiSafety';
+import { getArchiveAuthorizedProfile } from '@/lib/archiveAuthorization';
+import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 
 // Initialize Supabase client for server‑side auth & RLS
 // Moved inside GET() to prevent "cookies called outside request scope" error
@@ -30,6 +32,60 @@ async function getCount(supabase: any, table: string): Promise<number> {
  */
 export async function GET() {
   try {
+    if (isLocalArchiveEnabled()) {
+      const authorization = await getArchiveAuthorizedProfile();
+      if (!authorization.ok) {
+        return NextResponse.json(
+          { success: false, error: authorization.error },
+          { status: authorization.status },
+        );
+      }
+
+      const repository = new DocumentRepository(authorization.supabase);
+      const [documentsResult, jobsResult] = await Promise.all([
+        repository.list(),
+        repository.listImportJobs(),
+      ]);
+      if (!documentsResult.ok) throw new Error(documentsResult.error || 'Could not load local archive documents.');
+      if (!jobsResult.ok) throw new Error(jobsResult.error || 'Could not load local archive jobs.');
+
+      const documents = documentsResult.data || [];
+      const jobs = jobsResult.data || [];
+      const versionsResult = getLocalArchiveDatabase().countVersions();
+      if (!versionsResult.ok) throw new Error(versionsResult.error || 'Could not count local archive versions.');
+      const jobCounts: Record<string, number> = {};
+      for (const job of jobs) jobCounts[job.status] = (jobCounts[job.status] || 0) + 1;
+      const staleBefore = Date.now() - 5 * 60 * 1000;
+      const staleJobs = jobs.filter(job =>
+        job.status === 'processing' && job.locked_at && new Date(job.locked_at).getTime() < staleBefore
+      );
+      const processing = jobCounts.processing || 0;
+
+      return NextResponse.json({
+        success: true,
+        total_documents: documents.length,
+        total_versions: versionsResult.data || 0,
+        import_jobs: {
+          queued: jobCounts.queued || 0,
+          processing,
+          failed: jobCounts.failed || 0,
+          indexed: jobCounts.indexed || 0,
+          needs_ocr: jobCounts.needs_ocr || 0,
+          cancelled: jobCounts.cancelled || 0,
+        },
+        processingHealth: {
+          total_processing: processing,
+          stale_processing: staleJobs.length,
+          healthy: processing - staleJobs.length,
+        },
+        staleProcessingJobs: staleJobs,
+        latest_documents: documents.slice(0, 5).map(document => ({
+          ...document,
+          title: document.original_filename,
+        })),
+      });
+    }
+
     const supabase = await getSupabaseServerClient();
     // Authenticate user and enforce RBAC
     const { data: { user }, error: authError } = await supabase.auth.getUser();

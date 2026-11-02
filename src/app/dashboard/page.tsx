@@ -6,6 +6,9 @@ import styles from './dashboard.module.css';
 import Image from 'next/image';
 import { UploadContractForm } from '@/components/UploadContractForm';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
+import { getArchiveAuthorizedProfile } from '@/lib/archiveAuthorization';
+import { isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
+import { LocalArchiveMigrationButton } from '@/components/LocalArchiveMigrationButton';
 
 /**
  * Dashboard page – read‑only UI that consumes the summary API
@@ -17,21 +20,34 @@ import { getSupabaseServerClient } from '@/lib/supabaseServer';
  * this file.
  */
 export default async function DashboardPage() {
-  const supabase = await getSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
   let isAdmin = false;
   let hasArchivePerm = false;
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, permissions')
-      .eq('id', user.id)
-      .single();
-      
-    isAdmin = profile?.role === 'admin';
-    hasArchivePerm = profile?.permissions?.can_manage_archive ?? false;
+  if (isLocalArchiveEnabled()) {
+    const authorization = await getArchiveAuthorizedProfile();
+    if (!authorization.ok) {
+      return (
+        <div className="error">
+          <h1>تعذر التحقق من صلاحية الأرشيف</h1>
+          <p>{authorization.error}</p>
+        </div>
+      );
+    }
+    isAdmin = authorization.profile.role === 'admin';
+    hasArchivePerm = authorization.profile.permissions?.can_manage_archive === true;
+  } else {
+    const supabase = await getSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, permissions')
+        .eq('id', user.id)
+        .single();
+
+      isAdmin = profile?.role === 'admin';
+      hasArchivePerm = profile?.permissions?.can_manage_archive ?? false;
+    }
   }
   
   const originalCanUploadArchive = isAdmin || hasArchivePerm;
@@ -121,6 +137,7 @@ export default async function DashboardPage() {
       {canUploadArchive && (
         <section className={styles['archive-upload']} style={{ marginTop: '2rem' }}>
           <h2 className={styles.title} style={{ marginBottom: '1rem', color: '#fbbf24' }}>الارشيف (مدير النظام)</h2>
+          {isLocalArchiveEnabled() && originalCanUploadArchive && <LocalArchiveMigrationButton />}
           <UploadContractForm />
         </section>
       )}

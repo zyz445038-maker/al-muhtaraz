@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedProfile } from '@/lib/archiveAuthorization';
+import { getAuthenticatedProfile, hasArchiveAccess } from '@/lib/archiveAuthorization';
 import { apiErrorResponse } from '@/lib/apiSafety';
 import { getSupabaseServerClient } from '@/lib/supabaseServer';
 import { HumanoidAgent } from '@/services/ai/humanoidAgent';
 import type { AgentContext, AgentMemoryState } from '@/utils/aiExecutiveAgent';
+import { isLocalArchiveEnabled, normalizeArchiveSearchText } from '@/services/archive/storage/localArchiveDatabase';
+import { searchLocalArchiveForAssistant } from '@/services/archive/search/localArchiveAssistantSearch';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -102,6 +104,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isLocalArchiveEnabled() && isArchiveQuery(prompt)) {
+      if (!hasArchiveAccess(authorization.profile)) {
+        return NextResponse.json(
+          { success: false, error: 'Archive permission is required.' },
+          { status: 403 },
+        );
+      }
+
+      const result = await searchLocalArchiveForAssistant(authorization.user.id, prompt.trim());
+      return NextResponse.json({
+        success: true,
+        result,
+        correlationId: typeof correlationId === 'string' ? correlationId : undefined,
+        fallback: false,
+      });
+    }
+
     const canViewFinancials = authorization.profile.role === 'admin'
       || authorization.profile.permissions?.can_view_financials === true;
     const context = await loadAssistantContext(authorization.supabase, canViewFinancials);
@@ -135,5 +154,10 @@ export async function POST(req: NextRequest) {
 
   function isAgentMemoryState(value: unknown): value is AgentMemoryState {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  function isArchiveQuery(query: string): boolean {
+    const normalized = normalizeArchiveSearchText(query);
+    return /ارشيف|مؤرشف|قديم|السنوات السابقه|العقد السابق|عقود سابقه|نسخه قديمه/.test(normalized);
   }
 }

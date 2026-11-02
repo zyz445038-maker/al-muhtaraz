@@ -1,11 +1,15 @@
 import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
 import { ArchiveDocument, canTransitionImportJob, CreateDocumentInput, CreateImportJobInput, DocumentImportJob, ImportJobStatus } from '@/services/archive/types';
+import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 
 export class DocumentRepository {
+  private readonly local = isLocalArchiveEnabled() ? getLocalArchiveDatabase() : null;
+
   constructor(private readonly client: any = supabase) {}
 
   async create(input: CreateDocumentInput) {
+    if (this.local) return this.local.createDocument(input);
     return runDbQuery<ArchiveDocument>('archive.documents.create', () => this.client
       .from('documents')
       .insert([{
@@ -22,6 +26,7 @@ export class DocumentRepository {
   }
 
   async getById(id: string) {
+    if (this.local) return this.local.getDocument(id);
     return runDbQuery<ArchiveDocument>('archive.documents.get', () => this.client
       .from('documents')
       .select('*')
@@ -30,6 +35,7 @@ export class DocumentRepository {
   }
 
   async list(filters: { customerId?: string; contractId?: string; status?: string } = {}) {
+    if (this.local) return this.local.listDocuments(filters);
     let query = this.client.from('documents').select('*').order('created_at', { ascending: false });
     if (filters.customerId) query = query.eq('customer_id', filters.customerId);
     if (filters.contractId) query = query.eq('contract_id', filters.contractId);
@@ -38,6 +44,7 @@ export class DocumentRepository {
   }
 
   async updateStatus(id: string, status: ArchiveDocument['status']) {
+    if (this.local) return this.local.updateDocumentStatus(id, status);
     return runDbQuery<ArchiveDocument>('archive.documents.update-status', () => this.client
       .from('documents')
       .update({ status, updated_at: new Date().toISOString() })
@@ -47,6 +54,7 @@ export class DocumentRepository {
   }
 
   async setCurrentVersion(id: string, currentVersionId: string) {
+    if (this.local) return this.local.setCurrentVersion(id, currentVersionId);
     return runDbQuery<ArchiveDocument>('archive.documents.set-current-version', () => this.client
       .from('documents')
       .update({ current_version_id: currentVersionId, updated_at: new Date().toISOString() })
@@ -60,6 +68,7 @@ export class DocumentRepository {
   }
 
   async registerImportJob(input: CreateImportJobInput) {
+    if (this.local) return this.local.createImportJob(input);
     return runDbQuery<DocumentImportJob>('archive.import-jobs.create', () => this.client
       .from('document_import_jobs')
       .insert([{
@@ -76,6 +85,7 @@ export class DocumentRepository {
   }
 
   async getImportJob(id: string) {
+    if (this.local) return this.local.getImportJob(id);
     return runDbQuery<DocumentImportJob>('archive.import-jobs.get', () => this.client
       .from('document_import_jobs')
       .select('*')
@@ -84,6 +94,18 @@ export class DocumentRepository {
   }
 
   async updateImportJob(id: string, updates: Partial<Pick<DocumentImportJob, 'status' | 'attempts' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at' | 'next_attempt_at'>>) {
+    if (this.local) {
+      const current = updates.status ? await this.getImportJob(id) : null;
+      if (current && (!current.ok || !current.data)) return current;
+      if (updates.status && current?.data && !canTransitionImportJob(current.data.status, updates.status as ImportJobStatus)) {
+        return {
+          ok: false as const,
+          data: null,
+          error: `Invalid import job transition: ${current.data.status} -> ${updates.status}`
+        };
+      }
+      return this.local.updateImportJob(id, updates);
+    }
     if (updates.status) {
       const current = await this.getImportJob(id);
       if (!current.ok || !current.data) return current;
@@ -109,6 +131,7 @@ export class DocumentRepository {
     workerId: string,
     updates: Partial<Pick<DocumentImportJob, 'status' | 'last_error' | 'locked_at' | 'worker_id' | 'started_at' | 'completed_at' | 'next_attempt_at'>>
   ) {
+    if (this.local) return this.local.updateClaimedImportJob(id, workerId, updates);
     return runDbQuery<DocumentImportJob>('archive.import-jobs.update-claimed', () => this.client
       .from('document_import_jobs')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -120,6 +143,7 @@ export class DocumentRepository {
   }
 
   async findNextQueuedJob(storageBackend?: 'local' | 'supabase') {
+    if (this.local) return this.local.findNextQueuedJob();
     let query = this.client
       .from('document_import_jobs')
       .select('*')
@@ -134,6 +158,7 @@ export class DocumentRepository {
   }
 
   async claimImportJob(id: string, workerId: string, attempt: number) {
+    if (this.local) return this.local.claimImportJob(id, workerId, attempt);
     return runDbQuery<DocumentImportJob>('archive.import-jobs.claim', () => this.client
       .from('document_import_jobs')
       .update({
@@ -152,6 +177,7 @@ export class DocumentRepository {
   }
 
   async listStaleProcessingJobs(staleBefore: string, storageBackend?: 'local' | 'supabase') {
+    if (this.local) return this.local.listStaleProcessingJobs(staleBefore);
     let query = this.client
       .from('document_import_jobs')
       .select('*')
@@ -167,6 +193,7 @@ export class DocumentRepository {
     job: DocumentImportJob,
     updates: Pick<DocumentImportJob, 'status' | 'last_error' | 'locked_at' | 'worker_id' | 'completed_at' | 'next_attempt_at'>
   ) {
+    if (this.local) return this.local.recoverStaleImportJob(job, updates);
     return runDbQuery<DocumentImportJob>('archive.import-jobs.recover-stale', () => this.client
       .from('document_import_jobs')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -179,6 +206,7 @@ export class DocumentRepository {
   }
 
   async findVersionBySha256(sha256: string) {
+    if (this.local) return this.local.findVersionBySha256(sha256);
     return runDbQuery<{ id: string; document_id: string }>('archive.document-versions.find-sha256', () => this.client
       .from('document_versions')
       .select('id, document_id, documents!inner(status)')
@@ -186,5 +214,13 @@ export class DocumentRepository {
       .eq('documents.status', 'active')
       .limit(1)
       .maybeSingle());
+  }
+
+  async listImportJobs() {
+    if (this.local) return this.local.listImportJobs();
+    return runDbQuery<DocumentImportJob[]>('archive.import-jobs.list', () => this.client
+      .from('document_import_jobs')
+      .select('*')
+      .order('created_at', { ascending: false }));
   }
 }

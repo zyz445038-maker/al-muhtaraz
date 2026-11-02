@@ -1,11 +1,15 @@
 import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
 import { ArchiveDocumentVersion, CreateDocumentVersionInput } from '@/services/archive/types';
+import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 
 export class DocumentVersionRepository {
+  private readonly local = isLocalArchiveEnabled() ? getLocalArchiveDatabase() : null;
+
   constructor(private readonly client: any = supabase) {}
 
   async create(input: CreateDocumentVersionInput) {
+    if (this.local) return this.local.createVersion(input);
     return runDbQuery<ArchiveDocumentVersion>('archive.document-versions.create', () => this.client
       .from('document_versions')
       .insert([{
@@ -27,6 +31,7 @@ export class DocumentVersionRepository {
   }
 
   async getById(id: string) {
+    if (this.local) return this.local.getVersion(id);
     return runDbQuery<ArchiveDocumentVersion>('archive.document-versions.get', () => this.client
       .from('document_versions')
       .select('*')
@@ -35,6 +40,7 @@ export class DocumentVersionRepository {
   }
 
   async listByDocument(documentId: string) {
+    if (this.local) return this.local.listVersions(documentId);
     return runDbQuery<ArchiveDocumentVersion[]>('archive.document-versions.list', () => this.client
       .from('document_versions')
       .select('*')
@@ -43,6 +49,7 @@ export class DocumentVersionRepository {
   }
 
   async update(id: string, updates: Partial<Pick<ArchiveDocumentVersion, 'json_path' | 'extraction_status' | 'ocr_status' | 'extraction_error'>>) {
+    if (this.local) return this.local.updateVersion(id, updates);
     return runDbQuery<ArchiveDocumentVersion>('archive.document-versions.update', () => this.client
       .from('document_versions')
       .update(updates)
@@ -52,6 +59,7 @@ export class DocumentVersionRepository {
   }
 
   async getLatestByDocument(documentId: string) {
+    if (this.local) return this.local.getLatestVersion(documentId);
     return runDbQuery<ArchiveDocumentVersion>('archive.document-versions.latest', () => this.client
       .from('document_versions')
       .select('*')

@@ -3,18 +3,17 @@
 import { NextResponse } from 'next/server';
 import { getArchiveAuthorizedProfile } from '@/lib/archiveAuthorization';
 import { apiErrorResponse } from '@/lib/apiSafety';
+import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 
 // GET /api/search?q=term&page=1&limit=10
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Simple read‑only search over archive documents.
+ * Read-only archive search.
  * Supports pagination via `page` (1‑based) and `limit` (max 50).
- * Queries the `documents` table – currently we only search the
- * `original_filename` column using a case‑insensitive LIKE.
- * Additional searchable columns can be added later without
- * affecting the read‑only contract.
+ * The local archive searches extracted PDF text; the web archive searches
+ * filenames to preserve its existing Supabase-backed behavior.
  */
 export async function GET(request: Request) {
   try {
@@ -28,9 +27,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim() ?? '';
-    const page = Math.max(parseInt(searchParams.get('page') ?? '1', 10), 1);
+    const parsedPage = Number.parseInt(searchParams.get('page') ?? '1', 10);
+    const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const parsedLimit = Number.parseInt(searchParams.get('limit') ?? '10', 10);
     const limit = Math.min(
-      Math.max(parseInt(searchParams.get('limit') ?? '10', 10), 1),
+      Number.isSafeInteger(parsedLimit) ? Math.max(parsedLimit, 1) : 10,
       50
     );
 
@@ -47,7 +48,27 @@ export async function GET(request: Request) {
 
     const offset = (page - 1) * limit;
 
-    // Build the query – searching by filename for now.
+    if (isLocalArchiveEnabled()) {
+      const database = getLocalArchiveDatabase();
+      const localResult = database.searchIndexedDocuments(q, limit, offset);
+      const countResult = database.countIndexedDocuments(q);
+      if (!localResult.ok) throw new Error(localResult.error || 'Could not search the local archive index.');
+      if (!countResult.ok) throw new Error(countResult.error || 'Could not count local archive search results.');
+      const results = (localResult.data || []).map(({ document }) => ({
+        id: document.id,
+        title: document.original_filename ?? '(بدون عنوان)',
+        type: document.document_type,
+        created_at: document.created_at,
+      }));
+      return NextResponse.json({
+        success: true,
+        results,
+        page,
+        limit,
+        total: countResult.data ?? 0,
+      });
+    }
+
     const { data, count, error } = await authorization.supabase
       .from('documents')
       .select('id, original_filename, document_type, created_at', { count: 'exact' })

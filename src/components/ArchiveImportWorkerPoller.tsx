@@ -21,19 +21,6 @@ export function ArchiveImportWorkerPoller() {
         const user = sessionData.session?.user;
         if (!user) return;
 
-        const { data: profile, error: profileError } = await supabaseBrowser
-          .from('profiles')
-          .select('role, is_active, permissions')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        const permissions: unknown = profile?.permissions;
-        const canManageArchive = typeof permissions === 'object'
-          && permissions !== null
-          && 'can_manage_archive' in permissions
-          && permissions.can_manage_archive === true;
-        if (!profile?.is_active || (profile.role !== 'admin' && !canManageArchive)) return;
-
         const response = await fetch('/api/cron/process-archive-imports', { method: 'POST' });
         if (!response.ok) {
           throw new Error(`Local archive worker returned HTTP ${response.status}.`);

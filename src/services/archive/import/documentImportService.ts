@@ -7,6 +7,7 @@ import { BasicPdfTextExtractor, TextExtractor } from '@/services/archive/indexin
 import { LocalArchiveStorageService } from '@/services/archive/storage/localStorageService';
 import { ArchiveStorageService } from '@/services/archive/storage/archiveStorageService';
 import { buildArchiveDocumentPath } from '@/services/archive/storage/storagePath';
+import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 import {
   ArchiveDocumentType,
   ArchiveDocumentVersion,
@@ -194,6 +195,10 @@ export class DocumentImportService {
         containerNumber: typeof metadata.container_number === 'string' ? metadata.container_number : null,
         metadata
       });
+      if (isLocalArchiveEnabled()) {
+        const searchIndex = getLocalArchiveDatabase().writeSearchIndex(index, version.id);
+        if (!searchIndex.ok) throw new Error(searchIndex.error || 'Could not write local archive search index');
+      }
       const versionUpdate = await this.versions.update(version.id, {
         json_path: version.json_path,
         extraction_status: extracted.extraction_status,
