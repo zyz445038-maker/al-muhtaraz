@@ -1600,9 +1600,15 @@ function MainDashboard() {
   };
 
   // 📥 Two-Way Return to Stock: Complete Contract & Set Container to Available 🟢
-  const handleCompleteContractAndReturnToStock = async (contractId: string, containerId: string) => {
+  const handleCompleteContractAndReturnToStock = async (contractId: string, containerId: string): Promise<boolean> => {
     const contract = contracts.find(c => c.id === contractId);
     const container = containers.find(c => c.id === containerId);
+    if (!contract || !container) {
+      const message = 'تعذر العثور على العقد أو الحاوية لإتمام السحب.';
+      setBusinessDataError(message);
+      alert(message);
+      return false;
+    }
 
     try {
       const { data, error } = await supabase.rpc('complete_container_rental_contract', {
@@ -1616,37 +1622,82 @@ function MainDashboard() {
 
       const completedContract = data.contract as Contract;
       const availableContainer = data.container as Container;
-      if (!completedContract.id || !availableContainer.id) {
-        throw new Error('بيانات التأكيد التي أعادتها قاعدة البيانات غير مكتملة.');
+      if (
+        !completedContract.id
+        || completedContract.status !== 'completed'
+        || !availableContainer.id
+        || availableContainer.status !== 'available'
+      ) {
+        throw new Error('لم تؤكد قاعدة البيانات إنهاء العقد وإعادة الحاوية إلى مخزون المستودع.');
       }
 
       setContracts(prev => prev.map(c => c.id === contractId ? { ...c, ...completedContract } : c));
       setContainers(prev => prev.map(c => c.id === containerId ? availableContainer : c));
       setBusinessDataError(null);
     } catch (error) {
-      setBusinessDataError(`تعذر إنهاء العقد وإعادة الحاوية للمخزون: ${getErrorMessage(error)}`);
-      return;
+      const message = `تعذر إنهاء العقد وإعادة الحاوية للمخزون: ${getErrorMessage(error)}`;
+      setBusinessDataError(message);
+      alert(message);
+      return false;
     }
 
-    // 3. In-App Notification (🔔)
+    const pickupDate = new Date().toLocaleString('ar-SA');
     const inAppNotif: InAppNotification = {
       id: `inapp-${Date.now()}`,
       contract_id: contractId,
-      title: `📥 استلام الحاوية (${container?.container_number || '-'}) للمخزون`,
-      message: `تم سحب الحاوية بنجاح وإنهاء العقد (${contract?.contract_number || '-'}). الحاوية الآن متاحة للتأجير 🟢.`,
+      title: `🚛 سحب الحاوية (${container.container_number})`,
+      message: `تم تأكيد سحب الحاوية وإنهاء عقد (${contract.contract_number}) وإعادتها إلى مخزون المستودع.`,
       type: 'container_status_change',
       is_read: false,
       created_at: new Date().toISOString()
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
-    // Trigger celebration
+    const customerMessage = `مرحباً ${contract.customer?.name || 'العميل'}، نحيطكم علماً بأنه تم سحب الحاوية (${container.container_number}) وإنهاء عقد التأجير رقم (${contract.contract_number}) بتاريخ ${pickupDate}. شكراً لتعاملكم مع المحترز للحاويات.`;
+    const driverMessage = `🚛 تأكيد سحب حاوية وإعادتها للمستودع\nرقم الحاوية: ${container.container_number}\nرقم العقد: ${contract.contract_number}\nالعميل: ${contract.customer?.name || '-'}\nالموقع: ${contract.location_address || contract.customer?.address || '-'}\nتم تسجيل إنهاء التأجير وإعادة الحاوية للمخزون بتاريخ: ${pickupDate}.`;
+    const pickupNotifications: Promise<unknown>[] = [];
+
+    if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
+      pickupNotifications.push(sendSilentWhatsApp(
+        contract.customer.phone,
+        customerMessage,
+        'customer',
+        contract.customer.name || 'العميل',
+        contract.contract_number,
+        {
+          contract_id: contract.id,
+          customer_id: contract.customer_id,
+          recipient_role: 'customer',
+          notification_type: 'custom_alert'
+        }
+      ));
+    }
+
+    const assignedDriver = staffList.find(staff => staff.id === contract.assigned_employee_id);
+    if (assignedDriver?.phone && isRealCallablePhone(assignedDriver.phone)) {
+      pickupNotifications.push(sendSilentWhatsApp(
+        assignedDriver.phone,
+        driverMessage,
+        'driver',
+        assignedDriver.full_name,
+        contract.contract_number,
+        {
+          contract_id: contract.id,
+          recipient_role: 'driver',
+          notification_type: 'custom_alert'
+        }
+      ));
+    }
+
+    await Promise.all(pickupNotifications);
+
     confetti({
       particleCount: 50,
       spread: 60,
       origin: { y: 0.6 }
     });
 
+    return true;
   };
 
   // Delete Container Handler (Admin)
@@ -2513,6 +2564,7 @@ function MainDashboard() {
                 onSendWhatsApp={handleSendWhatsApp}
                 onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
                 onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
+                onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
                 onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
                 onConfirmCashPayment={handleConfirmCashPayment}
                 onSendSadadLink={handleSendSadadLink}
@@ -2534,6 +2586,7 @@ function MainDashboard() {
                 }}
                 onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
                 onOpenReceipt={(contract: Contract) => setSelectedReceiptContract(contract)}
+                onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
               />
             )}
 

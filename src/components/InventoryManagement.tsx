@@ -29,7 +29,7 @@ interface InventoryManagementProps {
   contracts: Contract[];
   onBatchAddContainers: (newContainers: Partial<Container>[]) => Promise<boolean>;
   onUpdateContainerStatus: (containerId: string, status: ContainerStatus) => Promise<void>;
-  onCompleteContractAndReturnToStock: (contractId: string, containerId: string) => Promise<void>;
+  onCompleteContractAndReturnToStock: (contractId: string, containerId: string) => Promise<boolean>;
   onDeleteContainer: (containerId: string) => Promise<void>;
   onOpenNewContract: (containerId: string) => void;
   onOpenExtendModal: (contract: Contract) => void;
@@ -55,6 +55,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
   const [monthlyRate, setMonthlyRate] = useState(3500);
   const [batchNotes, setBatchNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [returningContainerId, setReturningContainerId] = useState<string | null>(null);
 
   // Filter & Search State
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'debris' | 'commercial'>('all');
@@ -493,21 +494,27 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
                         <>
                           <button
                             className="btn-emerald"
+                            disabled={returningContainerId === cont.id}
                             style={{
                               padding: '6px 10px',
                               fontSize: '0.78rem',
                               fontWeight: 700,
-                              background: 'linear-gradient(135deg, #10b981, #059669)'
+                              background: 'linear-gradient(135deg, #10b981, #059669)',
+                              opacity: returningContainerId === cont.id ? 0.65 : 1
                             }}
-                            onClick={() => {
-                              if (confirm(`تأكيد استلام وسحب الحاوية (${cont.container_number}) وإنهاء العقد وإعادتها فوراً للمخزون المتاح 🟢؟`)) {
-                                onCompleteContractAndReturnToStock(activeContract.id, cont.id);
+                            onClick={async () => {
+                              if (!confirm(`هل تم سحب الحاوية (${cont.container_number}) فعلياً؟ سيُنهى عقد التأجير وتعود الحاوية إلى مخزون المستودع.`)) return;
+                              setReturningContainerId(cont.id);
+                              try {
+                                await onCompleteContractAndReturnToStock(activeContract.id, cont.id);
+                              } finally {
+                                setReturningContainerId(null);
                               }
                             }}
-                            title="سحب الحاوية وإعادتها لمخزون المتاح فوراً"
+                            title="تأكيد سحب الحاوية وإنهاء التأجير وإعادتها للمستودع"
                           >
                             <ArrowDownLeft size={13} />
-                            <span>📥 استلام للمخزون</span>
+                            <span>{returningContainerId === cont.id ? 'جارٍ تأكيد السحب...' : 'سحب وإرجاع للمستودع'}</span>
                           </button>
 
                           <button

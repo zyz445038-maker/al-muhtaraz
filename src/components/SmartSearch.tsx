@@ -14,7 +14,8 @@ import {
   ExternalLink,
   MessageCircle,
   Plus,
-  RotateCw
+  RotateCw,
+  ArrowDownLeft
 } from 'lucide-react';
 import { Container, Contract, Customer, NotificationLog, StaffPermissions, UserRole } from '@/types/database';
 import { UploadContractForm } from './UploadContractForm';
@@ -31,6 +32,7 @@ interface SmartSearchProps {
   onSendWhatsApp?: (phone: string, message: string) => void;
   onOpenReceipt?: (contract: Contract) => void;
   onOpenExtendModal?: (contract: Contract) => void;
+  onCompleteContractAndReturnToStock?: (contractId: string, containerId: string) => Promise<boolean>;
   onOpenDriverDispatch?: (contract: Contract) => void;
   onConfirmCashPayment?: (contract: Contract) => Promise<void>;
   onSendSadadLink?: (contract: Contract) => Promise<void>;
@@ -48,12 +50,14 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
   onSendWhatsApp,
   onOpenReceipt,
   onOpenExtendModal,
+  onCompleteContractAndReturnToStock,
   onOpenDriverDispatch,
   onConfirmCashPayment,
   onSendSadadLink
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'commercial' | 'debris' | 'customers' | 'contracts'>('all');
+  const [returningContainerId, setReturningContainerId] = useState<string | null>(null);
 
   // Compute live statistics
   const stats = useMemo(() => {
@@ -481,6 +485,34 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                             >
                               <RotateCw size={13} />
                               <span>🔄 تمديد</span>
+                            </button>
+                          )}
+                          {onCompleteContractAndReturnToStock
+                            && (userRole === 'admin' || permissions?.can_manage_inventory !== false) && (
+                            <button
+                              className="btn-secondary"
+                              disabled={returningContainerId === container.id}
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                color: '#34d399',
+                                borderColor: 'rgba(52, 211, 153, 0.4)',
+                                opacity: returningContainerId === container.id ? 0.65 : 1
+                              }}
+                              onClick={async () => {
+                                if (!confirm(`هل تم سحب الحاوية (${container.container_number}) فعلياً؟ سيُنهى عقد التأجير وتعود الحاوية إلى مخزون المستودع.`)) return;
+                                setReturningContainerId(container.id);
+                                try {
+                                  await onCompleteContractAndReturnToStock(activeCont.id, container.id);
+                                } finally {
+                                  setReturningContainerId(null);
+                                }
+                              }}
+                              title="تأكيد سحب الحاوية وإنهاء التأجير وإعادتها للمستودع"
+                            >
+                              <ArrowDownLeft size={13} />
+                              <span>{returningContainerId === container.id ? 'جارٍ تأكيد السحب...' : 'سحب وإرجاع للمستودع'}</span>
                             </button>
                           )}
                         </div>

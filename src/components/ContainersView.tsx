@@ -11,6 +11,7 @@ import {
   Clock, 
   AlertTriangle,
   RotateCw,
+  ArrowDownLeft,
   FilePlus,
   FileText,
   User,
@@ -29,6 +30,7 @@ interface ContainersViewProps {
   onOpenRentModal: (containerId: string) => void;
   onOpenExtendModal?: (contract: Contract) => void;
   onOpenReceipt?: (contract: Contract) => void;
+  onCompleteContractAndReturnToStock: (contractId: string, containerId: string) => Promise<boolean>;
 }
 
 export const ContainersView: React.FC<ContainersViewProps> = ({
@@ -41,7 +43,8 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
   onDeleteContainer,
   onOpenRentModal,
   onOpenExtendModal,
-  onOpenReceipt
+  onOpenReceipt,
+  onCompleteContractAndReturnToStock
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | ContainerType>('all');
@@ -55,6 +58,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
   const [monthlyRate, setMonthlyRate] = useState(3500);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [returningContainerId, setReturningContainerId] = useState<string | null>(null);
 
   const filteredContainers = containers.filter(c => {
     if (filterType !== 'all' && c.type !== filterType) return false;
@@ -409,7 +413,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                   )
                 ) : container.status === 'rented' && activeContract ? (
                   /* Rented: 📜 مراجعة العقد + 🔄 تمديد العقد */
-                  <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                  <div style={{ display: 'flex', gap: '6px', flex: 1, flexWrap: 'wrap' }}>
                     <button
                       style={{
                         flex: 1,
@@ -450,11 +454,40 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                         <span>🔄 تمديد</span>
                       </button>
                     )}
+                    {(userRole === 'admin' || permissions?.can_manage_inventory !== false) && (
+                      <button
+                        className="btn-secondary"
+                        disabled={returningContainerId === container.id}
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                          justifyContent: 'center',
+                          color: '#34d399',
+                          borderColor: 'rgba(52, 211, 153, 0.4)',
+                          opacity: returningContainerId === container.id ? 0.65 : 1
+                        }}
+                        onClick={async () => {
+                          if (!confirm(`هل تم سحب الحاوية (${container.container_number}) فعلياً؟ سيُنهى عقد التأجير وتعود الحاوية إلى مخزون المستودع.`)) return;
+                          setReturningContainerId(container.id);
+                          try {
+                            await onCompleteContractAndReturnToStock(activeContract.id, container.id);
+                          } finally {
+                            setReturningContainerId(null);
+                          }
+                        }}
+                        title="تأكيد سحب الحاوية وإنهاء التأجير وإعادتها للمستودع"
+                      >
+                        <ArrowDownLeft size={14} />
+                        <span>{returningContainerId === container.id ? 'جارٍ تأكيد السحب...' : 'سحب وإرجاع للمستودع'}</span>
+                      </button>
+                    )}
                   </div>
                 ) : null}
 
                 {/* Status Switcher Dropdown (Admin or if has inventory permissions) */}
-                {(userRole === 'admin' || permissions?.can_manage_inventory !== false) && (
+                {(userRole === 'admin' || permissions?.can_manage_inventory !== false)
+                  && container.status !== 'rented' && (
                   <select
                     value={container.status}
                     onChange={(e) => onUpdateStatus(container.id, e.target.value as ContainerStatus)}
