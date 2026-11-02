@@ -1202,80 +1202,89 @@ function MainDashboard() {
 
   // 1. [💵 كاش] - Quick Cash Payment (One-click Confirm & Open Receipt)
   const handleConfirmCashPayment = async (contract: Contract) => {
-    const remaining = Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount));
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    let updatedContract: Contract;
+    let newReceipt: Receipt;
 
-    const updatedContract: Contract = {
-      ...contract,
-      paid_amount: contract.total_cost,
-      remaining_amount: 0,
-      payment_status: 'paid',
-      payment_method: 'cash',
-      receipt_number: receiptNumber
-    };
+    try {
+      const { data, error } = await supabase.rpc('record_cash_contract_payment', {
+        p_contract_id: contract.id,
+        p_receipt_number: receiptNumber
+      });
+      if (error) throw error;
 
-    // Update state
+      const payment = data as {
+        contract?: Partial<Contract>;
+        receipt?: Partial<Receipt>;
+      } | null;
+      if (
+        !payment?.contract?.id
+        || !payment.receipt?.id
+        || payment.receipt.contract_id !== contract.id
+        || payment.receipt.receipt_number !== receiptNumber
+      ) {
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ العقد وسند القبض.');
+      }
+
+      const amount = Number(payment.receipt.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('أعادت قاعدة البيانات مبلغ سند غير صالح.');
+      }
+
+      updatedContract = {
+        ...contract,
+        ...payment.contract,
+        remaining_amount: Number(payment.contract.remaining_amount ?? 0),
+        payment_method: 'cash',
+        customer: contract.customer,
+        container: contract.container
+      };
+      newReceipt = {
+        ...payment.receipt,
+        id: payment.receipt.id,
+        receipt_number: payment.receipt.receipt_number,
+        contract_id: contract.id,
+        customer_id: contract.customer_id,
+        customer_name: contract.customer?.name || 'العميل',
+        amount,
+        payment_method: 'cash',
+        contract_number: contract.contract_number,
+        container_number: contract.container?.container_number,
+        container_type: contract.contract_type,
+        issued_at: payment.receipt.issued_at || new Date().toISOString(),
+        notes: payment.receipt.notes || 'تم الاستلام نقداً (كاش في الموقع)'
+      };
+      setBusinessDataError(null);
+    } catch (error) {
+      const message = `تعذر تسجيل التحصيل النقدي وإصدار السند: ${getErrorMessage(error)}`;
+      setBusinessDataError(message);
+      alert(message);
+      return;
+    }
+
     setContracts(prev => prev.map(c => c.id === contract.id ? updatedContract : c));
-
-    // Create receipt
-    const newReceipt: Receipt = {
-      id: `rcp-${Date.now()}`,
-      receipt_number: receiptNumber,
-      contract_id: contract.id,
-      customer_id: contract.customer_id,
-      customer_name: contract.customer?.name || 'العميل',
-      amount: remaining > 0 ? remaining : contract.total_cost,
-      payment_method: 'cash',
-      contract_number: contract.contract_number,
-      container_number: contract.container?.container_number,
-      container_type: contract.contract_type,
-      issued_at: new Date().toISOString(),
-      notes: `تم الاستلام نقداً (كاش في الموقع)`
-    };
     setReceipts(prev => [newReceipt, ...prev]);
 
-    // In-app notification
     const inAppNotif: InAppNotification = {
       id: `inapp-${Date.now()}`,
       contract_id: contract.id,
-      title: `💵 استلام كاش (${remaining} ر.س)`,
-      message: `تم سداد العقد (${contract.contract_number}) نقداً كاش وإصدار سند قبض (${receiptNumber}).`,
+      title: `💵 استلام كاش (${newReceipt.amount} ر.س)`,
+      message: `تم سداد العقد (${contract.contract_number}) نقداً كاش وإصدار سند قبض (${newReceipt.receipt_number}).`,
       type: 'payment_alert',
       is_read: false,
       created_at: new Date().toISOString()
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
-    // Trigger celebration
     confetti({
       particleCount: 70,
       spread: 60,
       origin: { y: 0.6 }
     });
 
-    // Save to Supabase
-    try {
-      await supabase.from('contracts').update({
-        paid_amount: contract.total_cost,
-        payment_status: 'paid',
-        receipt_number: receiptNumber
-      }).eq('id', contract.id);
-
-      await supabase.from('receipts').insert([{
-        receipt_number: receiptNumber,
-        contract_id: contract.id,
-        customer_id: contract.customer_id,
-        amount: remaining > 0 ? remaining : contract.total_cost,
-        payment_method: 'cash',
-        notes: `تم الاستلام نقداً (كاش في الموقع)`
-      }]);
-    } catch (e) {
-      console.warn('Synced payment locally:', e);
-    }
-
     // 🚀 Tracked Silent WhatsApp Dispatch for Receipt Confirmation
     if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
-      const receiptAmount = remaining > 0 ? remaining : contract.total_cost;
+      const receiptAmount = newReceipt.amount;
       const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وتوثيق سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🏗️`;
       await sendSilentWhatsApp(
         contract.customer.phone,
