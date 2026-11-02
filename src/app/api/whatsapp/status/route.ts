@@ -2,150 +2,121 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { getWhatsAppStatus, initWhatsAppEngine, logoutWhatsApp } from '@/lib/whatsappEngine';
-import { runDbQuery } from '@/lib/db';
-import { apiErrorResponse } from '@/lib/apiSafety';
-import { logError } from '@/lib/eventLogger';
+import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
+import { getWhatsAppStatus, logoutWhatsApp } from '@/lib/whatsappEngine';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action');
-    const reqMode = searchParams.get('mode'); // 'embedded' | 'evolution' | 'wame'
-    const customUrl = searchParams.get('serverUrl');
-    const customInstance = searchParams.get('instance');
-    const customApiKey = searchParams.get('apiKey');
+    const addon = await getWhatsAppAddonConfig();
 
-    // Handle logout action
-    if (action === 'logout') {
-      await logoutWhatsApp();
-      return NextResponse.json({ success: true, message: 'تم قطع اتصال الواتساب بنجاح' });
-    }
-
-    // 1. Fetch saved WhatsApp Settings
-    let addonServerUrl = customUrl || process.env.WHATSAPP_ADDON_URL || '';
-    let addonApiKey = customApiKey || process.env.WHATSAPP_ADDON_API_KEY || '';
-
-    try {
-      const settingsResult = await runDbQuery<any>('whatsapp.settings.read', () => supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .limit(1)
-        .maybeSingle());
-
-      if (settingsResult.ok && settingsResult.data) {
-        const settings = settingsResult.data;
-        if (settings.evolution_server_url && !settings.evolution_server_url.includes('localhost') && !settings.evolution_server_url.includes('8080')) {
-          addonServerUrl = settings.evolution_server_url;
-        }
-        if (settings.evolution_api_key && settings.evolution_api_key.startsWith('mhk_live')) {
-          addonApiKey = settings.evolution_api_key;
-        }
-      }
-    } catch (error) {
-      logError('whatsapp.settings.read', error, { fallback: 'environment' });
-    }
-
-    if (!addonServerUrl || !addonApiKey) {
-      return NextResponse.json({
-        success: true,
-        status: 'not_configured',
-        mode: 'unavailable',
-        state: 'disconnected',
-        message: 'خادم الواتساب غير مهيأ. أضف WHATSAPP_ADDON_URL و WHATSAPP_ADDON_API_KEY أولاً.'
-      });
-    }
-
-    const cleanServer = addonServerUrl.replace(/\/+$/, '');
-
-    // Handle logout action
-    if (action === 'logout') {
-      try {
-        await fetch(`${cleanServer}/api/session/logout`, {
+    if (searchParams.get('action') === 'logout') {
+      if (addon) {
+        const addonRes = await fetch(`${addon.baseUrl}/api/session/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${addonApiKey}`
-          }
+            'Authorization': `Bearer ${addon.apiKey}`
+          },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10_000)
         });
-      } catch (e) {
-        console.warn('Error calling addon logout:', e);
+        const addonData: unknown = await addonRes.json().catch(() => null);
+        const succeeded = addonData && typeof addonData === 'object'
+          && 'success' in addonData
+          && addonData.success === true;
+
+        if (!addonRes.ok || !succeeded) {
+          const error = addonData && typeof addonData === 'object'
+            && 'error' in addonData && typeof addonData.error === 'string'
+            ? addonData.error
+            : 'تعذر فصل جلسة الواتساب من الخادم.';
+          return NextResponse.json({ success: false, error }, { status: 502 });
+        }
       }
+
       await logoutWhatsApp();
       return NextResponse.json({ success: true, message: 'تم قطع اتصال الواتساب بنجاح' });
     }
 
-    // ─── Query Standalone WhatsApp Add-on Server ───────────────────────────
-    try {
-      const addonRes = await fetch(`${cleanServer}/api/session/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${addonApiKey}`
-        },
-        cache: 'no-store'
-      });
-
-      if (addonRes.ok) {
-        const addonData = await addonRes.json();
-        const info = addonData.data || {};
-
-        if (info.status === 'connected' || info.isConnected) {
-          return NextResponse.json({
-            success: true,
-            status: 'connected',
-            mode: 'addon',
-            state: 'open',
-            phoneNumber: info.phoneNumber || null,
-            userJid: info.userJid || null,
-            message: 'الواتساب متصل ويعمل بنجاح 🟢 (محرك مؤسسة المخترز المستقل)'
-          });
-        }
-
-        if (info.status === 'qr_ready' || info.qrCodeBase64) {
-          return NextResponse.json({
-            success: true,
-            status: 'qr_ready',
-            mode: 'addon',
-            state: 'connecting',
-            qrCodeBase64: info.qrCodeBase64 || null,
-            qrCodeRaw: info.qrCodeRaw || null,
-            message: 'كود QR المدمج جاهز للمسح من الواتساب 📱'
-          });
-        }
-
+    if (!addon) {
+      const status = getWhatsAppStatus();
+      if (status.isConnected) {
         return NextResponse.json({
           success: true,
-          status: info.status || 'connecting',
-          mode: 'addon',
-          state: 'connecting',
-          message: 'جارِ تهيئة محرك الواتساب وتوليد الكود...'
+          status: 'connected',
+          mode: 'embedded',
+          state: 'open',
+          message: 'الواتساب متصل ويعمل بنجاح 🟢'
         });
       }
-    } catch (addonErr: any) {
-      console.warn('Could not connect to Addon Server, falling back to embedded status:', addonErr?.message);
+
+      if (status.qrCodeBase64 || status.qrCodeRaw) {
+        return NextResponse.json({
+          success: true,
+          status: 'qr_ready',
+          mode: 'embedded',
+          state: 'connecting',
+          qrCodeBase64: status.qrCodeBase64 || null,
+          qrCodeRaw: status.qrCodeRaw || null,
+          message: 'كود QR جاهز للمسح من الواتساب 📱'
+        });
+      }
+
+      return NextResponse.json({
+        success: false,
+        status: 'not_configured',
+        mode: 'unavailable',
+        state: 'disconnected',
+        message: 'خادم الواتساب غير مهيأ. احفظ رابط الخادم ومفتاح الأمان أولاً.'
+      });
     }
 
-    // Fallback: Check local embedded status
-    const status = getWhatsAppStatus();
-    if (status.isConnected) {
+    const addonRes = await fetch(`${addon.baseUrl}/api/session/status`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${addon.apiKey}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000)
+    });
+    const addonData: unknown = await addonRes.json().catch(() => null);
+    const responseData = addonData && typeof addonData === 'object' ? addonData : null;
+
+    if (!addonRes.ok || !responseData || !('success' in responseData) || responseData.success !== true) {
+      const error = responseData && 'error' in responseData && typeof responseData.error === 'string'
+        ? responseData.error
+        : 'تعذر قراءة حالة اتصال خادم الواتساب.';
+      return NextResponse.json({
+        success: false,
+        status: 'error',
+        state: 'disconnected',
+        message: error
+      }, { status: 502 });
+    }
+
+    const info = 'data' in responseData && responseData.data && typeof responseData.data === 'object'
+      ? responseData.data
+      : {};
+
+    if ('status' in info && info.status === 'connected' || 'isConnected' in info && info.isConnected) {
       return NextResponse.json({
         success: true,
         status: 'connected',
-        mode: 'embedded',
+        mode: 'addon',
         state: 'open',
+        phoneNumber: 'phoneNumber' in info ? info.phoneNumber || null : null,
+        userJid: 'userJid' in info ? info.userJid || null : null,
         message: 'الواتساب متصل ويعمل بنجاح 🟢'
       });
     }
 
-    if (status.qrCodeBase64 || status.qrCodeRaw) {
+    if ('status' in info && info.status === 'qr_ready' || 'qrCodeBase64' in info && info.qrCodeBase64) {
       return NextResponse.json({
         success: true,
         status: 'qr_ready',
-        mode: 'embedded',
+        mode: 'addon',
         state: 'connecting',
-        qrCodeBase64: status.qrCodeBase64 || null,
-        qrCodeRaw: status.qrCodeRaw || null,
+        qrCodeBase64: 'qrCodeBase64' in info ? info.qrCodeBase64 || null : null,
+        qrCodeRaw: 'qrCodeRaw' in info ? info.qrCodeRaw || null : null,
         message: 'كود QR جاهز للمسح من الواتساب 📱'
       });
     }
@@ -153,17 +124,17 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       status: 'connecting',
-      mode: 'embedded',
+      mode: 'addon',
       state: 'connecting',
-      message: 'جارِ تهيئة المحرك...'
+      message: 'جارِ تهيئة محرك الواتساب...'
     });
-
   } catch (error) {
-    const response = apiErrorResponse('whatsapp.status', error);
+    console.error('Error in /api/whatsapp/status:', error);
     return NextResponse.json({
-      ...(await response.json()),
-      status: 'error'
-    }, { status: response.status });
+      success: false,
+      status: 'error',
+      state: 'disconnected',
+      message: error instanceof Error ? error.message : 'تعذر الاتصال بخادم الواتساب.'
+    }, { status: 500 });
   }
 }
-

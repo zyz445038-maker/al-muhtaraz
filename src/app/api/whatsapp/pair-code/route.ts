@@ -1,71 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requestWhatsAppPairingCode } from '@/lib/whatsappEngine';
+import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
+import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const phone = body.phone || '';
+    const body: unknown = await req.json().catch(() => null);
+    const phone = body && typeof body === 'object' && 'phone' in body && typeof body.phone === 'string'
+      ? normalizeSaudiMobileNumber(body.phone)
+      : null;
 
     if (!phone) {
       return NextResponse.json(
-        { success: false, error: 'يرجى إدخال رقم الهاتف' },
+        { success: false, error: 'أدخل رقم جوال سعودي صحيحًا بصيغة 05xxxxxxxx أو +9665xxxxxxxx' },
         { status: 400 }
       );
     }
 
-    const addonServerUrl = process.env.WHATSAPP_ADDON_URL;
-    const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY;
-
-    // 1. Try Add-on Server only when configured explicitly
-    if (addonServerUrl && addonApiKey) {
-      const cleanServer = addonServerUrl.replace(/\/+$/, '');
-
-      try {
-        const addonRes = await fetch(`${cleanServer}/api/session/pair-code`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${addonApiKey}`
-          },
-          body: JSON.stringify({ phone })
-        });
-
-        if (addonRes.ok) {
-          const addonData = await addonRes.json();
-          if (addonData.success && addonData.data?.code) {
-            return NextResponse.json({
-              success: true,
-              code: addonData.data.code,
-              message: 'تم توليد كود الاقتران بنجاح! أدخله في تطبيق الواتساب الآن.'
-            });
-          }
-        }
-      } catch (addonErr) {
-        console.warn('Addon pair-code failed, trying embedded:', addonErr);
-      }
-    }
-
-    // 2. Fallback to embedded engine
-    const res = await requestWhatsAppPairingCode(phone);
-    if (!res.success) {
+    const addon = await getWhatsAppAddonConfig();
+    if (!addon) {
       return NextResponse.json(
-        { success: false, error: res.error || 'فشل توليد كود الاقتران' },
-        { status: 400 }
+        { success: false, error: 'خادم الواتساب غير مهيأ. احفظ رابط الخادم ومفتاح الأمان أولاً.' },
+        { status: 503 }
       );
+    }
+
+    const addonRes = await fetch(`${addon.baseUrl}/api/session/pair-code`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${addon.apiKey}`
+      },
+      body: JSON.stringify({ phone }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(55_000)
+    });
+
+    const addonData: unknown = await addonRes.json().catch(() => null);
+    const responseData = addonData && typeof addonData === 'object' ? addonData : null;
+    const codeData = responseData && 'data' in responseData && responseData.data
+      && typeof responseData.data === 'object'
+      ? responseData.data
+      : null;
+    const code = codeData && 'code' in codeData && typeof codeData.code === 'string'
+      ? codeData.code
+      : null;
+
+    if (!addonRes.ok || !responseData || !('success' in responseData) || responseData.success !== true || !code) {
+      const error = responseData && 'error' in responseData && typeof responseData.error === 'string'
+        ? responseData.error
+        : 'لم يتمكن خادم الواتساب من إنشاء رمز الربط. تحقق من اتصال الجلسة وحاول مجددًا.';
+      return NextResponse.json({ success: false, error }, { status: 502 });
     }
 
     return NextResponse.json({
       success: true,
-      code: res.code,
+      code,
       message: 'تم توليد كود الاقتران بنجاح! أدخله في تطبيق الواتساب الآن.'
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in /api/whatsapp/pair-code:', error);
     return NextResponse.json(
-      { success: false, error: error?.message || 'حدث خطأ في الخادم' },
+      {
+        success: false,
+        error: error instanceof Error
+          ? error.message
+          : 'تعذر الاتصال بخادم الواتساب. تحقق من الإعدادات ثم حاول مجددًا.'
+      },
       { status: 500 }
     );
   }

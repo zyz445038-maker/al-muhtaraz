@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
+import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -69,11 +70,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       ? settings.evolution_server_url
       : ''
   );
-  const [apiKey, setApiKey] = useState(
-    settings.evolution_api_key && settings.evolution_api_key.startsWith('mhk_live')
-      ? settings.evolution_api_key
-      : ''
-  );
+  const [apiKey, setApiKey] = useState(settings.evolution_api_key || '');
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
   const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
   const [autoSendEnabled, setAutoSendEnabled] = useState(settings.auto_send_enabled ?? true);
@@ -112,15 +109,13 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     try {
       let data: any = null;
       try {
-        const res = await fetch(`/api/whatsapp/status?serverUrl=${encodeURIComponent(serverUrl)}&apiKey=${encodeURIComponent(apiKey)}`, {
+        const res = await fetch('/api/whatsapp/status', {
           cache: 'no-store'
         });
-        if (res.ok) {
-          data = await res.json();
-        }
+        data = await res.json();
       } catch (proxyErr) {}
 
-      if (!data || (!data.status && !data.qrCodeBase64)) {
+      if (!data) {
         try {
           const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/status`, {
             headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -140,7 +135,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       }
 
       if (data) {
-        if (data.status === 'connected') {
+        if (data.status === 'error' || data.status === 'not_configured') {
+          setLiveStatus('disconnected');
+          setQrCodeBase64(null);
+        } else if (data.status === 'connected') {
           setLiveStatus('connected');
           setLivePhone(data.phoneNumber || senderPhone);
           setQrCodeBase64(null);
@@ -166,7 +164,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   // Request 8-digit Pairing Code
   const handleRequestPairCode = async () => {
-    if (!pairPhoneInput || pairPhoneInput.length < 9) {
+    const phone = normalizeSaudiMobileNumber(pairPhoneInput);
+    if (!phone) {
       setPairError('يرجى إدخال رقم هاتف سعودي صحيح مكون من 10 أرقام');
       return;
     }
@@ -179,13 +178,18 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         const res = await fetch('/api/whatsapp/pair-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: pairPhoneInput })
+          body: JSON.stringify({ phone })
         });
         const json = await res.json();
         if (json.success && json.code) {
           code = json.code;
+        } else {
+          throw new Error(json.error || 'تعذر توليد كود الاقتران. تحقق من إعدادات خادم المحرك.');
         }
-      } catch (err) {}
+      } catch (err) {
+        setPairError(err instanceof Error ? err.message : 'تعذر الاتصال بخادم الواتساب.');
+        return;
+      }
 
       if (!code) {
         try {
@@ -195,7 +199,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({ phone: pairPhoneInput })
+            body: JSON.stringify({ phone })
           });
           if (directRes.ok) {
             const directJson = await directRes.json();
@@ -763,11 +767,15 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                       <SaudiPhoneInput
                         label="رقم جوال الواتساب للمنشأة:"
                         value={pairPhoneInput}
-                        onChange={(val) => setPairPhoneInput(val)}
+                        onChange={(val) => {
+                          setPairPhoneInput(val);
+                          setGeneratedPairCode(null);
+                          setPairError(null);
+                        }}
                       />
                       <button
                         onClick={handleRequestPairCode}
-                        disabled={isRequestingPair || pairPhoneInput.length < 10}
+                        disabled={isRequestingPair || !normalizeSaudiMobileNumber(pairPhoneInput)}
                         style={{
                           width: '100%',
                           padding: '12px',
@@ -809,6 +817,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                           }}>
                             {generatedPairCode}
                           </div>
+                          <p style={{ fontSize: '0.76rem', color: '#cbd5e1', marginTop: '10px', lineHeight: 1.7 }}>
+                            من واتساب في الجوال: <strong>الأجهزة المرتبطة</strong> ← <strong>ربط جهاز</strong> ← <strong>الربط برقم الهاتف بدلاً من ذلك</strong>، ثم أدخل الرمز أعلاه.
+                          </p>
                         </div>
                       )}
                     </div>

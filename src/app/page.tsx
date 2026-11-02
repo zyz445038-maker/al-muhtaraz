@@ -1043,13 +1043,18 @@ function MainDashboard() {
 
   // Gateway Settings Handlers
   const handleSaveGatewaySettings = async (updated: IWhatsAppSettings): Promise<boolean> => {
-    setGatewaySettings(updated);
     try {
-      await supabase.from('whatsapp_settings').upsert([updated]);
-    } catch (e) {
-      console.warn('Saved settings locally:', e);
+      const { error } = await supabase.from('whatsapp_settings').upsert([updated]);
+      if (error) {
+        console.error('Could not save WhatsApp server settings:', error);
+        return false;
+      }
+      setGatewaySettings(updated);
+      return true;
+    } catch (error) {
+      console.error('Could not save WhatsApp server settings:', error);
+      return false;
     }
-    return true;
   };
 
   const handleSavePaymentSettings = async (updated: IPaymentSettings): Promise<boolean> => {
