@@ -3,23 +3,39 @@
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Download, Share2, PlusSquare, X, ShieldCheck, Sparkles, Check } from 'lucide-react';
 
+const installedAppStorageKey = 'muhtaraz-pwa-installed';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+function isRunningAsInstalledApp(): boolean {
+  const displayModes = ['standalone', 'window-controls-overlay', 'minimal-ui', 'fullscreen'];
+  const isDisplayMode = displayModes.some(mode => window.matchMedia(`(display-mode: ${mode})`).matches);
+  const isIosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return isDisplayMode || isIosStandalone;
+}
+
 export const InstallAppButton: React.FC = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [isIOS, setIsIOS] = useState<boolean>(false);
   const [showIOSModal, setShowIOSModal] = useState<boolean>(false);
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
 
   useEffect(() => {
-    // 1. Check if already installed / running in standalone mode
-    const checkStandalone = () => {
-      const isStandalone = 
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true;
-      setIsInstalled(isStandalone);
+    const syncInstalledState = () => {
+      const isStandalone = isRunningAsInstalledApp();
+      try {
+        if (isStandalone) window.localStorage.setItem(installedAppStorageKey, 'true');
+        setIsInstalled(isStandalone || window.localStorage.getItem(installedAppStorageKey) === 'true');
+      } catch {
+        setIsInstalled(isStandalone);
+      }
     };
 
-    checkStandalone();
+    syncInstalledState();
 
     // 2. Check if iOS device
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -27,8 +43,15 @@ export const InstallAppButton: React.FC = () => {
     setIsIOS(isIosDevice);
 
     // 3. Listen for Android / Chrome / Edge 'beforeinstallprompt'
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      const e = event as BeforeInstallPromptEvent;
       e.preventDefault();
+      try {
+        window.localStorage.removeItem(installedAppStorageKey);
+      } catch {
+        // The native install prompt still takes precedence if storage is unavailable.
+      }
+      setIsInstalled(false);
       setDeferredPrompt(e);
     };
 
@@ -36,16 +59,37 @@ export const InstallAppButton: React.FC = () => {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      try {
+        window.localStorage.setItem(installedAppStorageKey, 'true');
+      } catch {
+        // The installed state is still hidden for this window when storage is unavailable.
+      }
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 5000);
     };
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === installedAppStorageKey) syncInstalledState();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') syncInstalledState();
+    };
+    const displayModeQueries = ['standalone', 'window-controls-overlay', 'minimal-ui', 'fullscreen']
+      .map(mode => window.matchMedia(`(display-mode: ${mode})`));
+    displayModeQueries.forEach(query => query.addEventListener('change', syncInstalledState));
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', syncInstalledState);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', syncInstalledState);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      displayModeQueries.forEach(query => query.removeEventListener('change', syncInstalledState));
     };
   }, []);
 
@@ -63,6 +107,11 @@ export const InstallAppButton: React.FC = () => {
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setIsInstalled(true);
+        try {
+          window.localStorage.setItem(installedAppStorageKey, 'true');
+        } catch {
+          // Keep the installed state for this window if storage is unavailable.
+        }
       }
       setDeferredPrompt(null);
     } else {

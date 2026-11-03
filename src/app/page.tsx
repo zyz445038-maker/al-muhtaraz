@@ -959,7 +959,7 @@ function MainDashboard() {
         if (settingsResult.error) errors.push(`إعدادات واتساب: ${settingsResult.error.message}`);
         else if (settingsResult.data) setGatewaySettings(settingsResult.data);
 
-        if (paymentSettingsResult.error) errors.push(`إعدادات الدفع: ${paymentSettingsResult.error.message}`);
+        if (paymentSettingsResult.error) errors.push(`إعدادات بوابة الدفع الإلكتروني: ${paymentSettingsResult.error.message}`);
         else if (paymentSettingsResult.data) setPaymentSettings(paymentSettingsResult.data);
 
         if (receiptsResult.error) errors.push(`الفواتير: ${receiptsResult.error.message}`);
@@ -2328,7 +2328,7 @@ function MainDashboard() {
                       }}
                       onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.35)')}
                       onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
-                    >🔄 إعادة المحاولة</button>
+                    >🔄 إعادة إرسال رسالة الواتساب</button>
                     <button
                       onClick={() => handleSendWhatsApp(alert.recipientPhone, alert.message)}
                       style={{

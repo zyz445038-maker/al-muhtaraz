@@ -453,7 +453,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }}
                 >
                   <CreditCard size={17} />
-                  <span>بوابة الدفع</span>
+                  <span>بوابة الدفع الإلكتروني</span>
                 </button>
 
                 <button
