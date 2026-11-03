@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 
 export interface GenerateContractCardParams {
   contractNumber: string;
@@ -72,7 +73,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 36px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('مؤسسة المحترز للحاويات', width / 2, 85);
+  ctx.fillText(COMPANY_OFFICIAL_INFO.nameArabic, width / 2, 85);
 
   ctx.font = '600 18px "Cairo", "Tajawal", sans-serif';
   ctx.fillStyle = '#fef3c7';
@@ -243,7 +244,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('الختم والتوقيع معتمد إلكترونياً من مؤسسة المحترز للحاويات', width - 260, footerY + 115);
+  ctx.fillText(`الختم والتوقيع معتمد إلكترونياً من ${COMPANY_OFFICIAL_INFO.nameArabic}`, width - 260, footerY + 115);
 
   // Official Stamp Box on the Left
   ctx.strokeStyle = '#f59e0b';

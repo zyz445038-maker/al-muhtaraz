@@ -21,6 +21,7 @@ import {
   Truck
 } from 'lucide-react';
 import { Contract, Receipt, PaymentMethod } from '@/types/database';
+import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { getDebrisContractTypeLabel } from '@/utils/rentalPricing';
 
 interface ReceiptModalProps {
@@ -285,8 +286,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         ? 'تجاري مغلق'
         : getDebrisContractTypeLabel(contract.period_type, contract.duration_days);
       const message = isFree
-        ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
-        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
+        ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`
+        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`;
       const result = await onSendWhatsAppReceipt(contract.customer.phone, message, receiptImage);
       if (!result.success) {
         throw new Error(result.error || 'تعذر إرسال صورة الفاتورة عبر واتساب.');
@@ -460,7 +461,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   </div>
                   <div>
                     <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                      مؤسسة المحترز للحاويات
+                      {COMPANY_OFFICIAL_INFO.nameArabic}
                     </h2>
                     <div style={{ fontSize: '0.73rem', color: '#64748b' }}>
                       تأجير الحاويات التجارية وعقود الأنقاض

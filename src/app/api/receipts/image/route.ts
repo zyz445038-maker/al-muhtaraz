@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { NextResponse } from 'next/server';
 import { decodeReceiptVerificationPayload } from '@/utils/receiptEncoder';
+import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -213,7 +214,7 @@ export async function GET(request: Request) {
     <rect x="35" y="35" width="930" height="${height - 70}" rx="24" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
 
     <rect x="55" y="55" width="890" height="180" rx="18" fill="url(#header)"/>
-    ${text('مؤسسة المحترز للحاويات', 910, 105, 34, '#ffffff', 700)}
+    ${text(COMPANY_OFFICIAL_INFO.nameArabic, 910, 105, 34, '#ffffff', 700)}
     ${text('تأجير الحاويات التجارية وعقود الأنقاض', 910, 141, 20, '#fff7ed', 400)}
     ${text('الرياض — المملكة العربية السعودية', 910, 172, 18, '#fff7ed', 400)}
     <rect x="75" y="75" width="300" height="140" rx="14" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2"/>
@@ -242,10 +243,10 @@ export async function GET(request: Request) {
     ${qrContent}
     ${qrCaption}
     <rect x="610" y="${qrTop + 112}" width="300" height="150" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
-    ${text('مؤسسة المحترز للحاويات', 885, qrTop + 166, 21, '#0f172a', 700)}
+    ${text(COMPANY_OFFICIAL_INFO.nameArabic, 885, qrTop + 166, 21, '#0f172a', 700)}
     <line x1="640" y1="${qrTop + 221}" x2="880" y2="${qrTop + 221}" stroke="#0f172a" stroke-width="2"/>
     ${text('الختم والتوقيع المعتمد', 885, qrTop + 249, 16, '#475569', 700)}
-    <text x="500" y="${height - 36}" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="17" fill="#92400e">تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لمؤسسة المحترز للحاويات ومسجلة برقم فريد.</text>
+    <text x="500" y="${height - 36}" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="17" fill="#92400e">تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لـ ${COMPANY_OFFICIAL_INFO.nameArabic} ومسجلة برقم فريد.</text>
   </svg>`;
 
   return new NextResponse(svg, {

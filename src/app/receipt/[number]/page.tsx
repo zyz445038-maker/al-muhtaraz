@@ -277,7 +277,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           عفواً، لم يتم العثور على وثيقة مطابقة
         </div>
         <div style={{ color: '#94a3b8', fontSize: '0.95rem', maxWidth: '420px', lineHeight: 1.6 }}>
-          يرجى التأكد من مسح رمز الـ QR الصحيح الموجود على نسخة العقد أو الفاتورة الأصلية الصادرة من مؤسسة المحترز للحاويات.
+          يرجى التأكد من مسح رمز الـ QR الصحيح الموجود على نسخة العقد أو الفاتورة الأصلية الصادرة من {COMPANY_OFFICIAL_INFO.nameArabic}.
         </div>
         <a 
           href="tel:0532643000" 
@@ -946,7 +946,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           {/* ── HEADER ── */}
           <div className="receipt-header">
             <div style={{ fontSize: '2.2rem', marginBottom: '6px' }}>🏗️</div>
-            <h1>مؤسسة المحترز للحاويات</h1>
+            <h1>{COMPANY_OFFICIAL_INFO.nameArabic}</h1>
             <div className="sub">تأجير الحاويات التجارية وعقود الأنقاض — الرياض، المملكة العربية السعودية</div>
             <div className="receipt-badge">فاتورة وعقد رسمي موثق &nbsp;|&nbsp; INVOICE</div>
           </div>
@@ -1068,7 +1068,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
               {/* Official Stamp Box */}
               <div className="stamp-box">
                 <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b' }}>
-                  مؤسسة المحترز للحاويات
+                  {COMPANY_OFFICIAL_INFO.nameArabic}
                 </div>
                 <div className="stamp-line">
                   الختم والتوقيع المعتمد
@@ -1080,7 +1080,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
 
           {/* Legal Bar */}
           <div className="legal-bar">
-            تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لمؤسسة المحترز للحاويات ومسجلة برقم فريد.
+            تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لـ {COMPANY_OFFICIAL_INFO.nameArabic} ومسجلة برقم فريد.
           </div>
         </div>
       </div>

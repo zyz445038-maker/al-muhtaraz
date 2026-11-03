@@ -45,7 +45,7 @@ import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import { DevLab } from '@/components/DevLab';
 import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
-import { OfficialContractRecord, OfficialContractData, ContractSealSettings } from '@/types/officialContract';
+import { OfficialContractRecord, OfficialContractData, ContractSealSettings, COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
@@ -2016,7 +2016,7 @@ function MainDashboard() {
           verificationUrl: verificationImageUrl
         });
 
-        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
+        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
 
         const imgResult = await sendSilentWhatsApp(
           customerObj.phone,
