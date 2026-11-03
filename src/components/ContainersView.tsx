@@ -18,6 +18,7 @@ import {
   Phone
 } from 'lucide-react';
 import { Container, ContainerStatus, ContainerType, UserRole, Contract, StaffPermissions } from '@/types/database';
+import { getWeeklyRate } from '@/utils/rentalPricing';
 
 interface ContainersViewProps {
   containers: Container[];
@@ -54,7 +55,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
   // New Container Form State
   const [containerNumber, setContainerNumber] = useState('');
   const [newType, setNewType] = useState<ContainerType>('debris');
-  const [dailyRate, setDailyRate] = useState(150);
+  const [weeklyRate, setWeeklyRate] = useState(1050);
   const [monthlyRate, setMonthlyRate] = useState(3500);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,7 +82,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
       container_number: containerNumber,
       type: newType,
       status: 'available',
-      daily_rate: newType === 'debris' ? dailyRate : 0,
+      daily_rate: newType === 'debris' ? weeklyRate / 7 : 0,
       monthly_rate: newType === 'debris' ? (monthlyRate > 0 ? monthlyRate : 2000) : monthlyRate,
       notes: notes
     });
@@ -373,7 +374,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                   {userRole === 'admin' || permissions?.can_view_financials !== false ? (
                     isDebris ? (
                       <span>
-                        {container.daily_rate > 0 ? `${container.daily_rate} ر.س / يوم` : ''}
+                        {container.daily_rate > 0 ? `${getWeeklyRate(container.daily_rate)} ر.س / 7 أيام` : ''}
                         {container.daily_rate > 0 && container.monthly_rate > 0 ? ' | ' : ''}
                         {container.monthly_rate > 0 ? `${container.monthly_rate} ر.س / شهر` : ''}
                       </span>
@@ -575,7 +576,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                   value={newType}
                   onChange={(e) => setNewType(e.target.value as ContainerType)}
                 >
-                  <option value="debris">حاوية أنقاض ومخلفات (يومي) 🏗️</option>
+                  <option value="debris">حاوية أنقاض ومخلفات (7 أيام) 🏗️</option>
                   <option value="commercial">حاوية تجارية للمنشآت (شهري/سنوي) 🏢</option>
                 </select>
               </div>
@@ -584,14 +585,14 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                      السعر اليومي (ر.س):
+                      سعر فترة 7 أيام (ر.س):
                     </label>
                     <input
                       type="number"
                       min="0"
                       className="form-input"
-                      value={dailyRate}
-                      onChange={(e) => setDailyRate(Number(e.target.value))}
+                      value={weeklyRate}
+                      onChange={(e) => setWeeklyRate(Number(e.target.value))}
                     />
                   </div>
                   <div>

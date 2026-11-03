@@ -7,7 +7,7 @@ import { ArchiveImportWorkerPoller } from '@/components/ArchiveImportWorkerPolle
 
 export const metadata: Metadata = {
   title: 'المحترز للحاويات | إدارة وتأجير الحاويات التجارية والأنقاض',
-  description: 'المنصة الذكية لإدارة وتأجير الحاويات التجارية وعقود الأنقاض اليومية وتنبيهات الواتساب والمواقع الجغرافية',
+  description: 'المنصة الذكية لإدارة وتأجير الحاويات التجارية وعقود الأنقاض لفترة 7 أيام أو نصف شهر أو شهر، مع تنبيهات الواتساب والمواقع الجغرافية',
   manifest: '/manifest.json',
   icons: {
     icon: [

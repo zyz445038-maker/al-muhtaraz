@@ -795,7 +795,7 @@ function MainDashboard() {
           total_contracts: 1,
           last_deal_date: cnt.start_date ? cnt.start_date.split('T')[0] : undefined,
           marketing_opt_in: true,
-          tags: ['عقد حاوية', cnt.contract_type === 'commercial' ? 'تجاري' : 'يومي'],
+          tags: ['عقد حاوية', cnt.contract_type === 'commercial' ? 'تجاري' : 'تأجير 7 أيام'],
           source: 'contract',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

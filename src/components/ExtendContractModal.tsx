@@ -343,8 +343,26 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '2px', fontWeight: 700 }}>
                   إجمالي المبلغ
                 </div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fbbf24' }}>
-                  {netExtensionCost} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="form-input"
+                  aria-label="قيمة التمديد حسب الاتفاق"
+                  value={baseExtensionCost}
+                  onChange={(e) => setBaseExtensionCost(Math.max(0, Number(e.target.value) || 0))}
+                  style={{
+                    width: '100%',
+                    marginTop: '4px',
+                    padding: '4px',
+                    textAlign: 'center',
+                    fontSize: '1.05rem',
+                    fontWeight: 900,
+                    color: '#fbbf24'
+                  }}
+                />
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px' }}>
+                  قيمة التمديد حسب الاتفاق
                 </div>
                 {discountAmount > 0 && (
                   <div style={{ fontSize: '0.65rem', color: '#94a3b8', textDecoration: 'line-through' }}>

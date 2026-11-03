@@ -24,6 +24,7 @@ import {
   FileCode2
 } from 'lucide-react';
 import { Contract, ContractStatus, UserRole, PaymentSettings, StaffPermissions } from '@/types/database';
+import { getDebrisContractTypeLabel } from '@/utils/rentalPricing';
 
 interface ContractsViewProps {
   contracts: Contract[];
@@ -314,7 +315,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                     }}>
                       {contract.contract_type === 'commercial' 
                         ? 'تجاري' 
-                        : (contract.period_type === 'monthly' ? 'أنقاض شهري 📆' : 'أنقاض يومي 📅')}
+                        : `${getDebrisContractTypeLabel(contract.period_type, contract.duration_days)} 📅`}
                     </span>
                     {contract.status === 'extended' && (
                       <span style={{

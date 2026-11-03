@@ -1228,7 +1228,7 @@ export const DevLab: React.FC<DevLabProps> = ({
                   value={newRuleResponse}
                   onChange={(e) => setNewRuleResponse(e.target.value)}
                   rows={3}
-                  placeholder="مثال: أهلاً وسهلاً بأبو ماجد.. سعر الحاوية مقاس 20 ياردة في حي النرجس 600 ريال لمدة 7 أيام والتمديد اليومي بـ 50 ريال."
+                  placeholder="مثال: أهلاً وسهلاً بأبو ماجد.. سعر الحاوية مقاس 20 ياردة في حي النرجس 600 ريال لمدة 7 أيام، والتمديد حسب الاتفاق."
                   required
                   style={{
                     width: '100%',

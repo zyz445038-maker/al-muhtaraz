@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Container, Contract, Customer, NotificationLog, StaffPermissions, UserRole } from '@/types/database';
 import { UploadContractForm } from './UploadContractForm';
+import { getDebrisContractTypeLabel, getWeeklyRate } from '@/utils/rentalPricing';
 
 interface SmartSearchProps {
   containers: Container[];
@@ -168,7 +169,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
             ابحث عن أي <span style={{ color: 'var(--accent-gold)' }}>حاوية، عميل، أو عقد</span> بلمح البصر
           </h2>
           <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginBottom: '24px' }}>
-            متابعة فورية للحاويات التجارية (شهري/سنوي) وحاويات الأنقاض (يومي) ومواقعها الجغرافية
+            متابعة فورية للحاويات التجارية (شهري/سنوي) وحاويات الأنقاض (7 أيام/نصف شهري/شهري) ومواقعها الجغرافية
           </p>
 
           {/* Search Input Field */}
@@ -229,7 +230,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
             {[
               { id: 'all', label: 'الكل' },
               { id: 'commercial', label: 'حاويات تجارية (شهري/سنوي)' },
-              { id: 'debris', label: 'حاويات أنقاض (يومي)' },
+              { id: 'debris', label: 'حاويات أنقاض (7 أيام/نصف شهري/شهري)' },
               { id: 'contracts', label: 'العقود' },
               { id: 'customers', label: 'العملاء' }
             ].map(tab => (
@@ -429,7 +430,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                   }}>
                     <div style={{ fontSize: '0.88rem', color: '#e2e8f0' }}>
                       {container.type === 'debris' ? (
-                        <span>السعر: <strong style={{ color: '#fbbf24' }}>{container.daily_rate || 150} ر.س/يوم {container.monthly_rate > 0 ? `| ${container.monthly_rate} ر.س/شهر` : ''}</strong></span>
+                        <span>السعر: <strong style={{ color: '#fbbf24' }}>{getWeeklyRate(container.daily_rate) || 1050} ر.س/7 أيام {container.monthly_rate > 0 ? `| ${container.monthly_rate} ر.س/شهر` : ''}</strong></span>
                       ) : (
                         <span>السعر: <strong style={{ color: '#a5b4fc' }}>{container.monthly_rate || 3500} ر.س/شهر</strong></span>
                       )}
@@ -541,7 +542,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: '800', color: '#fbbf24' }}>عقد #{contract.contract_number}</span>
                     <span className={`badge ${contract.contract_type === 'commercial' ? 'badge-commercial' : 'badge-debris'}`}>
-                      {contract.contract_type === 'commercial' ? 'تجاري' : (contract.period_type === 'monthly' ? 'أنقاض (شهري)' : 'أنقاض (يومي)')}
+                      {contract.contract_type === 'commercial' ? 'تجاري' : getDebrisContractTypeLabel(contract.period_type, contract.duration_days)}
                     </span>
                   </div>
 

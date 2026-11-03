@@ -20,6 +20,7 @@ import {
   Truck
 } from 'lucide-react';
 import { Contract, Receipt, PaymentMethod } from '@/types/database';
+import { getDebrisContractTypeLabel } from '@/utils/rentalPricing';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -100,7 +101,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     ? new Date(receipt.issued_at)
     : new Date(contract?.updated_at || contract?.created_at || Date.now());
   const isFree = contract?.is_free || contract?.payment_method === 'free';
-  const contractType  = contract?.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
+  const contractType  = contract?.contract_type === 'commercial'
+    ? 'تجاري مغلق'
+    : getDebrisContractTypeLabel(contract?.period_type || 'daily', contract?.duration_days || 7);
   const startDate     = contract?.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-';
   const endDate       = contract?.end_date   ? new Date(contract.end_date).toLocaleDateString('ar-SA')   : '-';
 
@@ -287,7 +290,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     try {
       const customerName = contract.customer.name || 'عزيزنا العميل';
       const containerNumber = contract.container?.container_number || '-';
-      const contractType = contract.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
+      const contractType = contract.contract_type === 'commercial'
+        ? 'تجاري مغلق'
+        : getDebrisContractTypeLabel(contract.period_type, contract.duration_days);
       const message = isFree
         ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
         : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;

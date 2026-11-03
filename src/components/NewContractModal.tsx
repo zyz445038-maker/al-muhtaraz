@@ -22,14 +22,13 @@ import {
   Sunset,
   Moon,
   Zap,
-  Plus,
-  Minus,
   Sparkles,
   Sliders,
   Gift
 } from 'lucide-react';
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
+import { getWeeklyRate } from '@/utils/rentalPricing';
 
 export type PaymentChoice = 'cash' | 'sadad' | 'postpaid';
 
@@ -105,7 +104,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [startTimePreset, setStartTimePreset] = useState<'now' | 'morning' | 'noon' | 'afternoon' | 'evening' | 'custom'>('morning');
   const [showAdvancedDateTime, setShowAdvancedDateTime] = useState(false);
 
-  const [durationDays, setDurationDays] = useState(3); // Default 3 days (most popular)
+  const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState(toLocalIso(new Date()));
   const [pickupDate, setPickupDate] = useState('');
   
@@ -117,7 +116,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [isLocating, setIsLocating] = useState(false);
   
   // Pricing & Financial Calculations
-  const [baseCost, setBaseCost] = useState(150);
+  const [baseCost, setBaseCost] = useState(1050);
   const [discountAmount, setDiscountAmount] = useState(0); // خصم
   const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [isFreeContract, setIsFreeContract] = useState(false); // عقد مجاني / إهداء
@@ -194,12 +193,19 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
           if (periodType === 'monthly') {
             const cost = (found.monthly_rate || 2000) * durationMonths;
             setBaseCost(cost);
+          } else if (durationDays === 15) {
+            const monthlyRate = found.monthly_rate > 0
+              ? found.monthly_rate
+              : getWeeklyRate(found.daily_rate) * (30 / 7);
+            setBaseCost(monthlyRate / 2);
           } else {
-            const cost = (found.daily_rate || 150) * durationDays;
+            const cost = getWeeklyRate(found.daily_rate) || 1050;
             setBaseCost(cost);
           }
         } else {
           setPeriodType('monthly');
+          setDurationMonths(1);
+          setDurationDays(30);
           const cost = found.monthly_rate || 3500;
           setBaseCost(cost);
         }
@@ -233,8 +239,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
         if (periodType === 'monthly') {
           const monthly = cont.monthly_rate > 0 ? cont.monthly_rate : (cont.daily_rate > 0 ? cont.daily_rate * 25 : 2000);
           cost = monthly * durationMonths;
+        } else if (durationDays === 15) {
+          const monthly = cont.monthly_rate > 0
+            ? cont.monthly_rate
+            : (cont.daily_rate > 0 ? cont.daily_rate * 30 : getWeeklyRate(cont.daily_rate) * (30 / 7));
+          cost = monthly / 2;
         } else {
-          cost = (cont.daily_rate || 150) * durationDays;
+          cost = getWeeklyRate(cont.daily_rate) || 1050;
         }
       } else {
         const monthly = cont.monthly_rate || 3500;
@@ -286,10 +297,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     setDownPayment(0);
     if (type === 'debris') {
       setPeriodType('daily');
-      setDurationDays(3);
-      setBaseCost(450);
+      setDurationDays(7);
+      setBaseCost(1050);
     } else {
       setPeriodType('monthly');
+      setDurationMonths(1);
+      setDurationDays(30);
       setBaseCost(3500);
     }
   };
@@ -412,7 +425,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               1. نوع الحاوية والعقد المطلوب:
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              {/* Debris Daily */}
+              {/* Debris Weekly */}
               <div
                 onClick={() => handleContractTypeChange('debris')}
                 style={{
@@ -429,11 +442,11 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                     حاوية أنقاض ومخلفات 🏗️
                   </span>
                   <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: '#38bdf8', color: '#050811', fontWeight: 800 }}>
-                    عقد يومي
+                    فترة أسبوعية
                   </span>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
-                  تأجير يومي للبناء والترميم، مع تنبيه آلي قبل 4 ساعات من السحب.
+                  فترة التأجير 7 أيام، ويمكن سحب الحاوية مبكرًا أو تمديدها حسب الاتفاق.
                 </div>
               </div>
 
@@ -480,7 +493,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 <option value="">-- اختر حاوية ({availableContainers.length} متاحة) --</option>
                 {availableContainers.map(cont => (
                   <option key={cont.id} value={cont.id}>
-                    {cont.container_number} — {contractType === 'debris' ? `${cont.daily_rate} ر.س/يوم` : `${cont.monthly_rate} ر.س/شهر`}
+                    {cont.container_number} — {contractType === 'debris' ? `${getWeeklyRate(cont.daily_rate)} ر.س/7 أيام` : `${cont.monthly_rate} ر.س/شهر`}
                   </option>
                 ))}
               </select>
@@ -861,173 +874,50 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0' }}>
-                  ⏳ مدة بقاء الحاوية عند العميل:
+                    ⏳ فترة التأجير:
                 </label>
                 {contractType === 'debris' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setDurationDays(d => Math.max(1, d - 1))}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        width: '26px',
-                        height: '26px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fbbf24', minWidth: '55px', textAlign: 'center' }}>
-                      {durationDays} {durationDays === 1 ? 'يوم' : durationDays === 2 ? 'يومان' : durationDays <= 10 ? 'أيام' : 'يوماً'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDurationDays(d => d + 1)}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        borderRadius: '6px',
-                        color: '#ffffff',
-                        width: '26px',
-                        height: '26px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fbbf24' }}>
+                    {durationDays === 30 ? 'شهر واحد' : durationDays === 15 ? 'نصف شهر' : '7 أيام'}
+                  </span>
                 )}
               </div>
 
               {contractType === 'debris' ? (
-                <div>
-                  {/* Period Mode Selector: Daily vs Monthly */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPeriodType('daily');
-                        setDurationDays(3);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        border: periodType === 'daily' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: periodType === 'daily' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(30, 41, 59, 0.4)',
-                        color: periodType === 'daily' ? '#38bdf8' : '#94a3b8',
-                        fontWeight: 800,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📅 تأجير يومي (بالأيام)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPeriodType('monthly');
-                        setDurationMonths(1);
-                        setDurationDays(30);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        border: periodType === 'monthly' ? '2px solid #ec4899' : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: periodType === 'monthly' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(30, 41, 59, 0.4)',
-                        color: periodType === 'monthly' ? '#f472b6' : '#94a3b8',
-                        fontWeight: 800,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📆 تأجير شهري (بالأشهر)
-                    </button>
-                  </div>
-
-                  {periodType === 'daily' ? (
-                    /* Debris Quick Days Chips */
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {[
-                        { days: 1, label: '1 يوم' },
-                        { days: 2, label: '2 يوم' },
-                        { days: 3, label: '3 أيام ⭐' },
-                        { days: 4, label: '4 أيام' },
-                        { days: 5, label: '5 أيام' },
-                        { days: 7, label: '7 أيام (أسبوع)' },
-                        { days: 10, label: '10 أيام' },
-                        { days: 15, label: '15 يوم' },
-                        { days: 20, label: '20 يوم' },
-                      ].map(item => {
-                        const isSelected = durationDays === item.days;
-                        return (
-                          <button
-                            key={item.days}
-                            type="button"
-                            onClick={() => setDurationDays(item.days)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              border: `1px solid ${isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
-                              background: isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.5)',
-                              color: isSelected ? '#38bdf8' : '#e2e8f0',
-                              fontWeight: isSelected ? 800 : 600,
-                              fontSize: '0.78rem',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s'
-                            }}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    /* Debris Quick Months Chips */
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px' }}>
-                      {[
-                        { months: 1, label: '1 شهر (30 يوم)' },
-                        { months: 2, label: 'شهرين (60 يوم)' },
-                        { months: 3, label: '3 أشهر' },
-                        { months: 6, label: '6 أشهر (نصف سنوي)' },
-                        { months: 12, label: '12 شهر (سنوي)' },
-                      ].map(item => {
-                        const isSelected = durationMonths === item.months;
-                        return (
-                          <button
-                            key={item.months}
-                            type="button"
-                            onClick={() => {
-                              setDurationMonths(item.months);
-                              setDurationDays(item.months * 30);
-                            }}
-                            style={{
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              border: `1px solid ${isSelected ? '#ec4899' : 'rgba(255, 255, 255, 0.1)'}`,
-                              background: isSelected ? 'rgba(236, 72, 153, 0.25)' : 'rgba(30, 41, 59, 0.5)',
-                              color: isSelected ? '#f472b6' : '#e2e8f0',
-                              fontWeight: isSelected ? 800 : 600,
-                              fontSize: '0.8rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  {[
+                    { days: 7, label: '7 أيام', detail: 'فترة التأجير' },
+                    { days: 15, label: 'نصف شهر', detail: '15 يومًا' },
+                    { days: 30, label: 'شهر', detail: '30 يومًا' },
+                  ].map(item => {
+                    const isSelected = durationDays === item.days;
+                    return (
+                      <button
+                        key={item.days}
+                        type="button"
+                        onClick={() => {
+                          setDurationDays(item.days);
+                          setPeriodType(item.days === 30 ? 'monthly' : 'daily');
+                          setDurationMonths(1);
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: `1px solid ${isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.5)',
+                          color: isSelected ? '#38bdf8' : '#e2e8f0',
+                          fontWeight: isSelected ? 800 : 600,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ display: 'block' }}>{item.label}</span>
+                        <span style={{ display: 'block', fontSize: '0.68rem', marginTop: '3px', opacity: 0.8 }}>
+                          {item.detail}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 /* Commercial Quick Period Chips */
@@ -1042,7 +932,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                       <button
                         key={item.type}
                         type="button"
-                        onClick={() => setPeriodType(item.type as ContractPeriodType)}
+                        onClick={() => {
+                          const months = item.type === 'annual' ? 12 : item.type === 'semi_annual' ? 6 : 1;
+                          setPeriodType(item.type as ContractPeriodType);
+                          setDurationMonths(months);
+                          setDurationDays(months * 30);
+                        }}
                         style={{
                           padding: '8px 10px',
                           borderRadius: '8px',
@@ -1245,10 +1140,28 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
-                  إجمالي المبلغ
+                  إجمالي العقد حسب الاتفاق
                 </div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: isFreeContract ? '#34d399' : '#fbbf24' }}>
-                  {isFreeContract ? '—' : `${totalCost} ر.س`}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="form-input"
+                  aria-label="إجمالي مبلغ العقد حسب الاتفاق"
+                  disabled={isFreeContract}
+                  value={isFreeContract ? 0 : baseCost}
+                  onChange={(e) => setBaseCost(Math.max(0, Number(e.target.value) || 0))}
+                  style={{
+                    width: '100%',
+                    padding: '4px',
+                    textAlign: 'center',
+                    fontSize: '1.05rem',
+                    fontWeight: 900,
+                    color: isFreeContract ? '#34d399' : '#fbbf24'
+                  }}
+                />
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '3px' }}>
+                القيمة الافتراضية قابلة للتعديل حسب الاتفاق
                 </div>
                 {isFreeContract ? (
                   <div style={{ fontSize: '0.68rem', color: '#34d399', marginTop: '2px' }}>

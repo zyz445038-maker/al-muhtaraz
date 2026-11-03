@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.containers (
     container_number TEXT UNIQUE NOT NULL,                       -- رقم الحاوية الفريد (مثال: C-101 أو D-201)
     type TEXT NOT NULL CHECK (type IN ('commercial', 'debris')), -- نوع الحاوية: تجاري أو أنقاض فقط
     status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'rented', 'maintenance')), -- الحالة: متاحة، مؤجرة، في الصيانة
-    daily_rate NUMERIC(10, 2) NOT NULL DEFAULT 0.00,             -- سعر الإيجار اليومي
+    daily_rate NUMERIC(10, 2) NOT NULL DEFAULT 0.00,             -- سعر يومي مكافئ للتوافق؛ تعرض واجهات الأنقاض سعر 7 أيام
     monthly_rate NUMERIC(10, 2) NOT NULL DEFAULT 0.00,           -- سعر الإيجار الشهري
     notes TEXT,                                                  -- ملاحظات حول الحاوية
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

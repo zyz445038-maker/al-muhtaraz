@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Container, ContainerStatus, ContainerType, Contract } from '@/types/database';
+import { getWeeklyRate } from '@/utils/rentalPricing';
 
 interface InventoryManagementProps {
   containers: Container[];
@@ -51,7 +52,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
   const [batchPrefix, setBatchPrefix] = useState('D-');
   const [startNumber, setStartNumber] = useState(101);
   const [quantity, setQuantity] = useState(10);
-  const [dailyRate, setDailyRate] = useState(150);
+  const [weeklyRate, setWeeklyRate] = useState(1050);
   const [monthlyRate, setMonthlyRate] = useState(3500);
   const [batchNotes, setBatchNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,7 +91,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
     setBatchType(type);
     if (type === 'debris') {
       setBatchPrefix('D-');
-      setDailyRate(150);
+      setWeeklyRate(1050);
     } else {
       setBatchPrefix('C-');
       setMonthlyRate(3500);
@@ -116,7 +117,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
       container_number: num,
       type: batchType,
       status: 'available',
-      daily_rate: batchType === 'debris' ? dailyRate : 0,
+      daily_rate: batchType === 'debris' ? weeklyRate / 7 : 0,
       monthly_rate: batchType === 'debris' ? (monthlyRate > 0 ? monthlyRate : 2000) : monthlyRate,
       notes: batchNotes || `دفعة توريد جديدة (${batchType === 'debris' ? 'أنقاض' : 'تجاري'})`
     }));
@@ -191,7 +192,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
                   مخزون حاويات الأنقاض 🏗️
                 </h3>
               </div>
-              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>عقود تأجير يومية للبناء والترميم</span>
+              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>تأجير الأنقاض لفترة 7 أيام قابلة للسحب أو التمديد</span>
             </div>
 
             <div style={{ textAlign: 'left' }}>
@@ -473,7 +474,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
 
                   {/* Rate */}
                   <td style={{ padding: '16px 20px', color: '#e2e8f0', fontSize: '0.88rem', fontWeight: 600 }}>
-                    {isDebris ? `${cont.daily_rate} ر.س / يوم` : `${cont.monthly_rate} ر.س / شهر`}
+                    {isDebris ? `${getWeeklyRate(cont.daily_rate)} ر.س / 7 أيام` : `${cont.monthly_rate} ر.س / شهر`}
                   </td>
 
                   {/* Actions */}
@@ -693,14 +694,14 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', marginBottom: '4px', color: '#e2e8f0' }}>
-                      السعر اليومي الافتراضي (ر.س):
+                      سعر فترة 7 أيام الافتراضي (ر.س):
                     </label>
                     <input
                       type="number"
                       min="0"
                       className="form-input"
-                      value={dailyRate}
-                      onChange={(e) => setDailyRate(Number(e.target.value))}
+                      value={weeklyRate}
+                      onChange={(e) => setWeeklyRate(Number(e.target.value))}
                       required
                     />
                   </div>

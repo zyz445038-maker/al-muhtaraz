@@ -1,4 +1,5 @@
 import { Contract, Customer, Container, Profile, Receipt } from '@/types/database';
+import { getDebrisContractTypeLabel } from './rentalPricing';
 import { 
   formatCleanArabicDate, 
   formatCleanArabicDateTime, 
@@ -47,13 +48,17 @@ export function formatCustomerVoucherMessage(params: {
 }): string {
   const { contract, customer, container, receiptNumber, isCash, paidAmount, remainingAmount, totalCost } = params;
   
-  const typeLabel = contract.contract_type === 'commercial' 
-    ? 'حاوية تجارية' 
-    : (contract.period_type === 'monthly' ? 'حاوية أنقاض (عقد شهري)' : 'حاوية أنقاض (عقد يومي)');
+  const typeLabel = contract.contract_type === 'commercial'
+    ? 'حاوية تجارية'
+    : getDebrisContractTypeLabel(contract.period_type, contract.duration_days);
   const paymentMethodLabel = isCash ? 'نقدي كاش (في الموقع) 💵' : (contract.payment_method === 'apple_pay' ? 'Apple Pay 🍎' : 'بطاقة مدى / سداد إلكتروني 💳');
-  const durationText = contract.period_type === 'monthly'
-    ? (contract.duration_days >= 30 ? `${Math.round(contract.duration_days / 30)} شهر (${contract.duration_days} يوم)` : `${contract.duration_days} يوم (شهري)`)
-    : `${contract.duration_days} ${contract.duration_days === 1 ? 'يوم واحد' : (contract.duration_days === 2 ? 'يومان' : (contract.duration_days <= 10 ? 'أيام' : 'يوماً'))}`;
+  const durationText = contract.period_type === 'monthly' && contract.duration_days >= 30
+    ? `${Math.round(contract.duration_days / 30)} شهر (${contract.duration_days} يومًا)`
+    : contract.duration_days === 15
+      ? 'نصف شهر (15 يومًا)'
+      : contract.duration_days === 7
+        ? '7 أيام'
+        : `${contract.duration_days} يوم`;
   const amountWords = toArabicWords(paidAmount > 0 ? paidAmount : totalCost);
   const startDateClean = formatCleanArabicDate(contract.start_date);
   const endDateClean = formatCleanArabicDate(contract.end_date);

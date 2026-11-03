@@ -15,6 +15,7 @@ import {
   COMPANY_OFFICIAL_INFO 
 } from '@/types/officialContract';
 import { PUBLIC_APP_ORIGIN } from '@/utils/publicAppUrl';
+import { getDebrisContractTypeLabel } from '@/utils/rentalPricing';
 import { generateContractClause1 } from '@/utils/contractGrammar';
 import { ShieldCheck, CheckCircle2, FileText, Printer, Building2, Phone, MapPin, Calendar, Lock } from 'lucide-react';
 
@@ -174,7 +175,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
             customerName: cust?.name || 'عميل مؤسسة المحترز',
             customerPhone: cust?.phone || '-',
             containerNumber: cont?.container_number || '-',
-            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : (c.period_type === 'monthly' ? 'حاوية أنقاض (عقد شهري)' : 'حاوية أنقاض (عقد يومي)'),
+            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : getDebrisContractTypeLabel(c.period_type, c.duration_days),
             paidAmount: Number(recItem.amount || c.paid_amount || c.total_cost || 0),
             totalCost: Number(c.total_cost || 0),
             paymentMethod: recItem.payment_method || c.payment_method || 'mada',
@@ -207,7 +208,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
             customerName: cust?.name || 'عميل مؤسسة المحترز',
             customerPhone: cust?.phone || '-',
             containerNumber: cont?.container_number || '-',
-            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : (c.period_type === 'monthly' ? 'حاوية أنقاض (عقد شهري)' : 'حاوية أنقاض (عقد يومي)'),
+            contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : getDebrisContractTypeLabel(c.period_type, c.duration_days),
             paidAmount: Number(c.paid_amount || c.total_cost || 0),
             totalCost: Number(c.total_cost || 0),
             paymentMethod: c.payment_method || 'mada',
