@@ -14,6 +14,18 @@ type ContractReminder = {
   contract_number: string;
   end_date: string;
   location_address: string | null;
+  created_by_employee: {
+    id: string;
+    full_name: string;
+    phone: string | null;
+    role: string;
+  } | null;
+  assigned_employee: {
+    id: string;
+    full_name: string;
+    phone: string | null;
+    role: string;
+  } | null;
   customer: {
     id: string;
     name: string | null;
@@ -55,7 +67,7 @@ async function handleProcess(request: Request) {
     const adminSupabase = getSupabaseAdminClient();
     const settingsResult = await adminSupabase
       .from('whatsapp_settings')
-      .select('admin_phone, auto_send_enabled, evolution_server_url, evolution_api_key')
+      .select('admin_phone, auto_send_enabled, evolution_server_url, evolution_api_key, notify_driver_on_alerts')
       .limit(1)
       .maybeSingle();
 
@@ -76,7 +88,7 @@ async function handleProcess(request: Request) {
 
     const contractsResult = await adminSupabase
       .from('contracts')
-      .select('id, contract_number, end_date, location_address, customer:customers(id, name, phone), container:containers(container_number)')
+      .select('id, contract_number, end_date, location_address, customer:customers(id, name, phone), container:containers(container_number), created_by_employee:profiles!contracts_created_by_employee_id_fkey(id, full_name, phone, role), assigned_employee:profiles!contracts_assigned_employee_id_fkey(id, full_name, phone, role)')
       .in('status', ['active', 'extended'])
       .lte('end_date', tomorrow.toISOString())
       .gte('end_date', now.toISOString());
@@ -105,6 +117,12 @@ async function handleProcess(request: Request) {
       for (const contract of contracts) {
         const customer = contract.customer;
         const customerPhone = customer?.phone || '';
+        const creator = contract.created_by_employee?.role === 'employee'
+          ? contract.created_by_employee
+          : null;
+        const driver = settings?.notify_driver_on_alerts === true
+          ? contract.assigned_employee
+          : null;
         const daysLeft = Math.max(
           0,
           Math.ceil((new Date(contract.end_date).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
@@ -134,6 +152,52 @@ async function handleProcess(request: Request) {
           }
         } else {
           warnings.push(`العقد ${contract.contract_number}: رقم جوال العميل غير صالح، لم يُنشأ تذكير له.`);
+        }
+
+        if (creator?.phone && normalizeWhatsAppPhone(creator.phone).length >= 8) {
+          const alreadyQueued = existingReminders.some(record =>
+            record.contract_id === contract.id
+            && record.recipient_role === 'employee'
+            && record.message_body.startsWith('تذكير لموظف منشئ العقد')
+          );
+          if (!alreadyQueued) {
+            remindersToQueue.push({
+              contract_id: contract.id,
+              customer_id: customer?.id || null,
+              recipient_role: 'employee' as const,
+              recipient_phone: creator.phone,
+              recipient_name: creator.full_name,
+              notification_type: 'custom_alert' as const,
+              message_body: `تذكير لموظف منشئ العقد: العقد (${contract.contract_number}) للعميل (${customer?.name || 'غير معروف'}) ينتهي خلال ${daysLeft} يوم. الحاوية: (${containerNumber}).`,
+              scheduled_for: now.toISOString(),
+              status: 'pending' as const
+            });
+          }
+        } else if (contract.created_by_employee?.role === 'employee') {
+          warnings.push(`العقد ${contract.contract_number}: رقم جوال الموظف منشئ العقد غير صالح، لم يُنشأ تذكير له.`);
+        }
+
+        if (driver?.phone && normalizeWhatsAppPhone(driver.phone).length >= 8) {
+          const alreadyQueued = existingReminders.some(record =>
+            record.contract_id === contract.id
+            && record.recipient_role === 'employee'
+            && record.message_body.startsWith('تنبيه للسائق المعيّن: عقد الحاوية')
+          );
+          if (!alreadyQueued) {
+            remindersToQueue.push({
+              contract_id: contract.id,
+              customer_id: customer?.id || null,
+              recipient_role: 'employee' as const,
+              recipient_phone: driver.phone,
+              recipient_name: driver.full_name,
+              notification_type: 'custom_alert' as const,
+              message_body: `تنبيه للسائق المعيّن: عقد الحاوية (${containerNumber}) رقم (${contract.contract_number}) للعميل (${customer?.name || 'غير معروف'}) ينتهي خلال ${daysLeft} يوم. موقع الحاوية: ${contract.location_address || 'غير محدد'}.`,
+              scheduled_for: now.toISOString(),
+              status: 'pending' as const
+            });
+          }
+        } else if (settings?.notify_driver_on_alerts === true && contract.assigned_employee) {
+          warnings.push(`العقد ${contract.contract_number}: رقم جوال السائق المعيّن غير صالح، لم يُنشأ تذكير له.`);
         }
 
         if (canNotifyAdmin) {

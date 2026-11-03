@@ -267,7 +267,9 @@ const initialGatewaySettings: IWhatsAppSettings = {
   sender_phone: '+966920001234',
   admin_phone: '+966500000001',
   is_connected: true,
-  auto_send_enabled: true
+  auto_send_enabled: true,
+  notify_driver_on_contract_created: false,
+  notify_driver_on_alerts: false
 };
 
 const initialPaymentSettings: IPaymentSettings = {
@@ -339,7 +341,7 @@ function MainDashboard() {
   interface WhatsAppAlert {
     id: string;
     type: 'success' | 'error';
-    recipient: 'customer' | 'driver';
+    recipient: 'customer' | 'driver' | 'employee' | 'admin';
     recipientName: string;
     recipientPhone: string;
     contractNumber: string;
@@ -1054,7 +1056,7 @@ function MainDashboard() {
   const sendSilentWhatsApp = useCallback(async (
     phone: string,
     message: string,
-    recipient: 'customer' | 'driver',
+    recipient: WhatsAppAlert['recipient'],
     recipientName: string,
     contractNumber: string,
     extraPayload?: Record<string, string>
@@ -1489,7 +1491,7 @@ function MainDashboard() {
     }
     // Dispatch to assigned driver if present and real
     const extDriver = staffList.find(s => s.id === contract.assigned_employee_id);
-    if (extDriver?.phone && isRealCallablePhone(extDriver.phone)) {
+    if (gatewaySettings.notify_driver_on_alerts === true && extDriver?.phone && isRealCallablePhone(extDriver.phone)) {
       const driverMsg = `🔄 تمديد عقد حاوية\nرقم العقد: ${contract.contract_number}\nرقم الحاوية: ${contract.container?.container_number || '-'}\nالعميل: ${contract.customer?.name || '-'} (${contract.customer?.phone || '-'})\nموعد السحب الجديد: ${new Date(newEndDate).toLocaleDateString('ar-SA')}\nمدة إضافية: +${additionalDays} يوم`;
       await sendSilentWhatsApp(
         extDriver.phone,
@@ -1497,7 +1499,12 @@ function MainDashboard() {
         'driver',
         extDriver.full_name,
         contract.contract_number,
-        { contract_id: contract.id, recipient_role: 'driver', notification_type: 'contract_extended' }
+        {
+          contract_id: contract.id,
+          recipient_role: 'employee',
+          recipient_name: extDriver.full_name,
+          notification_type: 'custom_alert'
+        }
       );
     }
 
@@ -1683,7 +1690,7 @@ function MainDashboard() {
     }
 
     const assignedDriver = staffList.find(staff => staff.id === contract.assigned_employee_id);
-    if (assignedDriver?.phone && isRealCallablePhone(assignedDriver.phone)) {
+    if (gatewaySettings.notify_driver_on_alerts === true && assignedDriver?.phone && isRealCallablePhone(assignedDriver.phone)) {
       pickupNotifications.push(sendSilentWhatsApp(
         assignedDriver.phone,
         driverMessage,
@@ -1692,7 +1699,8 @@ function MainDashboard() {
         contract.contract_number,
         {
           contract_id: contract.id,
-          recipient_role: 'driver',
+          recipient_role: 'employee',
+          recipient_name: assignedDriver.full_name,
           notification_type: 'custom_alert'
         }
       ));
@@ -2073,7 +2081,7 @@ function MainDashboard() {
     await new Promise(r => setTimeout(r, 800));
 
     // 🚀 2. Check Routing & Dispatch to Driver
-    const shouldNotifyDriver = assistantSettings.whatsapp_routing?.notify_driver ?? true;
+    const shouldNotifyDriver = gatewaySettings.notify_driver_on_contract_created === true;
     if (shouldNotifyDriver && assignedStaff) {
       if (assignedStaff.phone && isRealCallablePhone(assignedStaff.phone)) {
         const mapsUrl = contractData.google_maps_url || `https://maps.google.com/?q=${contractData.location_latitude},${contractData.location_longitude}`;
@@ -2090,7 +2098,12 @@ function MainDashboard() {
           'driver',
           assignedStaff.full_name,
           newContract.contract_number,
-          { contract_id: newContract.id, recipient_role: 'driver', notification_type: 'driver_dispatch' }
+          {
+            contract_id: newContract.id,
+            recipient_role: 'employee',
+            recipient_name: assignedStaff.full_name,
+            notification_type: 'custom_alert'
+          }
         );
       } else {
         // Driver was assigned, but lacks a valid phone number -> Alert staff immediately!
@@ -2127,11 +2140,42 @@ function MainDashboard() {
       await sendSilentWhatsApp(
         adminPhone,
         adminAlertMsg,
-        'driver',
+        'admin',
         'المدير العام',
         newContract.contract_number,
         { contract_id: newContract.id, recipient_role: 'admin', notification_type: 'admin_alert' }
       );
+    }
+
+    if (currentProfile?.role === 'employee' && currentProfile.phone && isRealCallablePhone(currentProfile.phone)) {
+      const creatorMessage = `عقد جديد تم إنشاؤه بواسطة حسابك\nرقم العقد: (${newContract.contract_number})\nالعميل: ${customerObj.name}\nالحاوية: (${containerObj?.container_number || '-'})\nتاريخ الانتهاء: ${new Date(newContract.end_date).toLocaleDateString('ar-SA')}`;
+      await sendSilentWhatsApp(
+        currentProfile.phone,
+        creatorMessage,
+        'employee',
+        currentProfile.full_name,
+        newContract.contract_number,
+        {
+          contract_id: newContract.id,
+          customer_id: customerObj.id,
+          recipient_role: 'employee',
+          recipient_name: currentProfile.full_name,
+          notification_type: 'contract_created'
+        }
+      );
+    } else if (currentProfile?.role === 'employee') {
+      const warnAlertId = `wa-alert-creator-${Date.now()}`;
+      setWhatsappAlerts(prev => [{
+        id: warnAlertId,
+        type: 'error',
+        recipient: 'employee',
+        recipientName: currentProfile.full_name,
+        recipientPhone: currentProfile.phone || 'غير مسجل',
+        contractNumber: newContract.contract_number,
+        message: 'تعذر إرسال إشعار العقد إلى الموظف منشئ العقد.',
+        errorMessage: 'رقم جوال الموظف مفقود أو غير صالح في ملفه.',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
     }
 
     // Trigger celebration confetti
@@ -2304,10 +2348,8 @@ function MainDashboard() {
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '4px' }}>
-                  {alert.type === 'error'
-                    ? `⛔ فشل إرسال الواتساب إلى ${alert.recipient === 'customer' ? 'العميل' : 'السائق'}: ${alert.recipientName}`
-                    : `✅ تم الإرسال بنجاح إلى ${alert.recipient === 'customer' ? 'العميل' : 'السائق'}: ${alert.recipientName}`
-                  }
+                  {alert.type === 'error' ? '⛔ فشل إرسال الواتساب إلى ' : '✅ تم الإرسال بنجاح إلى '}
+                  {alert.recipient === 'customer' ? 'العميل' : alert.recipient === 'driver' ? 'السائق' : alert.recipient === 'admin' ? 'الإدارة' : 'الموظف'}: {alert.recipientName}
                 </div>
                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.88)', marginBottom: '4px' }}>
                   عقد رقم: {alert.contractNumber} • {alert.recipientPhone}

@@ -173,6 +173,8 @@ export interface WhatsAppSettings {
   admin_phone: string;
   is_connected: boolean;
   auto_send_enabled: boolean;
+  notify_driver_on_contract_created?: boolean;
+  notify_driver_on_alerts?: boolean;
   updated_at?: string;
 }
 

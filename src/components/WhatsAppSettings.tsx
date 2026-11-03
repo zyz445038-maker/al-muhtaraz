@@ -80,7 +80,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Routing Rules State
   const [notifyCustomerContract, setNotifyCustomerContract] = useState(true);
   const [notifyCustomerReceipt, setNotifyCustomerReceipt] = useState(true);
-  const [notifyDriverDispatch, setNotifyDriverDispatch] = useState(true);
+  const [notifyDriverDispatch, setNotifyDriverDispatch] = useState(settings.notify_driver_on_contract_created ?? false);
+  const [notifyDriverAlerts, setNotifyDriverAlerts] = useState(settings.notify_driver_on_alerts ?? false);
   const [notifyCustomerExpiry, setNotifyCustomerExpiry] = useState(true);
   const [notifyAdminDailyReport, setNotifyAdminDailyReport] = useState(true);
 
@@ -96,6 +97,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [generatedPairCode, setGeneratedPairCode] = useState<string | null>(null);
   const [pairError, setPairError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    setNotifyDriverDispatch(settings.notify_driver_on_contract_created ?? false);
+    setNotifyDriverAlerts(settings.notify_driver_on_alerts ?? false);
+  }, [settings.notify_driver_on_contract_created, settings.notify_driver_on_alerts]);
 
   // Sandbox Test State
   const [testPhoneInput, setTestPhoneInput] = useState('');
@@ -281,6 +287,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       sender_phone: senderPhone,
       admin_phone: adminPhone,
       auto_send_enabled: autoSendEnabled,
+      notify_driver_on_contract_created: notifyDriverDispatch,
+      notify_driver_on_alerts: notifyDriverAlerts,
       is_connected: liveStatus === 'connected',
       updated_at: new Date().toISOString()
     };
@@ -1036,6 +1044,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '3px' }}>
               حدد مسارات الإشعارات وبطاقات العقود الرقمية التي يرسلها النظام آلياً فور حدوث أي إجراء
             </p>
+            <p style={{ fontSize: '0.8rem', color: '#a7f3d0', marginTop: '8px', lineHeight: 1.6 }}>
+              إشعارات العقد الأساسية تبقى للعميل والإدارة والموظف منشئ العقد. خيارات السائق أدناه مستقلة وتتحكم فقط بإشراك السائق المعيّن.
+            </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
@@ -1086,9 +1097,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   <Truck size={22} />
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>إشعار مهمة التنزيل وموقع GPS للسائق</h4>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>إشراك السائق عند إنشاء العقد</h4>
                   <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: 1.5 }}>
-                    توجيه رسالة مهمة فورية للسائق المخصص تشمل اسم العميل، رقم الحاوية، ورابط خرائط Google.
+                    عند التفعيل، تصله مهمة التنزيل وموقع الحاوية على واتساب. عند الإيقاف لا تصله إشعارات إنشاء العقد بصفته السائق.
                   </p>
                 </div>
               </div>
@@ -1096,6 +1107,36 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 type="checkbox"
                 checked={notifyDriverDispatch}
                 onChange={(e) => setNotifyDriverDispatch(e.target.checked)}
+                style={{ width: '20px', height: '20px', accentColor: '#f59e0b', cursor: 'pointer', marginTop: '4px' }}
+              />
+            </div>
+
+            {/* Rule 3: Driver Operational Alerts */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '16px',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ padding: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', borderRadius: '12px' }}>
+                  <Truck size={22} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>إشراك السائق في التنبيهات التشغيلية</h4>
+                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: 1.5 }}>
+                    عند التفعيل، تصل للسائق المعيّن إشعارات التمديد والسحب والتنبيه قبل انتهاء العقد. لا يؤثر هذا الخيار على رسائل العميل أو الإدارة أو الموظف منشئ العقد.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyDriverAlerts}
+                onChange={(e) => setNotifyDriverAlerts(e.target.checked)}
                 style={{ width: '20px', height: '20px', accentColor: '#f59e0b', cursor: 'pointer', marginTop: '4px' }}
               />
             </div>
