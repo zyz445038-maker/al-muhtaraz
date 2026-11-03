@@ -84,7 +84,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.fill();
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('📄 سند وعقد تأجير إلكتروني معتمد 📄', width / 2, 157);
+  ctx.fillText('📄 فاتورة وعقد تأجير إلكتروني 📄', width / 2, 157);
 
   // 4. Main Financial Amount Box
   const isFree = params.isFree || (params.totalCost === 0 && params.paidAmount === 0 && params.remainingAmount === 0);
@@ -113,7 +113,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
   ctx.textAlign = 'center';
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '700 18px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(isFree ? 'سند وعقد تأجير معتمد' : 'المبلغ الإجمالي للعقد', width / 2, 235);
+  ctx.fillText(isFree ? 'فاتورة وعقد تأجير' : 'المبلغ الإجمالي للعقد', width / 2, 235);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 48px "Cairo", "Tajawal", sans-serif';
@@ -138,7 +138,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
 
   const infoFields = [
     { label: 'رقم العقد:', value: params.contractNumber, color: '#fbbf24' },
-    { label: 'رقم السند المالي:', value: params.receiptNumber || 'سند آجل', color: '#38bdf8' },
+    { label: 'رقم الفاتورة:', value: params.receiptNumber || 'فاتورة آجلة', color: '#38bdf8' },
     { label: 'اسم العميل / المستأجر:', value: params.customerName, color: '#ffffff' },
     { label: 'رقم الجوال:', value: params.customerPhone, color: '#ffffff' },
     { label: 'رقم الحاوية:', value: params.containerNumber, color: '#34d399' },
@@ -239,7 +239,7 @@ export async function generateContractVoucherImage(params: GenerateContractCardP
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '600 15px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('امسح الـ QR لفتح صورة السند الأصلية مباشرة', width - 260, footerY + 90);
+  ctx.fillText('امسح الـ QR لفتح صورة الفاتورة الأصلية مباشرة', width - 260, footerY + 90);
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';

@@ -1163,7 +1163,7 @@ export class AlMuhtarazExecutiveAgent {
     if (contracts.length === 0) {
       return {
         toolExecuted: 'fetchContractVoucher',
-        speechResponse: cleanSpeechText('لا توجد عقود مسجلة في النظام لعرض سندها أو طباعتها.'),
+        speechResponse: cleanSpeechText('لا توجد عقود مسجلة في النظام لعرض فاتورتها أو طباعتها.'),
         displayMarkdown: `⚠️ لا توجد عقود مسجلة حالياً.`
       };
     }
@@ -1188,11 +1188,11 @@ export class AlMuhtarazExecutiveAgent {
     const receiptUrl = `/receipt/${receiptNum}`;
 
     const speech = cleanSpeechText(
-      `تم إحضار وثيقة وسند العقد رقم ${targetContract.contract_number} للعميل ${custName} بقيمة ${totalCost} ريال.`
+      `تم إحضار وثيقة وفاتورة العقد رقم ${targetContract.contract_number} للعميل ${custName} بقيمة ${totalCost} ريال.`
     );
 
-    const md = `### 📄 وثيقة وسند العقد الرسمي المعتمد ✨\n\n` +
-      `* **رقم العقد:** \`${targetContract.contract_number}\` | **رقم السند:** \`${receiptNum}\`\n` +
+    const md = `### 📄 وثيقة وفاتورة العقد ✨\n\n` +
+      `* **رقم العقد:** \`${targetContract.contract_number}\` | **رقم الفاتورة:** \`${receiptNum}\`\n` +
       `* **العميل:** **${custName}** (📞 ${targetContract.customer?.phone || '-'})\n` +
       `* **الحاوية:** \`#${contNum}\` (${targetContract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})\n` +
       `* **المبلغ:** \`${totalCost.toLocaleString('ar-SA')} ر.س\` | **المدفوع:** \`${Number(targetContract.paid_amount || 0).toLocaleString('ar-SA')} ر.س\`\n\n` +
@@ -1205,7 +1205,7 @@ export class AlMuhtarazExecutiveAgent {
       displayMarkdown: md,
       actionCard: {
         type: 'contract',
-        title: `سند العقد ${targetContract.contract_number}`,
+        title: `فاتورة العقد ${targetContract.contract_number}`,
         data: targetContract
       }
     };

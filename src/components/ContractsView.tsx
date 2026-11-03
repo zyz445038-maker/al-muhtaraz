@@ -104,7 +104,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
 
   const handleCashClick = async (contract: Contract) => {
     const remaining = Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount));
-    if (confirm(`تأكيد استلام مبلغ (${remaining} ر.س) كاش وتصفير العقد وإصدار سند القبض فوراً؟`)) {
+    if (confirm(`تأكيد استلام مبلغ (${remaining} ر.س) كاش وتصفير العقد وإصدار الفاتورة فوراً؟`)) {
       setLoadingActionId(`cash-${contract.id}`);
       await onConfirmCashPayment(contract);
       setLoadingActionId(null);
@@ -127,7 +127,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
             سجل العقود والتأجير والتحصيل
           </h2>
           <p style={{ fontSize: '0.88rem', color: '#94a3b8' }}>
-            متابعة العقود، مواعيد السحب، التمديد الفوري [🔄 تمديد]، السداد (كاش أو سداد)، وسندات القبض
+            متابعة العقود، مواعيد السحب، التمديد الفوري [🔄 تمديد]، السداد (كاش أو سداد)، والفواتير
           </p>
         </div>
 
@@ -572,7 +572,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                         style={{ flex: 1, padding: '9px 12px', fontSize: '0.85rem', justifyContent: 'center' }}
                       >
                         <ReceiptIcon size={16} />
-                        <span>📄 سند القبض</span>
+                        <span>📄 الفاتورة</span>
                       </button>
                     )}
 

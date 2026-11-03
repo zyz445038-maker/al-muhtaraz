@@ -61,11 +61,11 @@ export function formatCustomerVoucherMessage(params: {
   if (contract.is_free) {
     return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
 ━━━━━━━━━━━━━━━━━━
-🧾 *سند وعقد تأجير إلكتروني معتمد*
+🧾 *فاتورة وعقد تأجير إلكتروني*
 ━━━━━━━━━━━━━━━━━━
 👤 *العميل:* ${customer.name}
 📄 *رقم العقد:* ${contract.contract_number}
-🔖 *رقم السند:* ${receiptNumber}
+🔖 *رقم الفاتورة:* ${receiptNumber}
 🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
 📅 *تاريخ البدء:* ${startDateClean}
@@ -79,11 +79,11 @@ export function formatCustomerVoucherMessage(params: {
 
   return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
 ━━━━━━━━━━━━━━━━━━
-🧾 *سند قبض وتوثيق عقد إلكتروني*
+🧾 *فاتورة وتوثيق عقد إلكتروني*
 ━━━━━━━━━━━━━━━━━━
 👤 *العميل:* ${customer.name}
 📄 *رقم العقد:* ${contract.contract_number}
-🔖 *رقم السند:* ${receiptNumber}
+🔖 *رقم الفاتورة:* ${receiptNumber}
 🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
 📅 *تاريخ البدء:* ${startDateClean}

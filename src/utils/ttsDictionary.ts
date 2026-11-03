@@ -32,8 +32,8 @@ export const BUILTIN_PRONUNCIATION_DICTIONARY: Record<string, string> = {
   'cnt': 'حاوية',
   'INV': 'فاتورة',
   'inv': 'فاتورة',
-  'RCP': 'سند قبض',
-  'rcp': 'سند قبض',
+  'RCP': 'فاتورة',
+  'rcp': 'فاتورة',
 };
 
 let cachedDictionary: Record<string, string> | null = null;

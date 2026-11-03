@@ -551,7 +551,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                   💵 كاش (مستلم)
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                  سند قبض تمديد فوري
+                  فاتورة تمديد فورية
                 </div>
               </div>
 

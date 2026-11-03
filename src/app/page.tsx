@@ -960,7 +960,7 @@ function MainDashboard() {
         if (paymentSettingsResult.error) errors.push(`إعدادات الدفع: ${paymentSettingsResult.error.message}`);
         else if (paymentSettingsResult.data) setPaymentSettings(paymentSettingsResult.data);
 
-        if (receiptsResult.error) errors.push(`السندات: ${receiptsResult.error.message}`);
+        if (receiptsResult.error) errors.push(`الفواتير: ${receiptsResult.error.message}`);
         else setReceipts(receiptsResult.data ?? []);
 
         if (vehiclesResult.error) errors.push(`المركبات: ${vehiclesResult.error.message}`);
@@ -1223,12 +1223,12 @@ function MainDashboard() {
         || payment.receipt.contract_id !== contract.id
         || payment.receipt.receipt_number !== receiptNumber
       ) {
-        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ العقد وسند القبض.');
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ العقد والفاتورة.');
       }
 
       const amount = Number(payment.receipt.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
-        throw new Error('أعادت قاعدة البيانات مبلغ سند غير صالح.');
+        throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير صالح.');
       }
 
       updatedContract = {
@@ -1256,7 +1256,7 @@ function MainDashboard() {
       };
       setBusinessDataError(null);
     } catch (error) {
-      const message = `تعذر تسجيل التحصيل النقدي وإصدار السند: ${getErrorMessage(error)}`;
+      const message = `تعذر تسجيل التحصيل النقدي وإصدار الفاتورة: ${getErrorMessage(error)}`;
       setBusinessDataError(message);
       alert(message);
       return;
@@ -1269,7 +1269,7 @@ function MainDashboard() {
       id: `inapp-${Date.now()}`,
       contract_id: contract.id,
       title: `💵 استلام كاش (${newReceipt.amount} ر.س)`,
-      message: `تم سداد العقد (${contract.contract_number}) نقداً كاش وإصدار سند قبض (${newReceipt.receipt_number}).`,
+      message: `تم سداد العقد (${contract.contract_number}) نقداً وإصدار الفاتورة (${newReceipt.receipt_number}).`,
       type: 'payment_alert',
       is_read: false,
       created_at: new Date().toISOString()
@@ -1285,7 +1285,7 @@ function MainDashboard() {
     // 🚀 Tracked Silent WhatsApp Dispatch for Receipt Confirmation
     if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       const receiptAmount = newReceipt.amount;
-      const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وتوثيق سند قبض رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🏗️`;
+      const receiptMsg = `مرحباً ${contract.customer?.name || 'العميل'}، تم استلام مبلغ (${receiptAmount} ر.س) نقداً وإصدار الفاتورة رقم (${receiptNumber}) لعقد الحاوية (${contract.contract_number}).\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🏗️`;
       await sendSilentWhatsApp(
         contract.customer.phone,
         receiptMsg,
@@ -1368,7 +1368,7 @@ function MainDashboard() {
 
     const shouldCreateReceipt = isCash || effectivePaid > 0;
     const receiptAmount = effectivePaid;
-    const receiptNotes = `سند قبض تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${Math.max(0, netCost - effectivePaid)} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`;
+    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${Math.max(0, netCost - effectivePaid)} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`;
     let updatedContract: Contract;
     let persistedReceipt: Receipt | null = null;
 
@@ -1400,7 +1400,7 @@ function MainDashboard() {
           || extension.receipt.receipt_number !== receiptNumber
         ))
       ) {
-        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ التمديد وسند القبض.');
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ التمديد والفاتورة.');
       }
 
       updatedContract = {
@@ -1413,7 +1413,7 @@ function MainDashboard() {
       if (extension.receipt) {
         const persistedAmount = Number(extension.receipt.amount);
         if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
-          throw new Error('أعادت قاعدة البيانات مبلغ سند غير صالح.');
+          throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير صالح.');
         }
         persistedReceipt = {
           ...extension.receipt,
@@ -1433,7 +1433,7 @@ function MainDashboard() {
       }
       setBusinessDataError(null);
     } catch (error) {
-      const message = `تعذر حفظ تمديد العقد وسند القبض: ${getErrorMessage(error)}`;
+      const message = `تعذر حفظ تمديد العقد والفاتورة: ${getErrorMessage(error)}`;
       setBusinessDataError(message);
       alert(message);
       return false;
@@ -1823,7 +1823,7 @@ function MainDashboard() {
     const receiptAmount = isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost);
     const receiptNotes = isFree
       ? 'عقد تأجير معتمد'
-      : `سند قبض ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`;
+      : `فاتورة ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`;
     let persistedReceipt: Partial<Receipt> | null = null;
 
     try {
@@ -2007,7 +2007,7 @@ function MainDashboard() {
           verificationUrl: verificationImageUrl
         });
 
-        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وسند عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
+        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من مؤسسة المحترز للحاويات 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
 
         const imgResult = await sendSilentWhatsApp(
           customerObj.phone,
@@ -2054,7 +2054,7 @@ function MainDashboard() {
         recipientName: customerObj.name,
         recipientPhone: customerObj.phone || 'غير مسجل',
         contractNumber: newContract.contract_number,
-        message: 'تعذر إرسال السند للعميل: رقم الهاتف غير مكتمل أو غير صالح للإرسال.',
+        message: 'تعذر إرسال الفاتورة للعميل: رقم الهاتف غير مكتمل أو غير صالح للإرسال.',
         errorMessage: 'رقم جوال العميل غير صحيح (يجب 10 أرقام تبدأ بـ 05)',
         timestamp: new Date().toISOString()
       }, ...prev]);

@@ -677,7 +677,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontWeight: 700 }}>
                     <Check size={16} />
-                    <span>بطاقات العقود وسندات القبض الرقمية جاهزة للإرسال الفوري.</span>
+                    <span>بطاقات العقود والفواتير الرقمية جاهزة للإرسال الفوري.</span>
                   </div>
                 </div>
 
@@ -1028,7 +1028,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   <FileText size={22} />
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>صورة بطاقة العقد وسند القبض للعميل</h4>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>صورة بطاقة العقد والفاتورة للعميل</h4>
                   <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', lineHeight: 1.5 }}>
                     إرسال بطاقة العقد الرقمية الملونة (HD Image) كصورة مباشرة على واتساب العميل فور إصدار العقد.
                   </p>
@@ -1188,7 +1188,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => setTestMessageInput('📄 مرحباً بك، مرفق سند قبض وعقد تأجير حاوية من مؤسسة المحترز رقم CTR-2026')}
+                  onClick={() => setTestMessageInput('📄 مرحباً بك، مرفق فاتورة وعقد تأجير حاوية من مؤسسة المحترز رقم CTR-2026')}
                   style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', padding: '4px 10px', borderRadius: '8px', fontSize: '0.72rem', cursor: 'pointer' }}
                 >
                   + نموذج عقد
@@ -1319,7 +1319,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, marginBottom: '10px' }}>2</div>
               <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', marginBottom: '6px' }}>إرسال الوسائط والبطاقات 🖼️</h4>
               <p style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                يقوم النظام تلقائياً بتوليد صورة العقد الملونة وإرسالها مباشرة كـ Image Attachment مع رابط السند الإلكتروني الرسمي.
+                يقوم النظام تلقائياً بتوليد صورة العقد الملونة وإرسالها مباشرة كـ Image Attachment مع رابط الفاتورة الإلكترونية.
               </p>
             </div>
 

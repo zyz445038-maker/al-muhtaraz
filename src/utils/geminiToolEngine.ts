@@ -33,7 +33,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'fetchContractVoucherOrImage',
-      description: 'يجلب صورة العقد أو سند القبض أو يطبع الوثيقة.',
+      description: 'يجلب صورة العقد أو الفاتورة أو يطبع الوثيقة.',
       parameters: {
         type: 'object',
         properties: {

@@ -232,7 +232,7 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
               style={{ minWidth: '160px' }}
             >
               <FileCheck size={16} />
-              <span>{isSubmitting ? 'جارٍ الحفظ...' : 'تأكيد وإصدار السند'}</span>
+              <span>{isSubmitting ? 'جارٍ الحفظ...' : 'تأكيد وإصدار الفاتورة'}</span>
             </button>
           </div>
 

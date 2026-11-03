@@ -281,7 +281,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                         boxShadow: '0 0 12px rgba(245, 158, 11, 0.25)',
                         transition: 'transform 0.15s'
                       }}
-                      title="عرض ومراجعة العقد والسند الإلكتروني"
+                      title="عرض ومراجعة العقد والفاتورة الإلكترونية"
                     >
                       <FileText size={13} />
                       <span>📜 العقد</span>
@@ -347,7 +347,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                         alignItems: 'center',
                         gap: '4px'
                       }}
-                      title="انقر لمراجعة العقد والسند"
+                      title="انقر لمراجعة العقد والفاتورة"
                     >
                       <FileText size={11} />
                       <span>{activeContract.contract_number}</span>
@@ -431,7 +431,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                         gap: '5px'
                       }}
                       onClick={() => onOpenReceipt && onOpenReceipt(activeContract)}
-                      title="عرض ومراجعة العقد والسند المالي الرسمي"
+                      title="عرض ومراجعة العقد والفاتورة"
                     >
                       <FileText size={14} />
                       <span>📜 مراجعة العقد</span>

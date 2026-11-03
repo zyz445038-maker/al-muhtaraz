@@ -276,7 +276,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
           عفواً، لم يتم العثور على وثيقة مطابقة
         </div>
         <div style={{ color: '#94a3b8', fontSize: '0.95rem', maxWidth: '420px', lineHeight: 1.6 }}>
-          يرجى التأكد من مسح رمز الـ QR الصحيح الموجود على نسخة العقد أو السند الأصلي الصادر من مؤسسة المحترز للحاويات.
+          يرجى التأكد من مسح رمز الـ QR الصحيح الموجود على نسخة العقد أو الفاتورة الأصلية الصادرة من مؤسسة المحترز للحاويات.
         </div>
         <a 
           href="tel:0532643000" 
@@ -667,7 +667,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // RENDER: 2. FINANCIAL RECEIPT / STANDARD VOUCHER VIEW (سند القبض المالي الرسمي)
+  // RENDER: 2. FINANCIAL RECEIPT / STANDARD VOUCHER VIEW (الفاتورة المالية الرسمية)
   // ══════════════════════════════════════════════════════════════════════════
   const data = receiptData!;
   const remaining = Math.max(0, (data.totalCost || 0) - (data.paidAmount || 0));
@@ -938,7 +938,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
       <div className="receipt-page">
         {/* Print / Save PDF Button */}
         <button className="print-btn no-print" onClick={() => window.print()}>
-          <span>🖨️ طباعة أو حفظ السند PDF</span>
+          <span>🖨️ طباعة أو حفظ الفاتورة PDF</span>
         </button>
 
         <div className="receipt-card">
@@ -947,7 +947,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
             <div style={{ fontSize: '2.2rem', marginBottom: '6px' }}>🏗️</div>
             <h1>مؤسسة المحترز للحاويات</h1>
             <div className="sub">تأجير الحاويات التجارية وعقود الأنقاض — الرياض، المملكة العربية السعودية</div>
-            <div className="receipt-badge">سند مالي وعقد رسمي موثق &nbsp;|&nbsp; OFFICIAL RECEIPT</div>
+            <div className="receipt-badge">فاتورة وعقد رسمي موثق &nbsp;|&nbsp; INVOICE</div>
           </div>
 
           {/* ── BODY ── */}
@@ -955,7 +955,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
             {/* Amount Box */}
             <div className="amount-box">
               <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '6px', fontWeight: 800 }}>
-                {isFree ? 'سند تأجير رسمي معتمد' : 'المبلغ المقبوض والمسدد'}
+                {isFree ? 'فاتورة تأجير رسمية معتمدة' : 'المبلغ المقبوض والمسدد'}
               </div>
               <div>
                 <span className="amount-number">{isFree ? '—' : data.paidAmount.toLocaleString('ar-SA')}</span>
@@ -975,7 +975,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
             {/* Info Grid */}
             <div className="info-grid">
               <div className="info-cell">
-                <span className="label">رقم السند المالي:</span>
+                <span className="label">رقم الفاتورة:</span>
                 <span className="value" style={{ color: '#0284c7' }}>{data.receiptNumber}</span>
               </div>
               <div className="info-cell">
@@ -1017,7 +1017,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
                 </span>
               </div>
               <div className="info-cell">
-                <span className="label">حالة السند:</span>
+                <span className="label">حالة الفاتورة:</span>
                 <span className="value" style={{ color: '#059669' }}>
                   {isPartial ? 'دفعة مسددة جزئياً 🟡' : 'مسدد بالكامل رسمياً 🟢'}
                 </span>
@@ -1032,7 +1032,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
 
               {data.notes && (
                 <div className="info-cell full">
-                  <span className="label">ملاحظات وبيانات السند:</span>
+                  <span className="label">ملاحظات وبيانات الفاتورة:</span>
                   <span className="value">{data.notes}</span>
                 </div>
               )}
@@ -1056,10 +1056,10 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
                 </div>
                 <div>
                   <div className="verified-badge">
-                    <span>✓ سند إلكتروني موثق</span>
+                    <span>✓ فاتورة إلكترونية موثقة</span>
                   </div>
                   <div className="qr-label">
-                    امسح كود الـ QR للتحقق من صحة السند إلكترونياً
+                    امسح كود الـ QR للتحقق من صحة الفاتورة إلكترونياً
                   </div>
                 </div>
               </div>
@@ -1079,7 +1079,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ number: stri
 
           {/* Legal Bar */}
           <div className="legal-bar">
-            يعتبر هذا السند إشعاراً مالياً رسمياً صادراً من النظام السحابي لمؤسسة المحترز للحاويات ومسجلاً برقم فريد.
+            تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لمؤسسة المحترز للحاويات ومسجلة برقم فريد.
           </div>
         </div>
       </div>

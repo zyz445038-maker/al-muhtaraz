@@ -87,7 +87,7 @@ export function formatSaudiCheerResponse(rawIntent: string, data: {
   if (hasToken(financialTokens)) {
     if (totalIncome === 0) {
       const speech = diacritizeArabicSpeech('أَهْلاً وَسَهْلاً بِأَبُو مَاجِدْ.. لَمْ تُسَجَّلْ مَدَاخِيلُ مَالِيَّةٍ حَتَّى الآنْ.');
-      const display = `💰 **أهلاً وسهلاً بأبو ماجد:**\n\n• **إجمالي دخل اليوم:** 0 ر.س\n• بانتظار تسجيل السندات والتحصيلات الجديدة 🟢.`;
+      const display = `💰 **أهلاً وسهلاً بأبو ماجد:**\n\n• **إجمالي دخل اليوم:** 0 ر.س\n• بانتظار تسجيل الفواتير والتحصيلات الجديدة 🟢.`;
       return { speechText: speech, displayText: display };
     }
 
@@ -199,4 +199,3 @@ export async function speakSaudiFemaleVoice(rawText: string, voiceKey: string = 
     console.warn('Voice playback skipped:', err);
   }
 }
-

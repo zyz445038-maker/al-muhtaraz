@@ -550,7 +550,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                             </label>
 
                             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px' }}>
-                              <span>💵 تحصيل كاش وسند قبض</span>
+                              <span>💵 تحصيل كاش وإصدار فاتورة</span>
                               <input
                                 type="checkbox"
                                 checked={perms.can_collect_payments}
@@ -905,7 +905,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                           onChange={(e) => setNewStaffPermissions(p => ({ ...p, can_collect_payments: e.target.checked }))}
                           style={{ accentColor: '#10b981' }}
                         />
-                        <span>💵 تحصيل كاش وسند قبض</span>
+                        <span>💵 تحصيل كاش وإصدار فاتورة</span>
                       </label>
 
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer' }}>
@@ -1221,7 +1221,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         onChange={(e) => setEditPermissions(p => ({ ...p, can_collect_payments: e.target.checked }))}
                         style={{ accentColor: '#10b981' }}
                       />
-                      <span>💵 تحصيل كاش وسند قبض</span>
+                      <span>💵 تحصيل كاش وإصدار فاتورة</span>
                     </label>
 
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>

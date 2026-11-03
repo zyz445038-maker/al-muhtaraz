@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   const rows = [
-    ['رقم السند', payload.receiptNumber],
+    ['رقم الفاتورة', payload.receiptNumber],
     ['رقم العقد', payload.contractNumber],
     ['اسم العميل', payload.customerName],
     ['رقم الجوال', payload.customerPhone],
@@ -59,9 +59,9 @@ export async function GET(request: Request) {
     <rect x="35" y="35" width="930" height="1170" rx="24" fill="#ffffff" stroke="#d7a12d" stroke-width="5"/>
     <rect x="70" y="70" width="860" height="180" rx="18" fill="#0f172a"/>
     ${text('المحترز للحاويات', 890, 135, 38, '#fbbf24')}
-    ${text('صورة سند قبض إلكتروني', 890, 195, 28, '#ffffff')}
+    ${text('صورة فاتورة إلكترونية', 890, 195, 28, '#ffffff')}
     ${detailRows}
-    <text x="500" y="1160" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="18" fill="#64748b">صورة السند المعتمدة — للتحقق امسح رمز QR على النسخة الأصلية</text>
+    <text x="500" y="1160" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="18" fill="#64748b">صورة الفاتورة المعتمدة — للتحقق امسح رمز QR</text>
   </svg>`;
 
   return new NextResponse(svg, {

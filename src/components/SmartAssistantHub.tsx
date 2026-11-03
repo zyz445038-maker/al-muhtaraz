@@ -676,7 +676,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="اسأل المساعد الذكي عن الحاويات، العقود، أو السندات..."
+              placeholder="اسأل المساعد الذكي عن الحاويات، العقود، أو الفواتير..."
               style={{
                 flex: 1,
                 padding: '12px 16px',
@@ -764,7 +764,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem' }}>3</div>
-              <span style={{ color: '#f8fafc', fontSize: '0.9rem' }}>اختر <strong>(عقد جديد)</strong> أو <strong>(سند قبض)</strong> للوصول المباشر في ثانية واحدة!</span>
+              <span style={{ color: '#f8fafc', fontSize: '0.9rem' }}>اختر <strong>(عقد جديد)</strong> أو <strong>(فاتورة)</strong> للوصول المباشر في ثانية واحدة!</span>
             </div>
           </div>
         </div>
@@ -773,4 +773,3 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     </div>
   );
 };
-

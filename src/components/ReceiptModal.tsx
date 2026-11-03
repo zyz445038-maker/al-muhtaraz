@@ -161,7 +161,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         }
       } catch (error) {
         console.error('Could not create receipt verification link:', error);
-        if (!cancelled) setReceiptUrlError('تعذر تجهيز صورة السند ورمز QR. تحقق من الاتصال ثم أعد فتح السند.');
+        if (!cancelled) setReceiptUrlError('تعذر تجهيز صورة الفاتورة ورمز QR. تحقق من الاتصال ثم أعد فتح الفاتورة.');
       }
     })();
 
@@ -207,7 +207,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   <meta charset="UTF-8"/>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>سند قبض - ${receiptNumber}</title>
+  <title>فاتورة - ${receiptNumber}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -289,15 +289,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       const containerNumber = contract.container?.container_number || '-';
       const contractType = contract.contract_type === 'commercial' ? 'تجاري مغلق' : 'أنقاض يومي';
       const message = isFree
-        ? `مرحباً ${customerName}، مرفق صورة السند الرسمي رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتح صورة السند مباشرة.\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
-        : `مرحباً ${customerName}، مرفق صورة سند القبض رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ السند: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتح صورة السند مباشرة.\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
+        ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`
+        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع مؤسسة المحترز للحاويات 🏗️`;
       const result = await onSendWhatsAppReceipt(contract.customer.phone, message, receiptImage);
       if (!result.success) {
-        throw new Error(result.error || 'تعذر إرسال صورة السند عبر واتساب.');
+        throw new Error(result.error || 'تعذر إرسال صورة الفاتورة عبر واتساب.');
       }
     } catch (error) {
       console.error('Could not send receipt image with embedded QR:', error);
-      alert(error instanceof Error ? error.message : 'تعذر إرسال صورة السند مع رمز QR.');
+      alert(error instanceof Error ? error.message : 'تعذر إرسال صورة الفاتورة مع رمز QR.');
     } finally {
       setIsSharing(false);
     }
@@ -369,7 +369,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={18} color="#fbbf24" />
               <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
-                سند قبض مالي رسمي
+                فاتورة مالية رسمية
               </span>
               <span style={{
                 fontSize: '0.72rem', fontWeight: 700,
@@ -398,7 +398,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   color: '#38bdf8', fontWeight: 700, fontSize: '0.82rem', cursor: isSharing || !receiptUrl ? 'wait' : 'pointer',
                   opacity: isSharing || !receiptUrl ? 0.6 : 1
                 }}>
-                  <Share2 size={14} /> {isSharing ? 'جارٍ إرسال صورة السند...' : 'إرسال صورة السند عبر واتساب'}
+                  <Share2 size={14} /> {isSharing ? 'جارٍ إرسال صورة الفاتورة...' : 'إرسال صورة الفاتورة عبر واتساب'}
                 </button>
               )}
               <button onClick={onClose} style={{
@@ -420,7 +420,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               borderBottom: '1px solid rgba(14,165,233,0.15)',
               display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'
             }}>
-              <span style={{ fontSize: '0.72rem', color: '#7dd3fc' }}>🔗 رابط السند الإلكتروني (مضمّن في QR):</span>
+              <span style={{ fontSize: '0.72rem', color: '#7dd3fc' }}>🔗 رابط الفاتورة الإلكتروني (مضمّن في QR):</span>
               <a
                 href={receiptUrl}
                 target="_blank"
@@ -482,10 +482,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 textAlign: 'center', minWidth: '160px'
               }}>
                 <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                  PAYMENT RECEIPT
+                  INVOICE
                 </div>
                 <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>
-                  سند قبض
+                  فاتورة
                 </div>
                 <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>{receiptNumber}</div>
                 <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
@@ -661,9 +661,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <div style={{ fontSize: '0.72rem', color: '#475569', maxWidth: '160px', lineHeight: 1.5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 800, marginBottom: '4px' }}>
                     <CheckCircle2 size={12} />
-                    <span>سند معتمد إلكترونياً</span>
+                    <span>فاتورة معتمدة إلكترونياً</span>
                   </div>
-                  <div>امسح الرمز لعرض السند الرسمي كاملاً على هاتفك</div>
+                  <div>امسح الرمز لعرض الفاتورة الرسمية كاملة على هاتفك</div>
                   <div style={{ marginTop: '4px', color: '#94a3b8' }}>ت.ض: 300099887700003</div>
                 </div>
               </div>
@@ -688,7 +688,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             }}>
               <Building2 size={12} />
               <span>
-                هذا السند صادر إلكترونياً وهو ملزم قانونياً. جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
+                هذه الفاتورة صادرة إلكترونياً وهي ملزمة قانونياً. جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
                 ت.ض: 300099887700003 | س.ت: 1010889900
               </span>
             </div>

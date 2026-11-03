@@ -68,10 +68,10 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({
           <span>خاص بالإدارة المالية</span>
         </div>
         <h2 style={{ fontSize: '1.8rem', fontWeight: '900', color: '#ffffff' }}>
-          إعدادات بوابة الدفع وسندات القبض (Moyasar Gateway)
+          إعدادات بوابة الدفع والفواتير (Moyasar Gateway)
         </h2>
         <p style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
-          التحكم في تفعيل أو تعطيل السداد الإلكتروني وتخصيص بيانات الفواتير وسندات القبض الرسمية
+          التحكم في تفعيل أو تعطيل السداد الإلكتروني وتخصيص بيانات الفواتير الرسمية
         </p>
       </div>
 
@@ -236,7 +236,7 @@ export const PaymentSettings: React.FC<PaymentSettingsProps> = ({
         {/* Company & VAT Info (for Receipts) */}
         <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
           <Building2 size={18} />
-          <span>بيانات المنشأة في سندات القبض المطبوعة (Receipt Header):</span>
+          <span>بيانات المنشأة في الفواتير المطبوعة (Invoice Header):</span>
         </h4>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>

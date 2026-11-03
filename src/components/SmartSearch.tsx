@@ -399,7 +399,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                                   border: '1px solid rgba(245, 158, 11, 0.5)',
                                   cursor: 'pointer'
                                 }}
-                                title="عرض ومراجعة العقد والسند"
+                                title="عرض ومراجعة العقد والفاتورة"
                               >
                                 <FileText size={11} />
                                 <span>📜 العقد ({activeCont.contract_number})</span>
@@ -466,7 +466,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                                 gap: '4px'
                               }}
                               onClick={() => onOpenReceipt(activeCont)}
-                              title="عرض ومراجعة العقد والسند"
+                              title="عرض ومراجعة العقد والفاتورة"
                             >
                               <FileText size={13} />
                               <span>📜 مراجعة العقد</span>
@@ -630,7 +630,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                               style={{ padding: '6px 10px', fontSize: '0.78rem' }}
                               onClick={() => onOpenReceipt(contract)}
                             >
-                              <span>📄 سند القبض</span>
+                              <span>📄 الفاتورة</span>
                             </button>
                           )}
                           {onOpenExtendModal && (userRole === 'admin' || permissions?.can_extend_contracts !== false) && (

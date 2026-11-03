@@ -1483,7 +1483,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   💵 كاش (سداد فوري)
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
-                  مدفوع بالكامل + إصدار سند
+                  مدفوع بالكامل + إصدار فاتورة
                 </div>
               </div>
 
@@ -1552,7 +1552,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               disabled={isSaving}
               style={{ minWidth: '220px', padding: '10px 24px', fontSize: '0.95rem' }}
             >
-              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وسند فوري' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
+              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وفاتورة فورية' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
             </button>
           </div>
 

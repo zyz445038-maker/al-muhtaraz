@@ -5,7 +5,7 @@ export interface StaffPermissions {
   can_view_financials: boolean; // رؤية إجمالي المبالغ والأسعار والإيرادات
   can_create_contracts: boolean; // إنشاء وتوثيق عقود جديدة
   can_extend_contracts: boolean; // تمديد وتأجيل السحب
-  can_collect_payments: boolean; // تحصيل كاش وإصدار سند قبض
+  can_collect_payments: boolean; // تحصيل كاش وإصدار فاتورة
   can_send_payment_links: boolean; // إرسال روابط سداد عبر الواتساب
   can_manage_inventory: boolean; // سحب واستلام الحاويات للمخزون
   can_send_whatsapp: boolean; // إرسال إشعارات الواتساب
