@@ -19,6 +19,7 @@ export interface SessionStatus {
   phoneNumber?: string | null;
   userJid?: string | null;
   lastError?: string | null;
+  sessionStoragePathIsAbsolute: boolean;
 }
 
 class SessionManager {
@@ -33,10 +34,19 @@ class SessionManager {
   private lastError: string | null = null;
   private isConnectingLock: boolean = false;
   private isRequestingPairingCode: boolean = false;
+  private sessionStoragePathIsAbsolute: boolean;
+  private initializationPromise: Promise<WASocket> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
 
   constructor() {
-    const baseDir = process.env.SESSION_DIR || './sessions';
+    const baseDir = process.env.SESSION_DIR?.trim() || './sessions';
+    this.sessionStoragePathIsAbsolute = path.isAbsolute(baseDir);
     this.sessionDir = path.resolve(baseDir, this.instanceId);
+
+    if (process.env.NODE_ENV === 'production' && !this.sessionStoragePathIsAbsolute) {
+      console.warn('[Session Manager] SESSION_DIR is relative. Configure it to use the hosting provider’s persistent disk.');
+    }
 
     // Ensure session directory exists
     if (!fs.existsSync(this.sessionDir)) {
@@ -49,12 +59,13 @@ class SessionManager {
       instanceId: this.instanceId,
       status: this.status,
       isConnected: this.status === 'connected',
-      isConnecting: this.isConnecting,
+      isConnecting: this.isConnecting || this.reconnectTimer !== null,
       qrCodeBase64: this.qrCodeBase64,
       qrCodeRaw: this.qrCodeRaw,
       userJid: this.userJid,
       phoneNumber: this.userJid ? this.userJid.split('@')[0].split(':')[0] : null,
-      lastError: this.lastError
+      lastError: this.lastError,
+      sessionStoragePathIsAbsolute: this.sessionStoragePathIsAbsolute
     };
   }
 
@@ -63,26 +74,45 @@ class SessionManager {
   }
 
   public async initSession(force = false): Promise<WASocket> {
-    if (this.socket && this.status === 'connected' && !force) {
+    if (this.socket && this.status !== 'disconnected' && !force) {
       return this.socket;
     }
 
-    if (this.isConnectingLock && !force) {
-      return this.socket!;
+    if (this.initializationPromise) return this.initializationPromise;
+
+    const previousSocket = force ? this.socket : null;
+    if (previousSocket) this.socket = null;
+    if (force && this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
+    const initialization = this.createSession(previousSocket);
+    this.initializationPromise = initialization;
+    try {
+      return await initialization;
+    } finally {
+      if (this.initializationPromise === initialization) {
+        this.initializationPromise = null;
+      }
+    }
+  }
+
+  private async createSession(previousSocket: WASocket | null): Promise<WASocket> {
     this.isConnectingLock = true;
     this.isConnecting = true;
+    this.status = 'connecting';
     this.lastError = null;
 
     try {
+      if (previousSocket) await previousSocket.end(undefined);
+
       const { state, saveCreds } = await useMultiFileAuthState(this.sessionDir);
-      const { version } = await fetchLatestBaileysVersion().catch(() => ({ 
-        version: [2, 3000, 1015901307] as [number, number, number] 
+      const { version } = await fetchLatestBaileysVersion().catch(() => ({
+        version: [2, 3000, 1015901307] as [number, number, number]
       }));
 
       console.log(`📡 [Session Manager] Initializing Baileys for instance: ${this.instanceId}...`);
-
       const sock = makeWASocket({
         version,
         auth: state,
@@ -97,10 +127,16 @@ class SessionManager {
       this.socket = sock;
 
       // Save credentials whenever updated
-      sock.ev.on('creds.update', saveCreds);
+      sock.ev.on('creds.update', () => {
+        void saveCreds().catch((error: unknown) => {
+          this.lastError = 'تعذر حفظ بيانات جلسة الواتساب على الخادم.';
+          console.error('❌ [Session Manager] Could not persist WhatsApp credentials:', error);
+        });
+      });
 
       // Handle connection updates
       sock.ev.on('connection.update', async (update) => {
+        if (this.socket !== sock) return;
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -115,9 +151,13 @@ class SessionManager {
                 light: '#FFFFFF'
               }
             });
+            if (this.socket !== sock) return;
+            this.lastError = null;
           } catch (qrErr) {
             console.error('Error rendering QR base64:', qrErr);
+            this.lastError = qrErr instanceof Error ? qrErr.message : 'تعذر إنشاء صورة رمز QR.';
           }
+          if (this.socket !== sock) return;
           this.status = 'qr_ready';
           this.isConnecting = false;
           console.log(`📱 [Session Manager] New QR Code generated for ${this.instanceId}. Scan now.`);
@@ -130,28 +170,33 @@ class SessionManager {
           this.qrCodeBase64 = null;
           this.lastError = null;
           this.userJid = sock.user?.id || null;
+          this.reconnectAttempts = 0;
           console.log(`✅ [Session Manager] WhatsApp connected successfully for: ${this.userJid}`);
         } else if (connection === 'close') {
           this.status = 'disconnected';
           this.isConnecting = false;
+          this.qrCodeRaw = null;
+          this.qrCodeBase64 = null;
 
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          const disconnectError = lastDisconnect?.error;
+          this.lastError = disconnectError instanceof Error
+            ? `انقطع الاتصال (رمز ${statusCode ?? 'غير معروف'}): ${disconnectError.message}`
+            : `انقطع اتصال الواتساب (رمز ${statusCode ?? 'غير معروف'}).`;
           const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          this.socket = null;
 
           console.log(`⚠️ [Session Manager] Connection closed (code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
 
           if (shouldReconnect) {
             this.status = 'connecting';
-            setTimeout(() => {
-              this.isConnectingLock = false;
-              this.initSession(true).catch(console.error);
-            }, 3000);
+            this.scheduleReconnect();
           } else {
             console.log(`🔴 [Session Manager] Logged out from instance: ${this.instanceId}`);
-            this.socket = null;
             this.userJid = null;
             this.qrCodeRaw = null;
             this.qrCodeBase64 = null;
+            this.reconnectAttempts = 0;
             this.clearSessionFiles();
           }
         }
@@ -163,10 +208,25 @@ class SessionManager {
       this.isConnecting = false;
       this.lastError = err?.message || 'Failed to initialize session';
       console.error('❌ [Session Manager] Initialization error:', err);
+      this.scheduleReconnect();
+      this.status = 'connecting';
       throw err;
     } finally {
       this.isConnectingLock = false;
     }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return;
+
+    const delayMs = Math.min(3000 * (2 ** this.reconnectAttempts), 30_000);
+    this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, 4);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.initSession().catch((error: unknown) => {
+        console.error('❌ [Session Manager] Reconnection attempt failed:', error);
+      });
+    }, delayMs);
   }
 
   public async requestPairingCode(phone: string): Promise<string> {
@@ -229,15 +289,24 @@ class SessionManager {
 
   public async logout(): Promise<void> {
     try {
-      if (this.socket) {
-        await this.socket.logout().catch(() => {});
-        this.socket = null;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
       }
+      const socket = this.socket;
+      this.socket = null;
       this.status = 'disconnected';
       this.isConnecting = false;
       this.userJid = null;
       this.qrCodeRaw = null;
       this.qrCodeBase64 = null;
+      this.lastError = null;
+      this.reconnectAttempts = 0;
+      if (socket) {
+        await socket.logout().catch((error: unknown) => {
+          console.warn('Could not close the WhatsApp socket cleanly:', error);
+        });
+      }
       this.clearSessionFiles();
       console.log(`🧹 [Session Manager] Successfully logged out and cleared session data for ${this.instanceId}`);
     } catch (error) {

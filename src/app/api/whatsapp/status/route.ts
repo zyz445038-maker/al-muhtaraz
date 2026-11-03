@@ -96,6 +96,13 @@ export async function GET(request: Request) {
     const info = 'data' in responseData && responseData.data && typeof responseData.data === 'object'
       ? responseData.data
       : {};
+    const lastError = 'lastError' in info && typeof info.lastError === 'string'
+      ? info.lastError.slice(0, 300)
+      : null;
+    const sessionStoragePathIsAbsolute = 'sessionStoragePathIsAbsolute' in info
+      && typeof info.sessionStoragePathIsAbsolute === 'boolean'
+      ? info.sessionStoragePathIsAbsolute
+      : undefined;
 
     if ('status' in info && info.status === 'connected' || 'isConnected' in info && info.isConnected) {
       return NextResponse.json({
@@ -105,6 +112,8 @@ export async function GET(request: Request) {
         state: 'open',
         phoneNumber: 'phoneNumber' in info ? info.phoneNumber || null : null,
         userJid: 'userJid' in info ? info.userJid || null : null,
+        lastError,
+        sessionStoragePathIsAbsolute,
         message: 'الواتساب متصل ويعمل بنجاح 🟢'
       });
     }
@@ -117,6 +126,8 @@ export async function GET(request: Request) {
         state: 'connecting',
         qrCodeBase64: 'qrCodeBase64' in info ? info.qrCodeBase64 || null : null,
         qrCodeRaw: 'qrCodeRaw' in info ? info.qrCodeRaw || null : null,
+        lastError,
+        sessionStoragePathIsAbsolute,
         message: 'كود QR جاهز للمسح من الواتساب 📱'
       });
     }
@@ -126,7 +137,9 @@ export async function GET(request: Request) {
       status: 'connecting',
       mode: 'addon',
       state: 'connecting',
-      message: 'جارِ تهيئة محرك الواتساب...'
+      lastError,
+      sessionStoragePathIsAbsolute,
+      message: lastError || 'جارِ تهيئة محرك الواتساب...'
     });
   } catch (error) {
     console.error('Error in /api/whatsapp/status:', error);

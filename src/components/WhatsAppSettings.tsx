@@ -103,6 +103,15 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setNotifyDriverAlerts(settings.notify_driver_on_alerts ?? false);
   }, [settings.notify_driver_on_contract_created, settings.notify_driver_on_alerts]);
 
+  useEffect(() => {
+    setServerUrl(
+      settings.evolution_server_url && !settings.evolution_server_url.includes('8080')
+        ? settings.evolution_server_url
+        : ''
+    );
+    setApiKey(settings.evolution_api_key || '');
+  }, [settings.evolution_api_key, settings.evolution_server_url]);
+
   // Sandbox Test State
   const [testPhoneInput, setTestPhoneInput] = useState('');
   const [testMessageInput, setTestMessageInput] = useState('السلام عليكم ورحمة الله، رسالة تجريبية من محرك مؤسسة المحترز للحاويات 🏗️');
@@ -153,6 +162,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       }
 
       if (data) {
+        statusError = typeof data.lastError === 'string' ? data.lastError : null;
+        if (!statusError && data.sessionStoragePathIsAbsolute === false) {
+          statusError = 'مسار SESSION_DIR نسبي؛ اضبطه على مسار القرص الدائم المرتبط بخادم الواتساب كي لا تضيع الجلسة بعد إعادة التشغيل.';
+        }
         if (data.status === 'error' || data.status === 'not_configured') {
           setLiveStatus('disconnected');
           setQrCodeBase64(null);
@@ -1380,7 +1393,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, marginBottom: '10px' }}>1</div>
               <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff', marginBottom: '6px' }}>استقرار الجلسة السحابية ☁️</h4>
               <p style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                يتم حفظ جلسة الواتساب في قرص تخزين سحابي دائم على خادم Render، بحيث تظل الجلسة متصلة حتى لو أغلقت جهاز الكمبيوتر أو المتصفح.
+                تحفظ خدمة Baileys الجلسة في المسار المحدد بمتغير SESSION_DIR. استمرارها بعد إعادة تشغيل الخادم يتطلب أن يكون المسار داخل قرص دائم مربوط بالخدمة؛ التخزين المؤقت يفقد الجلسة.
               </p>
             </div>
 

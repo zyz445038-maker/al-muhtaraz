@@ -94,7 +94,12 @@
   <h2>🟢 خادم الواتساب المستقل (Add-on Server)</h2>
   <p style="color: #94a3b8; font-size: 13px;">اختبار دورة الربط والمصادقة المباشرة</p>
 
-  <div id="statusBadge" class="status-badge status-connecting">جارِ الفحص...</div>
+<div style="margin-bottom: 16px; text-align: right;">
+  <label for="apiKey" style="display: block; margin-bottom: 6px; color: #cbd5e1;">مفتاح API للخادم</label>
+  <input type="password" id="apiKey" autocomplete="off" placeholder="أدخل المفتاح يدوياً" />
+</div>
+
+<div id="statusBadge" class="status-badge status-connecting">جارِ الفحص...</div>
 
   <div id="qrArea">
     <div class="qr-container">
@@ -127,13 +132,18 @@
 
 <script>
   const API_URL = window.location.origin;
-  const urlParams = new URLSearchParams(window.location.search);
-  const API_KEY = urlParams.get('apiKey') || '__SERVER_API_KEY__' || 'mhk_live_9f4b1a8e2c7d0563e41982ab7c3d55e0';
+  const getApiKey = () => document.getElementById('apiKey').value.trim();
 
   async function checkStatus() {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      document.getElementById('statusBadge').innerText = 'أدخل مفتاح API لفحص حالة الاتصال';
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/session/status`, {
-        headers: { 'Authorization': `Bearer ${API_KEY}` }
+        headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       const json = await res.json();
       if (!json.success) return;
@@ -165,6 +175,9 @@
   }
 
   async function requestPairCode() {
+    const apiKey = getApiKey();
+    if (!apiKey) return alert('يرجى إدخال مفتاح API أولاً');
+
     let phone = document.getElementById('phoneNumber').value.trim();
     if (!phone) return alert('يرجى كتابة رقم الهاتف (مثال: 0536971105 أو 966536971105)');
 
@@ -177,7 +190,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({ phone })
       });

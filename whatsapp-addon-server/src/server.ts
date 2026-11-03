@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { authenticateApiKey } from './middleware/auth';
 import { sessionRouter } from './routes/sessionRoutes';
 import { messageRouter } from './routes/messageRoutes';
@@ -8,16 +8,21 @@ import { sessionManager } from './engine/sessionManager';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import path from 'path';
 import fs from 'fs';
-
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 5050;
+
+if (!process.env.API_KEY?.trim()) {
+  throw new Error('API_KEY must be configured before starting the WhatsApp add-on server.');
+}
 
 // Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Serve interactive UI test scanner at root and /scanner
 app.get(['/', '/scanner'], (req, res) => {
@@ -27,11 +32,8 @@ app.get(['/', '/scanner'], (req, res) => {
   }
   
   if (fs.existsSync(filePath)) {
-    let html = fs.readFileSync(filePath, 'utf8');
-    const injectedKey = process.env.API_KEY || '';
-    html = html.replace('__SERVER_API_KEY__', injectedKey);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(fs.readFileSync(filePath, 'utf8'));
   } else {
     res.send('<h1>WhatsApp Add-on Server is Running</h1><p>API is active</p>');
   }
