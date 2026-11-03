@@ -50,7 +50,7 @@ interface NavbarProps {
   onMarkAllInAppAsRead: () => void;
   onClearAllInApp: () => void;
   onSelectContract: (contractId: string) => void;
-  whatsappStatus?: 'connected' | 'connecting' | 'disconnected';
+  whatsappStatus?: 'connected' | 'connecting' | 'qr_ready' | 'disconnected';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -507,6 +507,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span style={{ fontSize: '0.85rem' }}>⚡</span>
                 <span>الواتساب متصل 🟢</span>
               </div>
+            ) : whatsappStatus === 'qr_ready' || whatsappStatus === 'connecting' ? (
+              <button
+                onClick={() => setCurrentTab('whatsapp')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  borderRadius: '10px',
+                  padding: '5px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  color: '#fcd34d',
+                  cursor: 'pointer'
+                }}
+                title="الواتساب لم يكتمل اتصاله بعد - انقر لعرض حالة الربط"
+              >
+                <span>{whatsappStatus === 'qr_ready' ? 'بانتظار ربط الواتساب 🟡' : 'جارِ الاتصال بالواتساب...'}</span>
+              </button>
             ) : (
               <button
                 onClick={() => setCurrentTab('whatsapp')}
@@ -1574,8 +1594,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>حالة الواتساب:</span>
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: whatsappStatus === 'connected' ? '#34d399' : '#f87171' }}>
-                  {whatsappStatus === 'connected' ? 'متصل بنجاح 🟢' : 'غير متصل 🔴'}
+                <span style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  color: whatsappStatus === 'connected'
+                    ? '#34d399'
+                    : whatsappStatus === 'qr_ready' || whatsappStatus === 'connecting'
+                      ? '#fbbf24'
+                      : '#f87171'
+                }}>
+                  {whatsappStatus === 'connected'
+                    ? 'متصل بنجاح 🟢'
+                    : whatsappStatus === 'qr_ready'
+                      ? 'بانتظار ربط الجهاز 🟡'
+                      : whatsappStatus === 'connecting'
+                        ? 'جارِ الاتصال...'
+                        : 'غير متصل 🔴'}
                 </span>
               </div>
 

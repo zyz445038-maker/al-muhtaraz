@@ -867,7 +867,7 @@ function MainDashboard() {
   const [selectedDriverDispatchContract, setSelectedDriverDispatchContract] = useState<Contract | null>(null);
 
   // Live WhatsApp Connection Status (Monitored across all dashboards)
-  const [whatsappLiveStatus, setWhatsappLiveStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connected');
+  const [whatsappLiveStatus, setWhatsappLiveStatus] = useState<'connected' | 'connecting' | 'qr_ready' | 'disconnected'>('connecting');
 
   useEffect(() => {
     const pollWhatsAppStatus = async () => {
@@ -876,6 +876,8 @@ function MainDashboard() {
         const data = await res.json();
         if (data.status === 'connected') {
           setWhatsappLiveStatus('connected');
+        } else if (data.status === 'qr_ready') {
+          setWhatsappLiveStatus('qr_ready');
         } else if (data.status === 'connecting') {
           setWhatsappLiveStatus('connecting');
         } else {

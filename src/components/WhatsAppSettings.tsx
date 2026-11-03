@@ -89,6 +89,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [liveStatus, setLiveStatus] = useState<'connected' | 'qr_ready' | 'connecting' | 'disconnected'>('connecting');
   const [livePhone, setLivePhone] = useState<string | null>(null);
   const [qrCodeBase64, setQrCodeBase64] = useState<string | null>(null);
+  const [liveStatusError, setLiveStatusError] = useState<string | null>(null);
   const [pairingMethod, setPairingMethod] = useState<'qr' | 'pairCode'>('qr');
   const [pairPhoneInput, setPairPhoneInput] = useState('05');
   const [isRequestingPair, setIsRequestingPair] = useState(false);
@@ -107,16 +108,24 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Fetch Live Status on Mount & Poll
   const fetchLiveStatus = async () => {
     setIsCheckingLive(true);
+    let statusError: string | null = null;
     try {
       let data: any = null;
       try {
         const res = await fetch('/api/whatsapp/status', {
           cache: 'no-store'
         });
-        data = await res.json();
-      } catch (proxyErr) {}
+        const responseData = await res.json();
+        if (res.ok && responseData.success && responseData.status && responseData.status !== 'error') {
+          data = responseData;
+        } else {
+          statusError = responseData.message || responseData.error || 'تعذر قراءة حالة الواتساب من التطبيق.';
+        }
+      } catch (error) {
+        statusError = error instanceof Error ? error.message : 'تعذر قراءة حالة الواتساب من التطبيق.';
+      }
 
-      if (!data) {
+      if (!data && serverUrl && apiKey) {
         try {
           const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/status`, {
             headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -125,21 +134,24 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           if (directRes.ok) {
             const directJson = await directRes.json();
             if (directJson.success && directJson.data) {
-              data = {
-                status: directJson.data.status,
-                phoneNumber: directJson.data.phoneNumber,
-                qrCodeBase64: directJson.data.qrCodeBase64
-              };
+              data = directJson.data;
+            } else {
+              statusError = directJson.error || 'تعذر قراءة حالة خادم الواتساب مباشرة.';
             }
+          } else {
+            statusError = `تعذر الاتصال المباشر بخادم الواتساب (${directRes.status}).`;
           }
-        } catch (directErr) {}
+        } catch (error) {
+          statusError = error instanceof Error ? error.message : 'تعذر الاتصال المباشر بخادم الواتساب.';
+        }
       }
 
       if (data) {
         if (data.status === 'error' || data.status === 'not_configured') {
           setLiveStatus('disconnected');
           setQrCodeBase64(null);
-        } else if (data.status === 'connected') {
+          statusError = data.message || data.error || statusError;
+        } else if (data.status === 'connected' || data.isConnected) {
           setLiveStatus('connected');
           setLivePhone(data.phoneNumber || senderPhone);
           setQrCodeBase64(null);
@@ -149,9 +161,16 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         } else {
           setLiveStatus('connecting');
         }
+      } else {
+        setLiveStatus('disconnected');
+        setQrCodeBase64(null);
       }
-    } catch (e) {
-      console.warn('Error polling WhatsApp status:', e);
+      setLiveStatusError(statusError);
+    } catch (error) {
+      console.error('Error polling WhatsApp status:', error);
+      setLiveStatus('disconnected');
+      setQrCodeBase64(null);
+      setLiveStatusError(error instanceof Error ? error.message : 'تعذر الاتصال بخادم الواتساب.');
     } finally {
       setIsCheckingLive(false);
     }
@@ -175,6 +194,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setGeneratedPairCode(null);
     try {
       let code: string | null = null;
+      let proxyError = 'تعذر توليد رمز الاقتران عبر التطبيق.';
       try {
         const res = await fetch('/api/whatsapp/pair-code', {
           method: 'POST',
@@ -182,20 +202,20 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
           body: JSON.stringify({ phone })
         });
         const json = await res.json();
-        if (json.success && json.code) {
+        if (res.ok && json.success && json.code) {
           code = normalizeWhatsAppPairingCode(json.code);
           if (!code) {
-            throw new Error('استلم التطبيق رمز ربط غير مكتمل. أعد الطلب مرة واحدة.');
+            proxyError = 'استلم التطبيق رمز ربط غير مكتمل. أعد الطلب مرة واحدة.';
           }
         } else {
-          throw new Error(json.error || 'تعذر توليد كود الاقتران. تحقق من إعدادات خادم المحرك.');
+          proxyError = json.error || proxyError;
         }
       } catch (err) {
-        setPairError(err instanceof Error ? err.message : 'تعذر الاتصال بخادم الواتساب.');
-        return;
+        proxyError = err instanceof Error ? err.message : 'تعذر الاتصال بخادم الواتساب.';
       }
 
-      if (!code) {
+      let directError = '';
+      if (!code && serverUrl && apiKey) {
         try {
           const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/pair-code`, {
             method: 'POST',
@@ -205,19 +225,22 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             },
             body: JSON.stringify({ phone })
           });
-          if (directRes.ok) {
-            const directJson = await directRes.json();
-            if (directJson.success && directJson.data?.code) {
-              code = normalizeWhatsAppPairingCode(directJson.data.code);
-            }
+          const directJson = await directRes.json();
+          if (directRes.ok && directJson.success && directJson.data?.code) {
+            code = normalizeWhatsAppPairingCode(directJson.data.code);
+            if (!code) directError = 'أعاد خادم الواتساب رمز اقتران غير صالح.';
+          } else {
+            directError = directJson.error || `تعذر توليد رمز الاقتران من الخادم (${directRes.status}).`;
           }
-        } catch (directErr) {}
+        } catch (error) {
+          directError = error instanceof Error ? error.message : 'تعذر الاتصال المباشر بخادم الواتساب.';
+        }
       }
 
       if (code) {
         setGeneratedPairCode(code);
       } else {
-        setPairError('تعذر توليد كود الاقتران. تأكد من تشغيل خادم المحرك.');
+        setPairError(directError || proxyError);
       }
     } catch (err: any) {
       setPairError(err?.message || 'خطأ في الاتصال بالخادم');
@@ -770,6 +793,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <SaudiPhoneInput
                         label="رقم جوال الواتساب للمنشأة:"
+                        helperText="أدخل الرقم المحلي كاملاً حتى 10 خانات؛ رمز الدولة +966 مضاف تلقائياً."
                         value={pairPhoneInput}
                         onChange={(val) => {
                           setPairPhoneInput(val);
@@ -779,7 +803,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                       />
                       <button
                         onClick={handleRequestPairCode}
-                        disabled={isRequestingPair || !!generatedPairCode || !normalizeSaudiMobileNumber(pairPhoneInput)}
+                        disabled={isRequestingPair || !!generatedPairCode}
                         style={{
                           width: '100%',
                           padding: '12px',
@@ -875,7 +899,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#94a3b8' }}>
                       <RefreshCw size={28} className="animate-spin" color="#34d399" />
-                      <p style={{ fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600 }}>جارِ استخراج كود الـ QR من السيرفر السحابي...</p>
+                      <p style={{ fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600 }}>
+                        {liveStatusError || (liveStatus === 'qr_ready'
+                          ? 'جارِ عرض رمز QR المتاح من الخادم...'
+                          : 'جارِ استخراج كود الـ QR من السيرفر السحابي...')}
+                      </p>
                     </div>
                   )}
                 </div>
