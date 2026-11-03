@@ -489,7 +489,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                             </button>
                           )}
                           {onCompleteContractAndReturnToStock
-                            && (userRole === 'admin' || permissions?.can_manage_inventory !== false) && (
+                            && (userRole === 'admin' || permissions?.can_manage_inventory === true) && (
                             <button
                               className="btn-secondary"
                               disabled={returningContainerId === container.id}

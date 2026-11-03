@@ -455,7 +455,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                         <span>🔄 تمديد</span>
                       </button>
                     )}
-                    {(userRole === 'admin' || permissions?.can_manage_inventory !== false) && (
+                    {(userRole === 'admin' || permissions?.can_manage_inventory === true) && (
                       <button
                         className="btn-secondary"
                         disabled={returningContainerId === container.id}
@@ -487,7 +487,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                 ) : null}
 
                 {/* Status Switcher Dropdown (Admin or if has inventory permissions) */}
-                {(userRole === 'admin' || permissions?.can_manage_inventory !== false)
+                {(userRole === 'admin' || permissions?.can_manage_inventory === true)
                   && container.status !== 'rented' && (
                   <select
                     value={container.status}

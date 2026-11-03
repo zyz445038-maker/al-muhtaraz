@@ -47,7 +47,7 @@ export const DEFAULT_DRIVER_PERMISSIONS: StaffPermissions = {
   can_extend_contracts: true,
   can_collect_payments: true,
   can_send_payment_links: false,
-  can_manage_inventory: true,
+  can_manage_inventory: false,
   can_send_whatsapp: true,
   can_manage_archive: false
 };
@@ -59,7 +59,7 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   can_extend_contracts: true,
   can_collect_payments: true,
   can_send_payment_links: true,
-  can_manage_inventory: true,
+  can_manage_inventory: false,
   can_send_whatsapp: true,
   can_manage_archive: false
 };

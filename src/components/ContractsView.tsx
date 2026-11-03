@@ -648,7 +648,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
 
               {contract.status !== 'completed'
                 && contract.status !== 'cancelled'
-                && (userRole === 'admin' || permissions?.can_manage_inventory !== false)
+                && (userRole === 'admin' || permissions?.can_manage_inventory === true)
                 && (contract.container_id || contract.container?.id) && (
                 <button
                   onClick={() => handlePickupClick(contract)}
