@@ -17,6 +17,7 @@ import {
   CreditCard,
   Banknote,
   Receipt as ReceiptIcon,
+  ArrowDownLeft,
   Truck,
   UserCheck,
   RotateCw,
@@ -37,6 +38,7 @@ interface ContractsViewProps {
   onOpenDriverDispatch?: (contract: Contract) => void;
   onConfirmCashPayment: (contract: Contract) => Promise<void>;
   onSendSadadLink: (contract: Contract) => Promise<void>;
+  onCompleteContractAndReturnToStock: (contractId: string, containerId: string) => Promise<boolean>;
   onOpenOfficialContract?: () => void;
 }
 
@@ -53,6 +55,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
   onOpenDriverDispatch,
   onConfirmCashPayment,
   onSendSadadLink,
+  onCompleteContractAndReturnToStock,
   onOpenOfficialContract
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,6 +118,24 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
     setLoadingActionId(`sadad-${contract.id}`);
     await onSendSadadLink(contract);
     setLoadingActionId(null);
+  };
+
+  const handlePickupClick = async (contract: Contract) => {
+    const containerId = contract.container_id || contract.container?.id;
+    if (!containerId) {
+      alert('تعذر العثور على الحاوية المرتبطة بهذا العقد.');
+      return;
+    }
+
+    const containerNumber = contract.container?.container_number || 'غير معروف';
+    if (!confirm(`هل تم سحب الحاوية (${containerNumber}) فعلياً؟ سيُنهى عقد التأجير وتعود الحاوية إلى مخزون المستودع.`)) return;
+
+    setLoadingActionId(`pickup-${contract.id}`);
+    try {
+      await onCompleteContractAndReturnToStock(contract.id, containerId);
+    } finally {
+      setLoadingActionId(null);
+    }
   };
 
   return (
@@ -446,29 +467,6 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                   <span style={{ fontWeight: 600 }}>{timing.text}</span>
                 </div>
 
-                {/* 🔄 Quick Extension Button */}
-                {contract.status !== 'completed' && (userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
-                  <button
-                    onClick={() => onOpenExtendModal(contract)}
-                    style={{
-                      background: 'rgba(56, 189, 248, 0.15)',
-                      border: '1px solid rgba(56, 189, 248, 0.3)',
-                      color: '#38bdf8',
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                    title="تمديد فترة العقد وتأجيل موعد السحب"
-                  >
-                    <RotateCw size={12} />
-                    <span>تمديد</span>
-                  </button>
-                )}
               </div>
 
               {/* Location Google Maps */}
@@ -646,6 +644,31 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                   </>
                 )}
               </div>
+
+              {contract.status !== 'completed'
+                && contract.status !== 'cancelled'
+                && (userRole === 'admin' || permissions?.can_manage_inventory !== false)
+                && (contract.container_id || contract.container?.id) && (
+                <button
+                  onClick={() => handlePickupClick(contract)}
+                  disabled={loadingActionId === `pickup-${contract.id}`}
+                  className="btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '0.85rem',
+                    fontWeight: 800,
+                    justifyContent: 'center',
+                    color: '#34d399',
+                    borderColor: 'rgba(52, 211, 153, 0.4)',
+                    opacity: loadingActionId === `pickup-${contract.id}` ? 0.65 : 1
+                  }}
+                  title="تأكيد سحب الحاوية وإنهاء التأجير وإعادتها للمستودع"
+                >
+                  <ArrowDownLeft size={16} />
+                  <span>{loadingActionId === `pickup-${contract.id}` ? 'جارٍ تأكيد السحب...' : 'سحب وإرجاع للمستودع'}</span>
+                </button>
+              )}
 
             </div>
           );

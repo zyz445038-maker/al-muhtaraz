@@ -2653,6 +2653,7 @@ function MainDashboard() {
                 onSendWhatsApp={handleSendWhatsApp}
                 onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
                 onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
+                onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
                 onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
                 onConfirmCashPayment={handleConfirmCashPayment}
                 onSendSadadLink={handleSendSadadLink}
