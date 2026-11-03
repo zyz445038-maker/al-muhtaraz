@@ -221,6 +221,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>سجل العقود والتحصيل</span>
             </button>
 
+            {(currentRole === 'admin' || permissions?.can_view_financials === true) && (
+              <button
+                id="nav-financial-reports-tab"
+                onClick={() => setCurrentTab('financial-reports')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: currentTab === 'financial-reports' ? '1px solid rgba(52, 211, 153, 0.55)' : '1px solid rgba(52, 211, 153, 0.22)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  background: currentTab === 'financial-reports' ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+                  color: currentTab === 'financial-reports' ? '#34d399' : '#94a3b8',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <CreditCard size={17} />
+                <span>التقارير المالية</span>
+              </button>
+            )}
+
             <button
               id="nav-vehicles-tab"
               onClick={() => setCurrentTab('vehicles')}
@@ -871,6 +896,37 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           <span style={{ fontSize: '0.68rem', fontWeight: currentTab === 'contracts' ? 800 : 600 }}>العقود</span>
         </button>
+
+        {(currentRole === 'admin' || permissions?.can_view_financials === true) && (
+          <button
+            onClick={() => handleTabSelect('financial-reports')}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '3px',
+              background: 'transparent',
+              border: 'none',
+              color: currentTab === 'financial-reports' ? '#34d399' : '#64748b',
+              cursor: 'pointer',
+              padding: '4px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '10px',
+              background: currentTab === 'financial-reports' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <CreditCard size={19} />
+            </div>
+            <span style={{ fontSize: '0.68rem', fontWeight: currentTab === 'financial-reports' ? 800 : 600 }}>المالية</span>
+          </button>
+        )}
 
         <button
           onClick={() => handleTabSelect('vehicles')}

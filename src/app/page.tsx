@@ -52,6 +52,7 @@ import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
 import { VehiclesManagement } from '@/components/VehiclesManagement';
 import { TransportVehicle } from '@/types/database';
+import { FinancialReportsView } from '@/components/FinancialReportsView';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -486,6 +487,7 @@ function MainDashboard() {
            c.assigned_employee?.id === currentStaff.id || 
            (c.assigned_employee?.full_name && staffFirstName && c.assigned_employee.full_name.includes(staffFirstName));
   });
+  const displayedContractIds = new Set(displayedContracts.map(contract => contract.id));
 
   // Modal State
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -2587,6 +2589,17 @@ function MainDashboard() {
                 onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
                 onOpenReceipt={(contract: Contract) => setSelectedReceiptContract(contract)}
                 onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
+              />
+            )}
+
+            {currentTab === 'financial-reports'
+              && (currentRole === 'admin' || activePermissions.can_view_financials === true) && (
+              <FinancialReportsView
+                contracts={displayedContracts}
+                receipts={receipts.filter(receipt =>
+                  displayedContractIds.has(receipt.contract_id)
+                )}
+                isLoading={isBusinessDataLoading}
               />
             )}
 
