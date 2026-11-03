@@ -32,6 +32,7 @@ import {
 } from '@/types/officialContract';
 import { generateContractClause1 } from '@/utils/contractGrammar';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
+import { printHtmlDocument } from '@/lib/printHtmlDocument';
 import confetti from 'canvas-confetti';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -149,7 +150,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
   });
 
   // Print Handler
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!isSealed && userRole !== 'admin') {
       alert('عفواً: لا يمكن طباعة العقد قبل اعتماده وختمه رسمياً من المدير العام.');
       return;
@@ -158,10 +159,7 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
     const printContent = printRef.current?.innerHTML;
     if (!printContent) return;
 
-    const win = window.open('', '_blank', 'width=950,height=1100');
-    if (!win) return;
-
-    win.document.write(`<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8"/>
@@ -214,16 +212,14 @@ export const OfficialContractModal: React.FC<OfficialContractModalProps> = ({
   <div class="a4-page">
     ${printContent}
   </div>
-  <script>
-    window.onload = function() {
-      setTimeout(function() {
-        window.print();
-      }, 350);
-    };
-  </script>
 </body>
-</html>`);
-    win.document.close();
+</html>`;
+    try {
+      await printHtmlDocument(html);
+    } catch (error) {
+      console.error('Could not print official contract:', error);
+      alert('تعذر فتح الطباعة. تحقق من إعدادات الطابعة ثم حاول مرة أخرى.');
+    }
   };
 
   // Submit for Sealing (Employee Action)

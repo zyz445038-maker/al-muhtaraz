@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
+import { printHtmlDocument } from '@/lib/printHtmlDocument';
 import {
   X,
   Printer,
@@ -199,12 +200,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   if (!isOpen || !contract) return null;
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current?.innerHTML;
     if (!content) return;
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8"/>
@@ -261,22 +260,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 </head>
 <body>
   <div class="receipt-paper">${content}</div>
-  <script>
-    if (document.fonts) {
-      document.fonts.ready.then(() => {
-        window.print();
-        setTimeout(() => window.close(), 1000);
-      });
-    } else {
-      window.onload = () => {
-        window.print();
-        setTimeout(() => window.close(), 1000);
-      };
-    }
-  <\/script>
 </body>
-</html>`);
-    win.document.close();
+</html>`;
+    try {
+      await printHtmlDocument(html);
+    } catch (error) {
+      console.error('Could not print receipt:', error);
+      alert('تعذر فتح الطباعة. تحقق من إعدادات الطابعة ثم حاول مرة أخرى.');
+    }
   };
 
   const handleShare = async () => {
