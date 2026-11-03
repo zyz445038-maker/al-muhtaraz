@@ -309,6 +309,7 @@ function getErrorMessage(error: unknown): string {
 function MainDashboard() {
   // App State
   const [showSplash, setShowSplash] = useState(true);
+  const [isAuthInitializationComplete, setIsAuthInitializationComplete] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentTab, setCurrentTab] = useState('search');
   const [currentRole, setCurrentRole] = useState<UserRole>('employee');
@@ -410,28 +411,32 @@ function MainDashboard() {
     let cancelled = false;
 
     const restoreAuthenticatedProfile = async () => {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        console.error('Could not restore the authenticated user:', authError);
-        return;
-      }
-      if (!user) return;
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          console.error('Could not restore the authenticated user:', authError);
+          return;
+        }
+        if (!user) return;
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, phone, role, is_active, can_view_all_records, permissions, notes, created_at, updated_at')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (profileError) {
-        console.error('Could not load the authenticated staff profile:', profileError);
-        return;
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone, role, is_active, can_view_all_records, permissions, notes, created_at, updated_at')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profileError) {
+          console.error('Could not load the authenticated staff profile:', profileError);
+          return;
+        }
+        if (!profile || !profile.is_active) {
+          const { error } = await supabase.auth.signOut();
+          if (error) console.error('Could not sign out an inactive profile:', error);
+          return;
+        }
+        if (!cancelled) handleSelectProfile(profile);
+      } finally {
+        if (!cancelled) setIsAuthInitializationComplete(true);
       }
-      if (!profile || !profile.is_active) {
-        const { error } = await supabase.auth.signOut();
-        if (error) console.error('Could not sign out an inactive profile:', error);
-        return;
-      }
-      if (!cancelled) handleSelectProfile(profile);
     };
 
     void restoreAuthenticatedProfile();
@@ -2382,7 +2387,6 @@ function MainDashboard() {
 
         <SplashIntro onComplete={() => {
           setShowSplash(false);
-          setIsStaffLoginModalOpen(true);
         }} />
       )}
 
@@ -2805,7 +2809,7 @@ function MainDashboard() {
 
       {/* 8. 🔐 Staff and Admin Login Modal */}
       <StaffLoginModal
-        isOpen={!showSplash && (!isAuthenticated || isStaffLoginModalOpen)}
+        isOpen={!showSplash && isAuthInitializationComplete && (!isAuthenticated || isStaffLoginModalOpen)}
         onClose={() => {
           if (isAuthenticated) {
             setIsStaffLoginModalOpen(false);
