@@ -7,7 +7,7 @@ export interface StaffPermissions {
   can_extend_contracts: boolean; // تمديد وتأجيل السحب
   can_collect_payments: boolean; // تحصيل كاش وإصدار فاتورة
   can_send_payment_links: boolean; // إرسال روابط سداد عبر الواتساب
-  can_manage_inventory: boolean; // سحب واستلام الحاويات للمخزون
+  can_manage_inventory: boolean; // إضافة وسحب واستلام الحاويات للمخزون
   can_send_whatsapp: boolean; // إرسال إشعارات الواتساب
   can_manage_archive?: boolean; // رفع وتصفح العقود القديمة في الأرشيف
   can_create_free_contracts?: boolean; // إنشاء وإصدار عقود مجانية / إهداء

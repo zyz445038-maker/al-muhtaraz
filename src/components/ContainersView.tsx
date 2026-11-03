@@ -120,7 +120,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
           </p>
         </div>
 
-        {userRole === 'admin' && (
+        {(userRole === 'admin' || permissions?.can_manage_inventory === true) && (
           <button
             className="btn-primary"
             onClick={() => setIsAddModalOpen(true)}

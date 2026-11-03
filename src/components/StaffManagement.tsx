@@ -570,7 +570,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                             </label>
 
                             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px' }}>
-                              <span>📦 سحب واستلام للمخزون</span>
+                              <span>📦 إدارة المخزون (إضافة وسحب واستلام)</span>
                               <input
                                 type="checkbox"
                                 checked={perms.can_manage_inventory}
@@ -925,7 +925,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                           onChange={(e) => setNewStaffPermissions(p => ({ ...p, can_manage_inventory: e.target.checked }))}
                           style={{ accentColor: '#10b981' }}
                         />
-                        <span>📦 استلام للمخزون</span>
+                        <span>📦 إدارة المخزون (إضافة وسحب واستلام)</span>
                       </label>
 
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#ffffff', cursor: 'pointer' }}>
@@ -1241,7 +1241,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                         onChange={(e) => setEditPermissions(p => ({ ...p, can_manage_inventory: e.target.checked }))}
                         style={{ accentColor: '#10b981' }}
                       />
-                      <span>📦 استلام وسحب للمخزون</span>
+                      <span>📦 إدارة المخزون (إضافة وسحب واستلام)</span>
                     </label>
 
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#ffffff', cursor: 'pointer' }}>
