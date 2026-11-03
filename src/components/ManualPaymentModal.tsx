@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   DollarSign, 
@@ -17,6 +17,7 @@ interface ManualPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
+  initialPaymentMethod?: PaymentMethod;
   onConfirmPayment: (contractId: string, amount: number, method: PaymentMethod, notes?: string) => Promise<boolean>;
 }
 
@@ -24,33 +25,45 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
   isOpen,
   onClose,
   contract,
+  initialPaymentMethod = 'cash',
   onConfirmPayment
 }) => {
-  if (!isOpen || !contract) return null;
-
-  const remaining = Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount));
-  const [paymentAmount, setPaymentAmount] = useState<number>(remaining > 0 ? remaining : contract.total_cost);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialPaymentMethod);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const remaining = contract
+    ? Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount))
+    : 0;
+
+  useEffect(() => {
+    if (!isOpen || !contract) return;
+    setPaymentAmount(Math.max(0, remaining));
+    setPaymentMethod(initialPaymentMethod);
+    setNotes('');
+  }, [contract?.id, initialPaymentMethod, isOpen, remaining]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (paymentAmount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح.');
+    if (!contract || paymentAmount <= 0 || paymentAmount > remaining) {
+      alert('يرجى إدخال مبلغ صحيح لا يتجاوز المبلغ المتبقي.');
       return;
     }
 
     setIsSubmitting(true);
-    const success = await onConfirmPayment(contract.id, paymentAmount, paymentMethod, notes);
-    setIsSubmitting(false);
-    if (success) {
-      onClose();
+    try {
+      const success = await onConfirmPayment(contract.id, paymentAmount, paymentMethod, notes);
+      if (success) onClose();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  if (!isOpen || !contract) return null;
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={isSubmitting ? undefined : onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', padding: '28px' }}>
         
         {/* Header */}
@@ -67,6 +80,7 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
 
           <button
             onClick={onClose}
+            disabled={isSubmitting}
             style={{
               width: '32px',
               height: '32px',
@@ -123,7 +137,7 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
             <input
               type="number"
               min="1"
-              max={contract.total_cost}
+              max={remaining}
               step="0.01"
               className="form-input"
               value={paymentAmount}
@@ -210,7 +224,7 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
               className="form-input"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="مثال: تم الاستلام نقداً في الموقع بواسطة السائق"
+              placeholder={paymentMethod === 'bank_transfer' ? 'مثال: رقم مرجع الحوالة أو اسم البنك' : 'أدخل تفاصيل التحصيل'}
             />
           </div>
 

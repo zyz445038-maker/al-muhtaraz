@@ -34,6 +34,7 @@ import { SmartAssistantHub } from '@/components/SmartAssistantHub';
 import { FloatingVoiceOrb } from '@/components/FloatingVoiceOrb';
 import { NewContractModal } from '@/components/NewContractModal';
 import { ReceiptModal } from '@/components/ReceiptModal';
+import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { ExtendContractModal } from '@/components/ExtendContractModal';
 import { InventoryManagement } from '@/components/InventoryManagement';
 import { DriverDispatchModal } from '@/components/DriverDispatchModal';
@@ -502,6 +503,9 @@ function MainDashboard() {
   
   // Payment Receipt Modal State
   const [selectedReceiptContract, setSelectedReceiptContract] = useState<Contract | null>(null);
+  const [selectedPaymentReceipt, setSelectedPaymentReceipt] = useState<Receipt | null>(null);
+  const [selectedManualPaymentContract, setSelectedManualPaymentContract] = useState<Contract | null>(null);
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<PaymentMethod>('bank_transfer');
 
   // Extend Contract Modal State
   const [selectedExtendContract, setSelectedExtendContract] = useState<Contract | null>(null);
@@ -1265,6 +1269,7 @@ function MainDashboard() {
         issued_at: payment.receipt.issued_at || new Date().toISOString(),
         notes: payment.receipt.notes || 'تم الاستلام نقداً (كاش في الموقع)'
       };
+      setSelectedPaymentReceipt(newReceipt);
       setBusinessDataError(null);
     } catch (error) {
       const message = `تعذر تسجيل التحصيل النقدي وإصدار الفاتورة: ${getErrorMessage(error)}`;
@@ -1309,6 +1314,93 @@ function MainDashboard() {
 
     // Automatically open receipt modal to view / print
     setSelectedReceiptContract(updatedContract);
+  };
+
+  const handleOpenManualPayment = (contract: Contract, method: PaymentMethod) => {
+    setManualPaymentMethod(method);
+    setSelectedManualPaymentContract(contract);
+  };
+
+  const handleConfirmManualPayment = async (
+    contractId: string,
+    amount: number,
+    method: PaymentMethod,
+    notes?: string
+  ): Promise<boolean> => {
+    const contract = contracts.find(item => item.id === contractId);
+    if (!contract) {
+      alert('تعذر العثور على العقد المطلوب.');
+      return false;
+    }
+
+    const receiptNumber = `RCP-${new Date().getFullYear()}-${crypto.randomUUID().toUpperCase()}`;
+    try {
+      const { data, error } = await supabase.rpc('record_contract_payment', {
+        p_contract_id: contractId,
+        p_amount: amount,
+        p_payment_method: method,
+        p_receipt_number: receiptNumber,
+        p_receipt_notes: notes || null
+      });
+      if (error) throw error;
+
+      const payment = data as {
+        contract?: Partial<Contract>;
+        receipt?: Partial<Receipt>;
+      } | null;
+      if (
+        !payment?.contract?.id
+        || !payment.receipt?.id
+        || payment.receipt.contract_id !== contractId
+        || payment.receipt.receipt_number !== receiptNumber
+      ) {
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد حفظ التحصيل والفاتورة.');
+      }
+
+      const receiptAmount = Number(payment.receipt.amount);
+      if (!Number.isFinite(receiptAmount) || receiptAmount !== amount) {
+        throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير مطابق للمبلغ المسجل.');
+      }
+
+      const updatedContract: Contract = {
+        ...contract,
+        ...payment.contract,
+        remaining_amount: Number(
+          payment.contract.remaining_amount
+          ?? (Number(payment.contract.total_cost ?? contract.total_cost) - Number(payment.contract.paid_amount ?? contract.paid_amount))
+        ),
+        customer: contract.customer,
+        container: contract.container
+      };
+      const newReceipt: Receipt = {
+        ...payment.receipt,
+        id: payment.receipt.id,
+        receipt_number: receiptNumber,
+        contract_id: contractId,
+        customer_id: contract.customer_id,
+        customer_name: contract.customer?.name || 'العميل',
+        amount: receiptAmount,
+        payment_method: method,
+        contract_number: contract.contract_number,
+        container_number: contract.container?.container_number,
+        container_type: contract.contract_type,
+        issued_at: payment.receipt.issued_at || new Date().toISOString(),
+        notes: payment.receipt.notes || notes
+      };
+
+      setContracts(prev => prev.map(item => item.id === contractId ? updatedContract : item));
+      setReceipts(prev => [newReceipt, ...prev]);
+      setSelectedPaymentReceipt(newReceipt);
+      setSelectedReceiptContract(updatedContract);
+      setSelectedManualPaymentContract(null);
+      setBusinessDataError(null);
+      return true;
+    } catch (error) {
+      const message = `تعذر تسجيل الدفعة وإصدار الفاتورة: ${getErrorMessage(error)}`;
+      setBusinessDataError(message);
+      alert(message);
+      return false;
+    }
   };
 
   // 2. [💳 سداد] - Send Electronic Invoice link via WhatsApp
@@ -2612,11 +2704,15 @@ function MainDashboard() {
                   setIsContractModalOpen(true);
                 }}
                 onSendWhatsApp={handleSendWhatsApp}
-                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
+                onOpenReceipt={(contract) => {
+                  setSelectedPaymentReceipt(null);
+                  setSelectedReceiptContract(contract);
+                }}
                 onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
                 onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
                 onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
                 onConfirmCashPayment={handleConfirmCashPayment}
+                onOpenManualPayment={handleOpenManualPayment}
                 onSendSadadLink={handleSendSadadLink}
               />
             )}
@@ -2635,7 +2731,10 @@ function MainDashboard() {
                   setIsContractModalOpen(true);
                 }}
                 onOpenExtendModal={(contract: Contract) => setSelectedExtendContract(contract)}
-                onOpenReceipt={(contract: Contract) => setSelectedReceiptContract(contract)}
+                onOpenReceipt={(contract: Contract) => {
+                  setSelectedPaymentReceipt(null);
+                  setSelectedReceiptContract(contract);
+                }}
                 onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
               />
             )}
@@ -2712,11 +2811,15 @@ function MainDashboard() {
                 onUpdateContractStatus={handleUpdateContractStatus}
                 onDeleteContract={handleDeleteContract}
                 onSendWhatsApp={handleSendWhatsApp}
-                onOpenReceipt={(contract) => setSelectedReceiptContract(contract)}
+                onOpenReceipt={(contract) => {
+                  setSelectedPaymentReceipt(null);
+                  setSelectedReceiptContract(contract);
+                }}
                 onOpenExtendModal={(contract) => setSelectedExtendContract(contract)}
                 onCompleteContractAndReturnToStock={handleCompleteContractAndReturnToStock}
                 onOpenDriverDispatch={(contract) => setSelectedDriverDispatchContract(contract)}
                 onConfirmCashPayment={handleConfirmCashPayment}
+                onOpenManualPayment={handleOpenManualPayment}
                 onSendSadadLink={handleSendSadadLink}
                 onOpenOfficialContract={() => setIsOfficialContractModalOpen(true)}
               />
@@ -2815,8 +2918,12 @@ function MainDashboard() {
       {/* 5. Printable Official PDF Receipt Modal */}
       <ReceiptModal
         isOpen={!!selectedReceiptContract}
-        onClose={() => setSelectedReceiptContract(null)}
+        onClose={() => {
+          setSelectedReceiptContract(null);
+          setSelectedPaymentReceipt(null);
+        }}
         contract={selectedReceiptContract}
+        receipt={selectedPaymentReceipt}
         onSendWhatsAppReceipt={(phone, message, imageBase64) => sendSilentWhatsApp(
           phone,
           message,
@@ -2829,6 +2936,14 @@ function MainDashboard() {
             caption: message
           }
         )}
+      />
+
+      <ManualPaymentModal
+        isOpen={!!selectedManualPaymentContract}
+        onClose={() => setSelectedManualPaymentContract(null)}
+        contract={selectedManualPaymentContract}
+        initialPaymentMethod={manualPaymentMethod}
+        onConfirmPayment={handleConfirmManualPayment}
       />
 
       {/* 6. Extend / Renew Contract Modal */}

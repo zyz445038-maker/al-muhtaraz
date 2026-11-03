@@ -36,6 +36,7 @@ interface SmartSearchProps {
   onCompleteContractAndReturnToStock?: (contractId: string, containerId: string) => Promise<boolean>;
   onOpenDriverDispatch?: (contract: Contract) => void;
   onConfirmCashPayment?: (contract: Contract) => Promise<void>;
+  onOpenManualPayment?: (contract: Contract, method: 'cash' | 'pos' | 'bank_transfer') => void;
   onSendSadadLink?: (contract: Contract) => Promise<void>;
 }
 
@@ -54,6 +55,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
   onCompleteContractAndReturnToStock,
   onOpenDriverDispatch,
   onConfirmCashPayment,
+  onOpenManualPayment,
   onSendSadadLink
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -654,6 +656,15 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                               onClick={() => onConfirmCashPayment(contract)}
                             >
                               <span>💵 كاش</span>
+                            </button>
+                          )}
+                          {onOpenManualPayment && (userRole === 'admin' || permissions?.can_collect_payments !== false) && (
+                            <button
+                              onClick={() => onOpenManualPayment(contract, 'bank_transfer')}
+                              className="btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '0.75rem', color: '#fbbf24' }}
+                            >
+                              🏦 تسجيل حوالة
                             </button>
                           )}
                           {onSendSadadLink && (userRole === 'admin' || permissions?.can_send_payment_links !== false) && (

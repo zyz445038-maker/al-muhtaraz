@@ -17,6 +17,7 @@ import {
   CreditCard,
   Banknote,
   Receipt as ReceiptIcon,
+  Building2,
   ArrowDownLeft,
   Truck,
   UserCheck,
@@ -35,6 +36,7 @@ interface ContractsViewProps {
   onDeleteContract: (contractId: string) => Promise<void>;
   onSendWhatsApp: (phone: string, message: string) => void;
   onOpenReceipt: (contract: Contract) => void;
+  onOpenManualPayment: (contract: Contract, method: 'cash' | 'pos' | 'bank_transfer') => void;
   onOpenExtendModal: (contract: Contract) => void;
   onOpenDriverDispatch?: (contract: Contract) => void;
   onConfirmCashPayment: (contract: Contract) => Promise<void>;
@@ -52,6 +54,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
   onDeleteContract,
   onSendWhatsApp,
   onOpenReceipt,
+  onOpenManualPayment,
   onOpenExtendModal,
   onOpenDriverDispatch,
   onConfirmCashPayment,
@@ -607,6 +610,26 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                       >
                         <Banknote size={17} />
                         <span>{loadingActionId === `cash-${contract.id}` ? 'جارٍ السداد...' : '💵 كاش'}</span>
+                      </button>
+                    )}
+
+                    {(userRole === 'admin' || permissions?.can_collect_payments !== false) && (
+                      <button
+                        onClick={() => onOpenManualPayment(contract, 'bank_transfer')}
+                        className="btn-secondary"
+                        style={{
+                          flex: 1,
+                          padding: '9px 12px',
+                          fontSize: '0.88rem',
+                          fontWeight: 800,
+                          justifyContent: 'center',
+                          color: '#fbbf24',
+                          borderColor: 'rgba(251, 191, 36, 0.4)'
+                        }}
+                        title="تسجيل حوالة بنكية مؤكدة وإصدار فاتورة"
+                      >
+                        <Building2 size={17} />
+                        <span>🏦 حوالة</span>
                       </button>
                     )}
 
