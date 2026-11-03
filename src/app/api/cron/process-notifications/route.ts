@@ -1,96 +1,242 @@
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { logError, logEvent } from '@/lib/eventLogger';
+import { processPendingNotifications } from '@/lib/processPendingNotifications';
+import { normalizeWhatsAppPhone, sendWhatsAppText } from '@/lib/whatsappTextSender';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
-import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { insertNotificationLog, runDbQuery } from '@/lib/db';
-import { logError, logEvent } from '@/lib/eventLogger';
+type ContractReminder = {
+  id: string;
+  contract_number: string;
+  end_date: string;
+  location_address: string | null;
+  customer: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+  } | null;
+  container: {
+    container_number: string;
+  } | null;
+};
 
-export async function GET() {
-  return handleProcess();
+function isAuthorized(request: Request, secret: string): boolean {
+  const authorization = request.headers.get('authorization') || '';
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const received = Buffer.from(authorization);
+  return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
-export async function POST() {
-  return handleProcess();
+export async function GET(request: Request) {
+  return handleProcess(request);
 }
 
-async function handleProcess() {
+export async function POST(request: Request) {
+  return handleProcess(request);
+}
+
+async function handleProcess(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json(
+      { success: false, error: 'CRON_SECRET is not configured.' },
+      { status: 503 }
+    );
+  }
+  if (!isAuthorized(request, cronSecret)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
+
   try {
-    // 1. Fetch Gateway Settings
-    let adminPhone = '+966500000001';
-    let autoSendEnabled = true;
+    const adminSupabase = getSupabaseAdminClient();
+    const settingsResult = await adminSupabase
+      .from('whatsapp_settings')
+      .select('admin_phone, auto_send_enabled, evolution_server_url, evolution_api_key')
+      .limit(1)
+      .maybeSingle();
 
-    try {
-      const settingsResult = await runDbQuery<any>('cron.whatsapp-settings.read', () => supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .limit(1)
-        .single());
+    if (settingsResult.error) throw settingsResult.error;
 
-      if (settingsResult.ok && settingsResult.data) {
-        const settings = settingsResult.data;
-        adminPhone = settings.admin_phone || adminPhone;
-        autoSendEnabled = settings.auto_send_enabled ?? true;
-      }
-    } catch (err) {
-      console.warn('Could not fetch settings for cron, using defaults');
-    }
-
-    // 2. Query contracts expiring in the next 24 hours
+    const settings = settingsResult.data;
+    const autoSendEnabled = settings?.auto_send_enabled === true;
+    const adminPhone = settings?.admin_phone?.trim() || '';
+    const whatsappConfig = {
+      evolution_server_url: settings?.evolution_server_url,
+      evolution_api_key: settings?.evolution_api_key
+    };
     const now = new Date();
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const warnings: string[] = [];
 
-    const contractsResult = await runDbQuery<any[]>('cron.expiring-contracts.read', () => supabase
+    const contractsResult = await adminSupabase
       .from('contracts')
-      .select('*, customer:customers(*), container:containers(*)')
-      .eq('status', 'active')
+      .select('id, contract_number, end_date, location_address, customer:customers(id, name, phone), container:containers(container_number)')
+      .in('status', ['active', 'extended'])
       .lte('end_date', tomorrow.toISOString())
-      .gte('end_date', now.toISOString()));
+      .gte('end_date', now.toISOString());
 
-    if (!contractsResult.ok) {
-      throw new Error(contractsResult.error);
-    }
+    if (contractsResult.error) throw contractsResult.error;
 
-    const processed = [];
-    const contracts = contractsResult.data;
+    const contracts = (contractsResult.data || []) as unknown as ContractReminder[];
+    let queuedCount = 0;
 
-    if (contracts && contracts.length > 0) {
+    if (contracts.length > 0) {
+      const contractIds = contracts.map(contract => contract.id);
+      const existingResult = await adminSupabase
+        .from('notification_logs')
+        .select('contract_id, recipient_role, recipient_phone, message_body')
+        .in('contract_id', contractIds)
+        .eq('notification_type', 'custom_alert')
+        .gte('created_at', todayStart.toISOString());
+
+      if (existingResult.error) throw existingResult.error;
+
+      const existingReminders = existingResult.data || [];
+      const remindersToQueue = [];
+      const normalizedAdminPhone = adminPhone ? normalizeWhatsAppPhone(adminPhone) : '';
+      const canNotifyAdmin = normalizedAdminPhone.length >= 8 && normalizedAdminPhone.length <= 15;
+
       for (const contract of contracts) {
         const customer = contract.customer;
-        const daysLeft = Math.max(0, Math.ceil((new Date(contract.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-        
-        // Build Reminder Message
-        const customerMsg = `مرحباً ${customer?.name || 'عزيزنا العميل'} 👋\nنود تذكيركم بأن عقد الحاوية رقم (${contract.contract_number}) سينتهي خلال ${daysLeft} يوم.\nيرجى التواصل معنا لتجديد العقد أو جدولة سحب الحاوية.\n\nالمحترز للحاويات 🏗️`;
+        const customerPhone = customer?.phone || '';
+        const daysLeft = Math.max(
+          0,
+          Math.ceil((new Date(contract.end_date).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+        );
+        const containerNumber = contract.container?.container_number || '-';
+        const customerName = customer?.name || 'عزيزنا العميل';
+        const customerMessage = `تذكير آلي بانتهاء عقد الحاوية\nمرحباً ${customerName} 👋\nعقد الحاوية رقم (${contract.contract_number}) سينتهي خلال ${daysLeft} يوم. الحاوية: (${containerNumber}). يرجى التواصل معنا لتجديد العقد أو جدولة سحب الحاوية.\n\nالمحترز للحاويات 🏗️`;
 
-        // Send via internal WhatsApp route or log
-        try {
-          const logResult = await insertNotificationLog('cron.expiry-notification.queue', {
-            contract_id: contract.id,
-            customer_id: customer?.id,
-            recipient_phone: customer?.phone || '',
-            message_body: customerMsg,
-            recipient_role: 'customer',
-            notification_type: 'custom_alert',
-            status: 'pending'
-          });
-          if (logResult.ok) {
-            processed.push(contract.contract_number);
-            logEvent('cron.expiry-notification.queued', { contractNumber: contract.contract_number });
+        if (customer?.id && customerPhone && normalizeWhatsAppPhone(customerPhone).length >= 8) {
+          const alreadyQueued = existingReminders.some(record =>
+            record.contract_id === contract.id
+            && record.recipient_role === 'customer'
+            && record.message_body.startsWith('تذكير آلي بانتهاء عقد الحاوية')
+          );
+          if (!alreadyQueued) {
+            remindersToQueue.push({
+              contract_id: contract.id,
+              customer_id: customer.id,
+              recipient_role: 'customer' as const,
+              recipient_phone: customerPhone,
+              recipient_name: customerName,
+              notification_type: 'custom_alert' as const,
+              message_body: customerMessage,
+              scheduled_for: now.toISOString(),
+              status: 'pending' as const
+            });
           }
-        } catch (error) {
-          logError('cron.expiry-notification.queue', error, { contractNumber: contract.contract_number });
+        } else {
+          warnings.push(`العقد ${contract.contract_number}: رقم جوال العميل غير صالح، لم يُنشأ تذكير له.`);
+        }
+
+        if (canNotifyAdmin) {
+          const alreadyQueued = existingReminders.some(record =>
+            record.contract_id === contract.id
+            && record.recipient_role === 'admin'
+            && record.message_body.startsWith('تنبيه إداري: عقد الحاوية')
+          );
+          if (!alreadyQueued) {
+            remindersToQueue.push({
+              contract_id: contract.id,
+              customer_id: customer?.id || null,
+              recipient_role: 'admin' as const,
+              recipient_phone: adminPhone,
+              recipient_name: 'الإدارة',
+              notification_type: 'custom_alert' as const,
+              message_body: `تنبيه إداري: عقد الحاوية (${containerNumber}) رقم (${contract.contract_number}) للعميل (${customerName}) ينتهي خلال ${daysLeft} يوم. موقع الحاوية: ${contract.location_address || 'غير محدد'}.`,
+              scheduled_for: now.toISOString(),
+              status: 'pending' as const
+            });
+          }
+        } else {
+          warnings.push('رقم جوال الإدارة غير مضبوط؛ لم تُنشأ تنبيهات إدارية.');
+        }
+      }
+
+      if (remindersToQueue.length > 0) {
+        const insertResult = await adminSupabase
+          .from('notification_logs')
+          .insert(remindersToQueue)
+          .select('id');
+        if (insertResult.error) throw insertResult.error;
+        queuedCount = insertResult.data?.length || 0;
+        if (queuedCount !== remindersToQueue.length) {
+          throw new Error('لم تؤكد قاعدة البيانات إدراج جميع إشعارات انتهاء العقود.');
         }
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      processed_count: processed.length,
-      contracts: processed,
-      timestamp: new Date().toISOString()
+    const pendingResult = await adminSupabase
+      .from('notification_logs')
+      .select('id, recipient_phone, recipient_name, recipient_role, contract_id, message_body')
+      .eq('status', 'pending')
+      .lte('scheduled_for', now.toISOString())
+      .order('scheduled_for', { ascending: true })
+      .limit(25);
+
+    if (pendingResult.error) throw pendingResult.error;
+
+    const batch = await processPendingNotifications(
+      pendingResult.data || [],
+      autoSendEnabled,
+      async notification => sendWhatsAppText(
+        notification.recipient_phone,
+        notification.message_body,
+        whatsappConfig
+      ),
+      async (id, values) => {
+        const { data, error } = await adminSupabase
+          .from('notification_logs')
+          .update(values)
+          .eq('id', id)
+          .eq('status', 'pending')
+          .select('id')
+          .maybeSingle();
+
+        if (error) return { error: error.message };
+        if (!data) return { error: 'سجل الإشعار لم يعد pending أو لم يُعثر عليه.' };
+        return {};
+      }
+    );
+
+    if (batch.errors.length > 0) {
+      for (const message of batch.errors) {
+        logError('cron.notification.delivery', new Error(message));
+      }
+    }
+
+    logEvent('cron.notifications.processed', {
+      queuedCount,
+      sentCount: batch.sent_count,
+      failedCount: batch.failed_count,
+      skippedCount: batch.skipped_count,
+      autoSendEnabled
     });
+
+    return NextResponse.json({
+      success: batch.errors.length === 0,
+      auto_send_enabled: autoSendEnabled,
+      queued_count: queuedCount,
+      due_count: pendingResult.data?.length || 0,
+      sent_count: batch.sent_count,
+      failed_count: batch.failed_count,
+      skipped_count: batch.skipped_count,
+      warnings,
+      errors: batch.errors,
+      timestamp: new Date().toISOString()
+    }, { status: batch.errors.length > 0 ? 500 : 200 });
   } catch (error) {
     logError('cron.process-notifications', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Cron job failed' }, { status: 500 });
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Cron job failed'
+    }, { status: 500 });
   }
 }
