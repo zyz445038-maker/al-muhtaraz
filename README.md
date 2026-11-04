@@ -35,10 +35,10 @@ it through a `NEXT_PUBLIC_` variable.
 
 ## Local WhatsApp integration testing
 
-The local web app contacts the same Railway WhatsApp service through
-server-only environment variables. Add these entries to the ignored `.env.local`
-file; use the Railway service's public base URL and the exact `API_KEY` value
-configured on that service:
+The local web app can contact the same Railway WhatsApp service directly
+through server-only environment variables. Add these entries to the ignored
+`.env.local` file; use the Railway service's public base URL and the exact
+`API_KEY` value configured on that service:
 
 ```dotenv
 WHATSAPP_ADDON_URL=https://YOUR-RAILWAY-SERVICE
@@ -51,13 +51,19 @@ Vercel Production Secrets cannot be retrieved with `vercel env pull`, so obtain
 the API key from the secured Railway configuration and enter it locally without
 sharing it in chat or source control.
 
+Local `localhost` requests are forwarded to the published app only when
+`NEXT_PUBLIC_STAFF_ADMIN_API_BASE_URL` is configured. If it is unset, the local
+API routes use `WHATSAPP_ADDON_URL` and `WHATSAPP_ADDON_API_KEY` from `.env.local`
+to contact Railway directly. If it is set, the published app's Vercel
+environment is used instead; local Railway values do not control that request.
+The packaged desktop app should use the published-app proxy.
+
 Restart the local Next.js process after changing `.env.local` so it loads the
-new values; `npm run dev` starts a fresh development process. Then open the
-local app and check the WhatsApp connection status. `qr_ready` means the
-Railway service was reached and is waiting for pairing; `connected` is required
-before testing a real send. The local browser app reads its own `.env.local`;
-the packaged desktop app instead proxies WhatsApp requests to the configured
-published app API.
+new values; `npm run dev` starts a fresh development process. Then check the
+WhatsApp connection status. `qr_ready` means Railway was reached and is waiting
+for pairing; `connected` is required before testing a real send. A local
+`next start` process uses the existing production build; rebuild it from the
+updated branch or switch to `npm run dev` before validating source changes.
 
 ## Archive file storage
 

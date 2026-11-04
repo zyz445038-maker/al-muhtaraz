@@ -11,10 +11,7 @@ export async function proxyWhatsAppDesktopRequest(
 
   const configuredBaseUrl = process.env.NEXT_PUBLIC_STAFF_ADMIN_API_BASE_URL?.trim();
   if (!configuredBaseUrl) {
-    return NextResponse.json(
-      { success: false, error: 'تعذر الوصول إلى خادم التطبيق المنشور من نسخة سطح المكتب.' },
-      { status: 503 }
-    );
+    return null;
   }
 
   let destination: URL;
