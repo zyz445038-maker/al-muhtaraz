@@ -32,6 +32,7 @@ async function sendIdempotently(
     res.status(409).json({
       success: false,
       code: 'IDEMPOTENCY_PENDING',
+      outcome: 'unknown',
       error: 'This send is already in progress or its result is unknown. Reuse the same key; do not create a new send.'
     });
     return;
@@ -44,9 +45,26 @@ async function sendIdempotently(
 
   const result = await sendWhatsAppMessage(options);
   const responseBody = { ...result, provider: 'railway' };
-  const statusCode = result.success ? 200 : 502;
-  await whatsappIdempotencyStore.complete(key, fingerprint, { statusCode, body: responseBody });
-  res.status(statusCode).json(responseBody);
+  const storedResult = { statusCode: result.success ? 200 : 502, body: responseBody };
+
+  if (result.outcome === 'retryable') {
+    const retry = await whatsappIdempotencyStore.markRetryable(key, fingerprint, storedResult);
+    if (retry.state === 'completed') {
+      res.status(retry.statusCode).json(retry.body);
+      return;
+    }
+    res.status(storedResult.statusCode).json(responseBody);
+    return;
+  }
+
+  if (result.outcome === 'unknown') {
+    await whatsappIdempotencyStore.markUnknown(key, fingerprint, storedResult);
+    res.status(storedResult.statusCode).json(responseBody);
+    return;
+  }
+
+  await whatsappIdempotencyStore.complete(key, fingerprint, storedResult);
+  res.status(storedResult.statusCode).json(responseBody);
 }
 
 // POST /api/messages/send-text

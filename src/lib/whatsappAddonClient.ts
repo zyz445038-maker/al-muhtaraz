@@ -2,7 +2,7 @@ import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
 
 export interface WhatsAppAddonSendResult {
   success: boolean;
-  outcome: 'sent' | 'failed' | 'unknown';
+  outcome: 'sent' | 'failed' | 'retryable' | 'unknown';
   error?: string;
   messageId?: string;
 }
@@ -46,10 +46,18 @@ export async function sendWhatsAppViaAddon(
         && 'error' in responseBody && typeof responseBody.error === 'string'
         ? responseBody.error
         : `تعذر الإرسال عبر خدمة واتساب المركزية (HTTP ${response.status}).`;
+      const responseOutcome = responseBody && typeof responseBody === 'object'
+        && 'outcome' in responseBody && typeof responseBody.outcome === 'string'
+        ? responseBody.outcome
+        : undefined;
       const outcome = responseBody && typeof responseBody === 'object'
         && 'code' in responseBody && responseBody.code === 'IDEMPOTENCY_PENDING'
         ? 'unknown'
-        : 'failed';
+        : responseOutcome === 'retryable'
+          ? 'retryable'
+          : responseOutcome === 'failed'
+            ? 'failed'
+            : response.status >= 500 ? 'unknown' : 'failed';
       return { success: false, outcome, error };
     }
 

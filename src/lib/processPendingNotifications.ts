@@ -15,7 +15,7 @@ export type NotificationLogUpdate = {
 
 type NotificationDeliveryResult = {
   success: boolean;
-  outcome?: 'sent' | 'failed' | 'unknown';
+  outcome?: 'sent' | 'failed' | 'retryable' | 'unknown';
   error?: string;
 };
 
@@ -54,11 +54,12 @@ export async function processPendingNotifications(
     }
 
     const sentAt = delivery.success ? new Date().toISOString() : undefined;
-    const isUnknown = !delivery.success && delivery.outcome === 'unknown';
+    const needsReview = !delivery.success && delivery.outcome === 'unknown';
+    const canRetry = !delivery.success && delivery.outcome === 'retryable';
     const updateValues: NotificationLogUpdate = delivery.success
       ? { status: 'sent', sent_at: sentAt }
       : {
-          status: isUnknown ? 'pending' : 'failed',
+          status: needsReview || canRetry ? 'pending' : 'failed',
           error_message: delivery.error || 'فشل الإرسال دون سبب محدد.'
         };
 
@@ -67,9 +68,12 @@ export async function processPendingNotifications(
       if (updateResult.error) throw new Error(updateResult.error);
       if (delivery.success) {
         result.sent_count += 1;
-      } else if (isUnknown) {
+      } else if (needsReview || canRetry) {
         result.pending_count += 1;
-        result.errors.push(`${notification.id}: نتيجة الإرسال غير مؤكدة؛ ستتم مراجعتها بالمفتاح نفسه.`);
+        const statusMessage = needsReview
+          ? 'نتيجة الإرسال غير مؤكدة؛ لن تتم إعادة المحاولة تلقائيًا.'
+          : 'تأكد أن الإرسال لم يبدأ؛ ستتم إعادة المحاولة المجدولة بالمفتاح نفسه.';
+        result.errors.push(`${notification.id}: ${statusMessage}`);
       } else {
         result.failed_count += 1;
         result.errors.push(`${notification.id}: ${updateValues.error_message}`);
@@ -78,7 +82,7 @@ export async function processPendingNotifications(
       result.errors.push(
         `${notification.id}: تعذر تحديث سجل الإرسال: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`
       );
-      if (!delivery.success && !isUnknown) result.failed_count += 1;
+      if (!delivery.success && !needsReview && !canRetry) result.failed_count += 1;
     }
   };
 

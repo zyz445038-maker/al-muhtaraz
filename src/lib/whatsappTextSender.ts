@@ -19,7 +19,7 @@ export async function sendWhatsAppText(
   phone: string,
   message: string,
   idempotencyKey: string
-): Promise<{ success: boolean; error?: string; outcome?: 'sent' | 'failed' | 'unknown' }> {
+): Promise<{ success: boolean; error?: string; outcome?: 'sent' | 'failed' | 'retryable' | 'unknown' }> {
   const cleanPhone = normalizeWhatsAppPhone(phone);
   if (cleanPhone.length < 8 || cleanPhone.length > 15) {
     return { success: false, error: 'رقم واتساب غير صالح.' };
