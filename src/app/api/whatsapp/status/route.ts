@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
-import { getWhatsAppStatus, logoutWhatsApp } from '@/lib/whatsappEngine';
 import { authorizeWhatsAppRequest, isWhatsAppAuthorizationError } from '@/lib/whatsappApiAuth';
 import { proxyWhatsAppDesktopRequest } from '@/lib/whatsappDesktopProxy';
 
@@ -16,72 +15,46 @@ export async function GET(request: Request) {
     const isLogout = searchParams.get('action') === 'logout';
     const authorization = await authorizeWhatsAppRequest(request, isLogout);
     if (isWhatsAppAuthorizationError(authorization)) return authorization;
-
-    const addon = await getWhatsAppAddonConfig();
-
-    if (isLogout) {
-      if (addon) {
-        const addonRes = await fetch(`${addon.baseUrl}/api/session/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${addon.apiKey}`
-          },
-          cache: 'no-store',
-          signal: AbortSignal.timeout(10_000)
-        });
-        const addonData: unknown = await addonRes.json().catch(() => null);
-        const succeeded = addonData && typeof addonData === 'object'
-          && 'success' in addonData
-          && addonData.success === true;
-
-        if (!addonRes.ok || !succeeded) {
-          const error = addonData && typeof addonData === 'object'
-            && 'error' in addonData && typeof addonData.error === 'string'
-            ? addonData.error
-            : 'تعذر فصل جلسة الواتساب من الخادم.';
-          return NextResponse.json({ success: false, error }, { status: 502 });
-        }
-      }
-
-      await logoutWhatsApp();
-      return NextResponse.json({ success: true, message: 'تم قطع اتصال الواتساب بنجاح' });
+    if (authorization.profile.role !== 'admin'
+      && authorization.profile.permissions?.can_send_whatsapp === false) {
+      return NextResponse.json({ success: false, error: 'ليس لديك صلاحية إدارة اتصال واتساب.' }, { status: 403 });
     }
 
+    const addon = await getWhatsAppAddonConfig();
     if (!addon) {
-      const status = getWhatsAppStatus();
-      if (status.isConnected) {
-        return NextResponse.json({
-          success: true,
-          status: 'connected',
-          mode: 'embedded',
-          state: 'open',
-          message: 'الواتساب متصل ويعمل بنجاح 🟢'
-        });
-      }
-
-      if (status.qrCodeBase64 || status.qrCodeRaw) {
-        const canViewPairingQr = authorization.profile.role === 'admin';
-        return NextResponse.json({
-          success: true,
-          status: 'qr_ready',
-          mode: 'embedded',
-          state: 'connecting',
-          qrCodeBase64: canViewPairingQr ? status.qrCodeBase64 || null : null,
-          qrCodeRaw: canViewPairingQr ? status.qrCodeRaw || null : null,
-          message: canViewPairingQr
-            ? 'كود QR جاهز للمسح من الواتساب 📱'
-            : 'يوجد جهاز واتساب غير مرتبط. تواصل مع المدير لإكمال الربط.'
-        });
-      }
-
       return NextResponse.json({
         success: false,
         status: 'not_configured',
         mode: 'unavailable',
         state: 'disconnected',
-        message: 'خادم الواتساب غير مهيأ في إعدادات خلفية التطبيق.'
+        message: 'خدمة واتساب المركزية غير مهيأة في إعدادات خلفية التطبيق.'
+      }, { status: 503 });
+    }
+
+    if (isLogout) {
+      const addonRes = await fetch(`${addon.baseUrl}/api/session/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${addon.apiKey}`
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000)
       });
+      const addonData: unknown = await addonRes.json().catch(() => null);
+      const succeeded = addonData && typeof addonData === 'object'
+        && 'success' in addonData
+        && addonData.success === true;
+
+      if (!addonRes.ok || !succeeded) {
+        const error = addonData && typeof addonData === 'object'
+          && 'error' in addonData && typeof addonData.error === 'string'
+          ? addonData.error
+          : 'تعذر فصل جلسة الواتساب من الخادم.';
+        return NextResponse.json({ success: false, error }, { status: 502 });
+      }
+
+      return NextResponse.json({ success: true, message: 'تم قطع اتصال الواتساب بنجاح' });
     }
 
     const addonRes = await fetch(`${addon.baseUrl}/api/session/status`, {

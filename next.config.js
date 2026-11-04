@@ -16,7 +16,6 @@ const nextConfig = {
       // Native modules that should not be bundled by webpack on Vercel
       config.externals = [
         ...(config.externals || []),
-        '@whiskeysockets/baileys',
         'kokoro-js',
         'canvas',
         'sharp',
@@ -37,7 +36,7 @@ const nextConfig = {
     return config;
   },
   // Increase serverless function memory/duration for TTS
-  serverExternalPackages: ['msedge-tts', '@whiskeysockets/baileys', 'kokoro-js'],
+  serverExternalPackages: ['msedge-tts', 'kokoro-js'],
 };
 
 module.exports = nextConfig;

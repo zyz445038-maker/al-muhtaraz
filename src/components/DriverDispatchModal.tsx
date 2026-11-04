@@ -9,20 +9,19 @@ import {
   DollarSign, 
   CheckCircle2, 
   X, 
-  ExternalLink,
   MessageSquare,
   FileText,
   Clock
 } from 'lucide-react';
 import { Contract, Profile } from '@/types/database';
-import { formatDriverWhatsAppMessage, openDriverWhatsApp, DriverTaskType } from '@/utils/driverDispatch';
+import { formatDriverWhatsAppMessage, DriverTaskType } from '@/utils/driverDispatch';
 
 interface DriverDispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
   drivers: Profile[];
-  onSendViaApi?: (phone: string, message: string) => Promise<boolean>;
+  onSendViaApi: (phone: string, message: string) => Promise<boolean>;
 }
 
 export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
@@ -37,6 +36,7 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
   const [customNotes, setCustomNotes] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   // Available drivers only
   const driverList = drivers.filter(d => d.full_name.includes('سائق') || d.role === 'employee');
@@ -63,6 +63,7 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
       }
 
       setSendSuccess(false);
+      setSendError(null);
     }
   }, [contract, drivers]);
 
@@ -78,28 +79,24 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
   });
 
   const handleSendApi = async () => {
-    if (!onSendViaApi) {
-      openDriverWhatsApp(driverPhone, messageText);
-      return;
-    }
-
     setIsSending(true);
-    const ok = await onSendViaApi(driverPhone, messageText);
-    setIsSending(false);
-    if (ok) {
-      setSendSuccess(true);
-      setTimeout(() => {
-        setSendSuccess(false);
-        onClose();
-      }, 1800);
-    } else {
-      // Fallback to direct WhatsApp
-      openDriverWhatsApp(driverPhone, messageText);
+    setSendError(null);
+    try {
+      const ok = await onSendViaApi(driverPhone, messageText);
+      if (ok) {
+        setSendSuccess(true);
+        setTimeout(() => {
+          setSendSuccess(false);
+          onClose();
+        }, 1800);
+      } else {
+        setSendError('تعذر تأكيد الإرسال عبر خادم واتساب المركزي. راجع تنبيه الإرسال قبل المحاولة مجددًا لتجنب التكرار.');
+      }
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'تعذر إرسال أمر المهمة.');
+    } finally {
+      setIsSending(false);
     }
-  };
-
-  const handleDirectWeb = () => {
-    openDriverWhatsApp(driverPhone, messageText);
   };
 
   return (
@@ -287,6 +284,19 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
             <span>تم إرسال أمر المهمة لجوال السائق بنجاح عبر الواتساب! 🚚</span>
           </div>
         )}
+        {sendError && (
+          <div role="alert" style={{
+            background: 'rgba(239, 68, 68, 0.16)',
+            border: '1px solid rgba(248, 113, 113, 0.6)',
+            borderRadius: '8px',
+            padding: '10px',
+            color: '#fecaca',
+            fontSize: '0.88rem',
+            marginBottom: '16px'
+          }}>
+            {sendError}
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
@@ -296,16 +306,6 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
             onClick={onClose}
           >
             إلغاء
-          </button>
-
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={handleDirectWeb}
-            style={{ color: '#25D366', borderColor: 'rgba(37, 211, 102, 0.4)' }}
-          >
-            <ExternalLink size={16} />
-            <span>فتح واتساب ويب مباشرة</span>
           </button>
 
           <button

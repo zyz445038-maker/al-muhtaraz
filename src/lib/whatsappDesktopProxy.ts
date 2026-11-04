@@ -37,6 +37,8 @@ export async function proxyWhatsAppDesktopRequest(
   const headers = new Headers({ Accept: 'application/json' });
   const authorization = request.headers.get('authorization');
   if (authorization) headers.set('Authorization', authorization);
+  const idempotencyKey = request.headers.get('idempotency-key');
+  if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
 
   const method = request.method.toUpperCase();
   const hasBody = method !== 'GET' && method !== 'HEAD';

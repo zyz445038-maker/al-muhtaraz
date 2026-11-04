@@ -2,12 +2,13 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { sendWhatsAppMessage } from '@/lib/whatsappEngine';
 import { insertNotificationLog } from '@/lib/db';
 import { logError, logEvent } from '@/lib/eventLogger';
-import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
+import { sendWhatsAppViaAddon } from '@/lib/whatsappAddonClient';
 import { authorizeWhatsAppRequest, isWhatsAppAuthorizationError } from '@/lib/whatsappApiAuth';
 import { proxyWhatsAppDesktopRequest } from '@/lib/whatsappDesktopProxy';
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
@@ -16,8 +17,20 @@ export async function POST(request: Request) {
 
     const authorization = await authorizeWhatsAppRequest(request);
     if (isWhatsAppAuthorizationError(authorization)) return authorization;
+    if (authorization.profile.role !== 'admin'
+      && authorization.profile.permissions?.can_send_whatsapp === false) {
+      return NextResponse.json({ success: false, error: 'ليس لديك صلاحية إرسال رسائل واتساب.' }, { status: 403 });
+    }
 
-    const body = await request.json();
+    const idempotencyKey = request.headers.get('idempotency-key')?.trim();
+    if (!idempotencyKey || idempotencyKey.length > 128) {
+      return NextResponse.json({ success: false, error: 'مفتاح منع التكرار مطلوب وغير صالح.' }, { status: 400 });
+    }
+
+    const body: unknown = await request.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: 'بيانات رسالة واتساب غير صالحة.' }, { status: 400 });
+    }
     const { 
       phone, 
       message, 
@@ -32,13 +45,15 @@ export async function POST(request: Request) {
       customer_id, 
       recipient_role, 
       notification_type
-    } = body;
+    } = body as Record<string, unknown>;
 
-    if (!phone || (!message && !mediaUrl && !mediaBase64 && !location)) {
+    if (typeof phone !== 'string' || (!message && !mediaUrl && !mediaBase64 && !location)) {
       return NextResponse.json({ success: false, error: 'Phone and message or media are required' }, { status: 400 });
     }
+    if (message !== undefined && typeof message !== 'string') {
+      return NextResponse.json({ success: false, error: 'نص رسالة واتساب غير صالح.' }, { status: 400 });
+    }
 
-    // Format and normalize phone number
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.startsWith('00966')) {
       cleanPhone = cleanPhone.substring(2);
@@ -51,105 +66,52 @@ export async function POST(request: Request) {
       cleanPhone = '966' + cleanPhone;
     }
 
-    let sendSuccess = false;
-    let apiResponse: any = null;
+    const sendResult = await sendWhatsAppViaAddon({
+      phone: cleanPhone,
+      ...(typeof message === 'string' ? { message } : {}),
+      ...(typeof mediaUrl === 'string' ? { mediaUrl } : {}),
+      ...(typeof mediaBase64 === 'string' ? { mediaBase64 } : {}),
+      ...(typeof mediaType === 'string' ? { mediaType } : {}),
+      ...(typeof fileName === 'string' ? { fileName } : {}),
+      ...(typeof mimetype === 'string' ? { mimetype } : {}),
+      ...(typeof caption === 'string' ? { caption } : {}),
+      ...(location && typeof location === 'object' ? { location } : {})
+    }, idempotencyKey);
 
-    const addon = await getWhatsAppAddonConfig();
-
-    // 2. Dispatch message through Cloud Add-on server only when configuration exists
-    if (addon) {
-      const cleanServer = addon.baseUrl;
-      const addonApiKey = addon.apiKey;
-
-      try {
-        const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');
-        const targetUrl = isMedia ? `${cleanServer}/api/messages/send-media` : `${cleanServer}/api/messages/send-text`;
-
-        const addonPayload = isMedia ? {
-          phone: cleanPhone,
-          message,
-          mediaUrl,
-          mediaBase64,
-          mediaType: mediaType || (location ? 'location' : 'document'),
-          fileName,
-          mimetype,
-          caption: caption || message,
-          location
-        } : {
-          phone: cleanPhone,
-          message
-        };
-
-        const addonRes = await fetch(targetUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${addonApiKey}`
-          },
-          body: JSON.stringify(addonPayload)
-        });
-
-        if (addonRes.ok) {
-          apiResponse = await addonRes.json();
-          if (apiResponse.success) {
-            sendSuccess = true;
-          }
-        } else {
-          const errorText = await addonRes.text();
-          console.error('Addon server response error:', addonRes.status, errorText);
-        }
-      } catch (addonErr) {
-        console.warn('Failed sending via Addon server, attempting local fallback:', addonErr);
-      }
-    } else {
-      console.warn('WhatsApp add-on is not configured. Skipping external send route.');
-    }
-
-    // If cloud microservice was unreachable, try embedded fallback
-    if (!sendSuccess) {
-      try {
-        const res = await sendWhatsAppMessage(cleanPhone, {
-          text: message,
-          mediaUrl,
-          mediaBase64,
-          mediaType,
-          fileName,
-          mimetype,
-          caption: caption || message,
-          location
-        });
-        sendSuccess = res.success;
-        apiResponse = res;
-      } catch (fallbackErr) {
-        console.warn('Embedded fallback error:', fallbackErr);
-      }
-    }
-
-    // 3. Log notification to Supabase
     try {
-      const logResult = await insertNotificationLog('whatsapp.message.log', {
-        contract_id: contract_id || null,
-        customer_id: customer_id || null,
-        recipient_phone: cleanPhone,
-        recipient_name: body.recipient_name || 'مستلم',
-        recipient_role: recipient_role || 'customer',
-        notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
-        message_body: message || caption || '[media]',
-        status: sendSuccess ? 'sent' : 'failed'
-      });
-      if (!logResult.ok) {
-        logError('whatsapp.message.log', logResult.error);
+      if (sendResult.outcome !== 'unknown') {
+        const recipientRole = recipient_role === 'employee' || recipient_role === 'admin'
+          ? recipient_role
+          : 'customer';
+        const logResult = await insertNotificationLog('whatsapp.message.log', {
+          contract_id: typeof contract_id === 'string' ? contract_id : null,
+          customer_id: typeof customer_id === 'string' ? customer_id : null,
+          recipient_phone: cleanPhone,
+          recipient_name: 'recipient_name' in body && typeof body.recipient_name === 'string' ? body.recipient_name : 'مستلم',
+          recipient_role: recipientRole,
+          notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
+          message_body: typeof message === 'string' && message
+            ? message
+            : typeof caption === 'string' && caption ? caption : '[media]',
+          status: sendResult.success ? 'sent' : 'failed',
+          error_message: sendResult.error || null
+        });
+        if (!logResult.ok) {
+          logError('whatsapp.message.log', logResult.error);
+        }
       }
-      logEvent('whatsapp.message.completed', { phone: cleanPhone, success: sendSuccess });
+      logEvent('whatsapp.message.completed', {
+        phone: cleanPhone,
+        success: sendResult.success,
+        outcome: sendResult.outcome,
+        provider: 'railway',
+        messageId: sendResult.messageId || null
+      });
     } catch (error) {
       logError('whatsapp.message.log', error);
     }
 
-    return NextResponse.json({
-      success: sendSuccess,
-      mode: 'addon',
-      data: apiResponse
-    });
+    return NextResponse.json({ ...sendResult, provider: 'railway' }, { status: sendResult.success ? 200 : 502 });
 
   } catch (error: any) {
     console.error('Send WhatsApp Error:', error);

@@ -44,7 +44,7 @@ import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
-import { getWhatsAppApiHeaders } from '@/lib/whatsappApiClient';
+import { getWhatsAppApiHeaders, sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -239,22 +239,20 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setIsSendingTest(true);
     setTestResult(null);
     try {
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: await getWhatsAppApiHeaders(true),
-        body: JSON.stringify({
-          phone: testPhoneInput,
-          message: testMessageInput
-        })
+      const result = await sendWhatsAppAutomatically({
+        phone: testPhoneInput,
+        message: testMessageInput
       });
-      const data = await res.json();
-      if (data.success) {
+      if (result.success) {
         setTestResult({ ok: true, msg: 'تم إرسال الرسالة بنجاح عبر الواتساب في الخلفية! 🚀' });
       } else {
-        setTestResult({ ok: false, msg: data.error || 'تعذر الإرسال. تأكد من اتصال المحرك.' });
+        setTestResult({ ok: false, msg: result.error || 'تعذر الإرسال. تأكد من اتصال خادم واتساب المركزي.' });
       }
-    } catch (err: any) {
-      setTestResult({ ok: false, msg: err?.message || 'خطأ في خادم الإرسال' });
+    } catch (err: unknown) {
+      setTestResult({
+        ok: false,
+        msg: err instanceof Error ? err.message : 'خطأ في خادم الإرسال'
+      });
     } finally {
       setIsSendingTest(false);
     }

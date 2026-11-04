@@ -77,6 +77,10 @@
 * [src/lib/whatsappEngine.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/lib/whatsappEngine.ts): المحرك المدمج الأصلي لإدارة جلسة الواتساب والإرسال التلقائي الصامت ودعم الاقتران برقم الجوال.
 * [src/app/api/whatsapp/pair-code/route.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/app/api/whatsapp/pair-code/route.ts): مسار استخراج كود الاقتران السريع برقم الجوال.
 * [src/utils/aiCopilotBrain.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/aiCopilotBrain.ts): العقل التحليلي الشامل وإجراءات تنفيذ رسائل وتقارير الواتساب.
+
+### تحديث بنية واتساب — 2026-11-05
+
+الفقرات السابقة توثق تنفيذًا تاريخيًا ولم تعد تصف البنية الحالية. أصبحت خدمة `whatsapp-addon-server` على Railway المصدر الوحيد لجلسة واتساب وحالتها والإرسال؛ أزيل المحرك المضمن في Next.js وروابط `wa.me`. يمر الويب وسطح المكتب عبر واجهات Next.js نفسها، وتُحفظ مفاتيح منع تكرار الإرسال على Volume الخدمة مع بيانات الجلسة.
 * [src/utils/dateFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/dateFormatter.ts): وحدة التنسيق العربي الموحد للتواريخ والأوقات وفترات العقود.
 * [src/utils/voucherFormatter.ts](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/utils/voucherFormatter.ts): مولد قوالب رسائل الواتساب وسندات القبض والتقارير اليومية.
 * [src/components/WhatsAppSettings.tsx](file:///c:/Users/LENOVO/Desktop/المخترز%20للخاويات/src/components/WhatsAppSettings.tsx): لوحة إدارة الواتساب المدمجة (توليد كود الاقتران السريع + كود QR التفاعلي).
@@ -85,7 +89,6 @@
 
 ---
 *تم إنشاء وتحديث هذا الملف ومزامنته مع مستودع GitHub بنجاح.*
-
 
 
 

@@ -246,7 +246,11 @@ async function handleProcess(request: Request) {
     const batch = await processPendingNotifications(
       pendingResult.data || [],
       autoSendEnabled,
-      async notification => sendWhatsAppText(notification.recipient_phone, notification.message_body),
+      async notification => sendWhatsAppText(
+        notification.recipient_phone,
+        notification.message_body,
+        `notification:${notification.id}`
+      ),
       async (id, values) => {
         const { data, error } = await adminSupabase
           .from('notification_logs')
@@ -272,6 +276,7 @@ async function handleProcess(request: Request) {
       queuedCount,
       sentCount: batch.sent_count,
       failedCount: batch.failed_count,
+      pendingCount: batch.pending_count,
       skippedCount: batch.skipped_count,
       autoSendEnabled
     });
@@ -283,6 +288,7 @@ async function handleProcess(request: Request) {
       due_count: pendingResult.data?.length || 0,
       sent_count: batch.sent_count,
       failed_count: batch.failed_count,
+      pending_count: batch.pending_count,
       skipped_count: batch.skipped_count,
       warnings,
       errors: batch.errors,

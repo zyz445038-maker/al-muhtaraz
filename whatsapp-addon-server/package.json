@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "node dist/server.js",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "node --import tsx --test src/engine/idempotencyStore.test.ts"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",

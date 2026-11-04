@@ -48,7 +48,7 @@ import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings, COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
-import { getWhatsAppApiHeaders } from '@/lib/whatsappApiClient';
+import { getWhatsAppApiHeaders, sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
@@ -342,6 +342,7 @@ function MainDashboard() {
   // WhatsApp Alert System – persistent failure notifications
   interface WhatsAppAlert {
     id: string;
+    idempotencyKey?: string;
     type: 'success' | 'error';
     recipient: 'customer' | 'driver' | 'employee' | 'admin';
     recipientName: string;
@@ -354,18 +355,15 @@ function MainDashboard() {
   const [whatsappAlerts, setWhatsappAlerts] = useState<WhatsAppAlert[]>([]);
   const dismissAlert = useCallback((id: string) => setWhatsappAlerts(prev => prev.filter(a => a.id !== id)), []);
   const retryAlert = useCallback(async (alert: WhatsAppAlert) => {
-    try {
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: await getWhatsAppApiHeaders(true),
-        body: JSON.stringify({ phone: alert.recipientPhone, message: alert.message })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWhatsappAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, type: 'success', errorMessage: undefined } : a));
-        setTimeout(() => dismissAlert(alert.id), 4000);
-      }
-    } catch {}
+    const idempotencyKey = alert.idempotencyKey || crypto.randomUUID();
+    const result = await sendWhatsAppAutomatically(
+      { phone: alert.recipientPhone, message: alert.message },
+      idempotencyKey
+    );
+    setWhatsappAlerts(prev => prev.map(a => a.id === alert.id
+      ? { ...a, idempotencyKey, type: result.success ? 'success' : 'error', errorMessage: result.error }
+      : a));
+    if (result.success) setTimeout(() => dismissAlert(alert.id), 4000);
   }, [dismissAlert]);
 
   // Calculate active permissions based on role and selected employee
@@ -858,9 +856,10 @@ function MainDashboard() {
       if (recipient.phone && isRealCallablePhone(recipient.phone)) {
         const personalized = messageTemplate.replace(/{الاسم}/g, recipient.name);
         try {
-          await handleSendWhatsApp(recipient.phone, personalized);
-          sent++;
-          onProgress(sent, recipients.length);
+          if (await handleSendWhatsApp(recipient.phone, personalized)) {
+            sent++;
+            onProgress(sent, recipients.length);
+          }
           // Wait 1.8s between messages to prevent spam detection
           await new Promise(r => setTimeout(r, 1800));
         } catch (e) {
@@ -1059,12 +1058,9 @@ function MainDashboard() {
     };
   }, [isAuthenticated]);
 
-  // WhatsApp Sender Helper (Fallback wa.me – for manual send buttons only)
-  const handleSendWhatsApp = (phone: string, message: string) => {
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const encoded = encodeURIComponent(message);
-    const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
-    window.open(url, '_blank');
+  const handleSendWhatsApp = async (phone: string, message: string): Promise<boolean> => {
+    const result = await sendSilentWhatsApp(phone, message, 'customer', 'مستلم', '');
+    return result.success;
   };
 
   // 🔕 Silent WhatsApp Send with Persistent Alert Feedback
@@ -1076,18 +1072,13 @@ function MainDashboard() {
     contractNumber: string,
     extraPayload?: Record<string, string>
   ): Promise<{ success: boolean; error?: string }> => {
+    const result = await sendWhatsAppAutomatically({ phone, message, ...extraPayload });
     const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    try {
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: await getWhatsAppApiHeaders(true),
-        body: JSON.stringify({ phone, message, ...extraPayload })
-      });
-      const data = await res.json();
-      if (data.success) {
+    if (result.success) {
         // Success: show brief green toast that auto-dismisses after 5s
         const successAlert: WhatsAppAlert = {
           id: alertId,
+          idempotencyKey: result.idempotencyKey,
           type: 'success',
           recipient,
           recipientName,
@@ -1099,36 +1090,22 @@ function MainDashboard() {
         setWhatsappAlerts(prev => [successAlert, ...prev]);
         setTimeout(() => dismissAlert(alertId), 5000);
         return { success: true };
-      } else {
+    } else {
         // Failure: show persistent red alert that stays until manually dismissed
         const errorAlert: WhatsAppAlert = {
           id: alertId,
+          idempotencyKey: result.idempotencyKey,
           type: 'error',
           recipient,
           recipientName,
           recipientPhone: phone,
           contractNumber,
           message,
-          errorMessage: data.error || 'تعذّر الوصول إلى بوابة الواتساب',
+          errorMessage: result.error || 'تعذّر الوصول إلى خدمة واتساب المركزية',
           timestamp: new Date().toISOString()
         };
         setWhatsappAlerts(prev => [errorAlert, ...prev]);
-        return { success: false, error: data.error };
-      }
-    } catch (err: any) {
-      const errorAlert: WhatsAppAlert = {
-        id: alertId,
-        type: 'error',
-        recipient,
-        recipientName,
-        recipientPhone: phone,
-        contractNumber,
-        message,
-        errorMessage: err?.message || 'خطأ في الاتصال بالشبكة',
-        timestamp: new Date().toISOString()
-      };
-      setWhatsappAlerts(prev => [errorAlert, ...prev]);
-      return { success: false, error: err?.message };
+        return { success: false, error: result.error };
     }
   }, [dismissAlert]);
 
@@ -1215,21 +1192,11 @@ function MainDashboard() {
   };
 
   const handleTestConnection = async (testPhone: string): Promise<boolean> => {
-    try {
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: await getWhatsAppApiHeaders(true),
-        body: JSON.stringify({
-          phone: testPhone,
-          message: 'رسالة اختبار تجريبية من بوابة الواتساب - المحترز للحاويات ✅'
-        })
-      });
-      const data = await res.json();
-      return !!data.success;
-    } catch (err) {
-      console.error('WhatsApp test message failed:', err);
-      return false;
-    }
+    const result = await sendWhatsAppAutomatically({
+      phone: testPhone,
+      message: 'رسالة اختبار تجريبية من بوابة الواتساب - المحترز للحاويات ✅'
+    });
+    return result.success;
   };
 
   // 1. [💵 كاش] - Quick Cash Payment (One-click Confirm & Open Receipt)
@@ -2186,7 +2153,7 @@ function MainDashboard() {
       }, ...prev]);
     }
 
-    // ⏱️ Pacing Delay (800ms) - Prevents Baileys WebSocket concurrency drop
+    // Space sends to avoid bursts against the central provider.
     await new Promise(r => setTimeout(r, 800));
 
     // 🚀 2. Check Routing & Dispatch to Driver
@@ -2486,23 +2453,7 @@ function MainDashboard() {
                       }}
                       onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.35)')}
                       onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
-                    >🔄 إعادة إرسال رسالة الواتساب</button>
-                    <button
-                      onClick={() => handleSendWhatsApp(alert.recipientPhone, alert.message)}
-                      style={{
-                        background: 'rgba(255,255,255,0.15)',
-                        border: '1px solid rgba(255,255,255,0.4)',
-                        borderRadius: '8px',
-                        color: '#fff',
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        padding: '5px 14px',
-                        cursor: 'pointer',
-                        transition: 'background 0.2s'
-                      }}
-                      onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.28)')}
-                      onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                    >📲 إرسال يدوي عبر الواتساب</button>
+                    >🔄 التحقق من نتيجة الإرسال</button>
                   </div>
                 )}
               </div>
