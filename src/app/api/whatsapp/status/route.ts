@@ -4,13 +4,22 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
 import { getWhatsAppStatus, logoutWhatsApp } from '@/lib/whatsappEngine';
+import { authorizeWhatsAppRequest, isWhatsAppAuthorizationError } from '@/lib/whatsappApiAuth';
+import { proxyWhatsAppDesktopRequest } from '@/lib/whatsappDesktopProxy';
 
 export async function GET(request: Request) {
   try {
+    const proxyResponse = await proxyWhatsAppDesktopRequest(request, '/api/whatsapp/status');
+    if (proxyResponse) return proxyResponse;
+
     const { searchParams } = new URL(request.url);
+    const isLogout = searchParams.get('action') === 'logout';
+    const authorization = await authorizeWhatsAppRequest(request, isLogout);
+    if (isWhatsAppAuthorizationError(authorization)) return authorization;
+
     const addon = await getWhatsAppAddonConfig();
 
-    if (searchParams.get('action') === 'logout') {
+    if (isLogout) {
       if (addon) {
         const addonRes = await fetch(`${addon.baseUrl}/api/session/logout`, {
           method: 'POST',
@@ -52,14 +61,17 @@ export async function GET(request: Request) {
       }
 
       if (status.qrCodeBase64 || status.qrCodeRaw) {
+        const canViewPairingQr = authorization.profile.role === 'admin';
         return NextResponse.json({
           success: true,
           status: 'qr_ready',
           mode: 'embedded',
           state: 'connecting',
-          qrCodeBase64: status.qrCodeBase64 || null,
-          qrCodeRaw: status.qrCodeRaw || null,
-          message: 'كود QR جاهز للمسح من الواتساب 📱'
+          qrCodeBase64: canViewPairingQr ? status.qrCodeBase64 || null : null,
+          qrCodeRaw: canViewPairingQr ? status.qrCodeRaw || null : null,
+          message: canViewPairingQr
+            ? 'كود QR جاهز للمسح من الواتساب 📱'
+            : 'يوجد جهاز واتساب غير مرتبط. تواصل مع المدير لإكمال الربط.'
         });
       }
 
@@ -68,7 +80,7 @@ export async function GET(request: Request) {
         status: 'not_configured',
         mode: 'unavailable',
         state: 'disconnected',
-        message: 'خادم الواتساب غير مهيأ. احفظ رابط الخادم ومفتاح الأمان أولاً.'
+        message: 'خادم الواتساب غير مهيأ في إعدادات خلفية التطبيق.'
       });
     }
 
@@ -119,16 +131,19 @@ export async function GET(request: Request) {
     }
 
     if ('status' in info && info.status === 'qr_ready' || 'qrCodeBase64' in info && info.qrCodeBase64) {
+      const canViewPairingQr = authorization.profile.role === 'admin';
       return NextResponse.json({
         success: true,
         status: 'qr_ready',
         mode: 'addon',
         state: 'connecting',
-        qrCodeBase64: 'qrCodeBase64' in info ? info.qrCodeBase64 || null : null,
-        qrCodeRaw: 'qrCodeRaw' in info ? info.qrCodeRaw || null : null,
+        qrCodeBase64: canViewPairingQr && 'qrCodeBase64' in info ? info.qrCodeBase64 || null : null,
+        qrCodeRaw: canViewPairingQr && 'qrCodeRaw' in info ? info.qrCodeRaw || null : null,
         lastError,
         sessionStoragePathIsAbsolute,
-        message: 'كود QR جاهز للمسح من الواتساب 📱'
+        message: canViewPairingQr
+          ? 'كود QR جاهز للمسح من الواتساب 📱'
+          : 'يوجد جهاز واتساب غير مرتبط. تواصل مع المدير لإكمال الربط.'
       });
     }
 

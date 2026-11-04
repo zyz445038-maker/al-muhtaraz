@@ -2,13 +2,21 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { sendWhatsAppMessage } from '@/lib/whatsappEngine';
-import { insertNotificationLog, runDbQuery } from '@/lib/db';
+import { insertNotificationLog } from '@/lib/db';
 import { logError, logEvent } from '@/lib/eventLogger';
+import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
+import { authorizeWhatsAppRequest, isWhatsAppAuthorizationError } from '@/lib/whatsappApiAuth';
+import { proxyWhatsAppDesktopRequest } from '@/lib/whatsappDesktopProxy';
 
 export async function POST(request: Request) {
   try {
+    const proxyResponse = await proxyWhatsAppDesktopRequest(request, '/api/whatsapp/send');
+    if (proxyResponse) return proxyResponse;
+
+    const authorization = await authorizeWhatsAppRequest(request);
+    if (isWhatsAppAuthorizationError(authorization)) return authorization;
+
     const body = await request.json();
     const { 
       phone, 
@@ -30,26 +38,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Phone and message or media are required' }, { status: 400 });
     }
 
-    // 1. Fetch saved WhatsApp Settings
-    let dbServerUrl = '';
-    let dbApiKey = '';
-
-    try {
-      const settingsResult = await runDbQuery<{ evolution_server_url?: string; evolution_api_key?: string }>('whatsapp.settings.read', () => supabase
-        .from('whatsapp_settings')
-        .select('*')
-        .limit(1)
-        .maybeSingle());
-
-      if (settingsResult.ok && settingsResult.data) {
-        const settings = settingsResult.data;
-        dbServerUrl = settings.evolution_server_url || '';
-        dbApiKey = settings.evolution_api_key || '';
-      }
-    } catch (error) {
-      logError('whatsapp.settings.read', error);
-    }
-
     // Format and normalize phone number
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.startsWith('00966')) {
@@ -66,13 +54,12 @@ export async function POST(request: Request) {
     let sendSuccess = false;
     let apiResponse: any = null;
 
-    // Resolve active cloud Add-on server URL & API Key from environment only
-    const addonServerUrl = process.env.WHATSAPP_ADDON_URL || dbServerUrl;
-    const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || dbApiKey;
+    const addon = await getWhatsAppAddonConfig();
 
     // 2. Dispatch message through Cloud Add-on server only when configuration exists
-    if (addonServerUrl && addonApiKey) {
-      const cleanServer = addonServerUrl.replace(/\/+$/, '');
+    if (addon) {
+      const cleanServer = addon.baseUrl;
+      const addonApiKey = addon.apiKey;
 
       try {
         const isMedia = mediaUrl || mediaBase64 || location || mediaType === 'document' || fileName?.endsWith('.pdf');

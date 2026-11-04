@@ -1,9 +1,5 @@
 import { sendWhatsAppMessage } from '@/lib/whatsappEngine';
-
-export type WhatsAppTextConfig = {
-  evolution_server_url?: string | null;
-  evolution_api_key?: string | null;
-};
+import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
 
 export function normalizeWhatsAppPhone(phone: string): string {
   let cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -22,8 +18,7 @@ export function normalizeWhatsAppPhone(phone: string): string {
 
 export async function sendWhatsAppText(
   phone: string,
-  message: string,
-  config: WhatsAppTextConfig = {}
+  message: string
 ): Promise<{ success: boolean; error?: string }> {
   const cleanPhone = normalizeWhatsAppPhone(phone);
   if (cleanPhone.length < 8 || cleanPhone.length > 15) {
@@ -34,13 +29,13 @@ export async function sendWhatsAppText(
     return { success: false, error: 'نص رسالة واتساب فارغ.' };
   }
 
-  const addonServerUrl = process.env.WHATSAPP_ADDON_URL || config.evolution_server_url || '';
-  const addonApiKey = process.env.WHATSAPP_ADDON_API_KEY || config.evolution_api_key || '';
+  const addon = await getWhatsAppAddonConfig();
   const deliveryErrors: string[] = [];
 
-  if (addonServerUrl && addonApiKey) {
+  if (addon) {
     try {
-      const cleanServer = addonServerUrl.replace(/\/+$/, '');
+      const cleanServer = addon.baseUrl;
+      const addonApiKey = addon.apiKey;
       const response = await fetch(`${cleanServer}/api/messages/send-text`, {
         method: 'POST',
         headers: {

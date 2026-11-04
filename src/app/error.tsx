@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { reportClientError } from '@/lib/rollbarClient';
 
 export default function GlobalError({
   error,
@@ -11,7 +12,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Unhandled Application Error:', error);
+    reportClientError(error);
   }, [error]);
 
   return (
@@ -55,7 +56,7 @@ export default function GlobalError({
         </h1>
 
         <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '28px' }}>
-          نعتذر عن هذا الخطأ المؤقت. تم تسجيل التنبيه ويمكنك إعادة المحاولة وتحديث الصفحة فوراً.
+          نعتذر عن هذا الخطأ المؤقت. يمكنك إعادة المحاولة أو تحديث الصفحة.
         </p>
 
         <button

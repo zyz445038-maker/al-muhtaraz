@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import { ArchiveImportWorkerPoller } from '@/components/ArchiveImportWorkerPoller';
+import RollbarInitializer from '@/components/RollbarInitializer';
 
 export const metadata: Metadata = {
   title: 'المحترز للحاويات | إدارة وتأجير الحاويات التجارية والأنقاض',
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body suppressHydrationWarning>
+        <RollbarInitializer />
         <ServiceWorkerRegister />
         <ArchiveImportWorkerPoller />
         {children}

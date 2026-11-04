@@ -48,6 +48,7 @@ import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings, COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
+import { getWhatsAppApiHeaders } from '@/lib/whatsappApiClient';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
@@ -356,7 +357,7 @@ function MainDashboard() {
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getWhatsAppApiHeaders(true),
         body: JSON.stringify({ phone: alert.recipientPhone, message: alert.message })
       });
       const data = await res.json();
@@ -878,7 +879,9 @@ function MainDashboard() {
   useEffect(() => {
     const pollWhatsAppStatus = async () => {
       try {
-        const res = await fetch('/api/whatsapp/status');
+        const res = await fetch('/api/whatsapp/status', {
+          headers: await getWhatsAppApiHeaders()
+        });
         const data = await res.json();
         if (data.status === 'connected') {
           setWhatsappLiveStatus('connected');
@@ -936,10 +939,8 @@ function MainDashboard() {
           setContracts(contractsResult.data ?? []);
         }
 
-        // Restore from localStorage first for instant display
         try {
-          const localWa = localStorage.getItem('muhtaraz_whatsapp_settings');
-          if (localWa) setGatewaySettings(JSON.parse(localWa));
+          localStorage.removeItem('muhtaraz_whatsapp_settings');
           const localPay = localStorage.getItem('muhtaraz_payment_settings');
           if (localPay) setPaymentSettings(JSON.parse(localPay));
         } catch (e) {}
@@ -955,7 +956,10 @@ function MainDashboard() {
         ] = await Promise.all([
           supabase.from('notification_logs').select('*'),
           supabase.from('notifications').select('*').order('created_at', { ascending: false }),
-          supabase.from('whatsapp_settings').select('*').limit(1).maybeSingle(),
+          supabase.from('whatsapp_settings')
+            .select('id, mode, evolution_instance_name, sender_phone, admin_phone, is_connected, auto_send_enabled, notify_driver_on_contract_created, notify_driver_on_alerts, updated_at')
+            .limit(1)
+            .maybeSingle(),
           supabase.from('payment_settings').select('*').limit(1).maybeSingle(),
           supabase.from('receipts').select('*'),
           supabase.from('vehicles').select('*'),
@@ -970,7 +974,14 @@ function MainDashboard() {
         else setInAppNotifications(inAppResult.data ?? []);
 
         if (settingsResult.error) errors.push(`إعدادات واتساب: ${settingsResult.error.message}`);
-        else if (settingsResult.data) setGatewaySettings(settingsResult.data);
+        else if (settingsResult.data) {
+          setGatewaySettings({
+            ...initialGatewaySettings,
+            ...settingsResult.data,
+            evolution_server_url: '',
+            evolution_api_key: ''
+          });
+        }
 
         if (paymentSettingsResult.error) errors.push(`إعدادات بوابة الدفع الإلكتروني: ${paymentSettingsResult.error.message}`);
         else if (paymentSettingsResult.data) setPaymentSettings(paymentSettingsResult.data);
@@ -1069,7 +1080,7 @@ function MainDashboard() {
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getWhatsAppApiHeaders(true),
         body: JSON.stringify({ phone, message, ...extraPayload })
       });
       const data = await res.json();
@@ -1165,15 +1176,20 @@ function MainDashboard() {
   // Gateway Settings Handlers
   const handleSaveGatewaySettings = async (updated: IWhatsAppSettings): Promise<boolean> => {
     try {
-      const { error } = await supabase.from('whatsapp_settings').upsert([updated]);
+      const { evolution_server_url: _serverUrl, evolution_api_key: _apiKey, ...safeSettings } = updated;
+      const { error } = await supabase.from('whatsapp_settings').upsert([safeSettings]);
       if (error) {
-        console.error('Could not save WhatsApp server settings:', error);
+        console.error('Could not save WhatsApp notification settings:', error);
         return false;
       }
-      setGatewaySettings(updated);
+      setGatewaySettings({
+        ...safeSettings,
+        evolution_server_url: '',
+        evolution_api_key: ''
+      });
       return true;
     } catch (error) {
-      console.error('Could not save WhatsApp server settings:', error);
+      console.error('Could not save WhatsApp notification settings:', error);
       return false;
     }
   };
@@ -1202,7 +1218,7 @@ function MainDashboard() {
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getWhatsAppApiHeaders(true),
         body: JSON.stringify({
           phone: testPhone,
           message: 'رسالة اختبار تجريبية من بوابة الواتساب - المحترز للحاويات ✅'
@@ -1211,7 +1227,8 @@ function MainDashboard() {
       const data = await res.json();
       return !!data.success;
     } catch (err) {
-      return true; // simulated success for test
+      console.error('WhatsApp test message failed:', err);
+      return false;
     }
   };
 

@@ -67,7 +67,7 @@ async function handleProcess(request: Request) {
     const adminSupabase = getSupabaseAdminClient();
     const settingsResult = await adminSupabase
       .from('whatsapp_settings')
-      .select('admin_phone, auto_send_enabled, evolution_server_url, evolution_api_key, notify_driver_on_alerts')
+      .select('admin_phone, auto_send_enabled, notify_driver_on_alerts')
       .limit(1)
       .maybeSingle();
 
@@ -76,10 +76,6 @@ async function handleProcess(request: Request) {
     const settings = settingsResult.data;
     const autoSendEnabled = settings?.auto_send_enabled === true;
     const adminPhone = settings?.admin_phone?.trim() || '';
-    const whatsappConfig = {
-      evolution_server_url: settings?.evolution_server_url,
-      evolution_api_key: settings?.evolution_api_key
-    };
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setUTCHours(0, 0, 0, 0);
@@ -250,11 +246,7 @@ async function handleProcess(request: Request) {
     const batch = await processPendingNotifications(
       pendingResult.data || [],
       autoSendEnabled,
-      async notification => sendWhatsAppText(
-        notification.recipient_phone,
-        notification.message_body,
-        whatsappConfig
-      ),
+      async notification => sendWhatsAppText(notification.recipient_phone, notification.message_body),
       async (id, values) => {
         const { data, error } = await adminSupabase
           .from('notification_logs')

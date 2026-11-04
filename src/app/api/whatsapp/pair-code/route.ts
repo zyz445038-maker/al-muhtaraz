@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWhatsAppAddonConfig } from '@/lib/whatsappAddonConfig';
+import { authorizeWhatsAppRequest, isWhatsAppAuthorizationError } from '@/lib/whatsappApiAuth';
+import { proxyWhatsAppDesktopRequest } from '@/lib/whatsappDesktopProxy';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
 
@@ -9,6 +11,12 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
+    const proxyResponse = await proxyWhatsAppDesktopRequest(req, '/api/whatsapp/pair-code');
+    if (proxyResponse) return proxyResponse;
+
+    const authorization = await authorizeWhatsAppRequest(req, true);
+    if (isWhatsAppAuthorizationError(authorization)) return authorization;
+
     const body: unknown = await req.json().catch(() => null);
     const phone = body && typeof body === 'object' && 'phone' in body && typeof body.phone === 'string'
       ? normalizeSaudiMobileNumber(body.phone)
@@ -24,7 +32,7 @@ export async function POST(req: NextRequest) {
     const addon = await getWhatsAppAddonConfig();
     if (!addon) {
       return NextResponse.json(
-        { success: false, error: 'خادم الواتساب غير مهيأ. احفظ رابط الخادم ومفتاح الأمان أولاً.' },
+        { success: false, error: 'خادم الواتساب غير مهيأ في إعدادات خلفية التطبيق.' },
         { status: 503 }
       );
     }

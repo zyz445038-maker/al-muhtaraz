@@ -44,6 +44,7 @@ import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
+import { getWhatsAppApiHeaders } from '@/lib/whatsappApiClient';
 
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
@@ -65,17 +66,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   // Navigation within WhatsApp Engine Hub
   const [activeSection, setActiveSection] = useState<'connection' | 'routing' | 'sandbox' | 'guide'>('connection');
 
-  // Server & Gateway Config (Render Cloud Microservice)
-  const [serverUrl, setServerUrl] = useState(
-    settings.evolution_server_url && !settings.evolution_server_url.includes('8080')
-      ? settings.evolution_server_url
-      : ''
-  );
-  const [apiKey, setApiKey] = useState(settings.evolution_api_key || '');
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
   const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
   const [autoSendEnabled, setAutoSendEnabled] = useState(settings.auto_send_enabled ?? true);
-  const [showApiKey, setShowApiKey] = useState(false);
 
   // Routing Rules State
   const [notifyCustomerContract, setNotifyCustomerContract] = useState(true);
@@ -103,15 +96,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setNotifyDriverAlerts(settings.notify_driver_on_alerts ?? false);
   }, [settings.notify_driver_on_contract_created, settings.notify_driver_on_alerts]);
 
-  useEffect(() => {
-    setServerUrl(
-      settings.evolution_server_url && !settings.evolution_server_url.includes('8080')
-        ? settings.evolution_server_url
-        : ''
-    );
-    setApiKey(settings.evolution_api_key || '');
-  }, [settings.evolution_api_key, settings.evolution_server_url]);
-
   // Sandbox Test State
   const [testPhoneInput, setTestPhoneInput] = useState('');
   const [testMessageInput, setTestMessageInput] = useState('السلام عليكم ورحمة الله، رسالة تجريبية من محرك مؤسسة المحترز للحاويات 🏗️');
@@ -120,149 +104,82 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Fetch Live Status on Mount & Poll
+  // Fetch live WhatsApp status through the authenticated application API.
   const fetchLiveStatus = async () => {
     setIsCheckingLive(true);
-    let statusError: string | null = null;
     try {
-      let data: any = null;
-      try {
-        const res = await fetch('/api/whatsapp/status', {
-          cache: 'no-store'
-        });
-        const responseData = await res.json();
-        if (res.ok && responseData.success && responseData.status && responseData.status !== 'error') {
-          data = responseData;
-        } else {
-          statusError = responseData.message || responseData.error || 'تعذر قراءة حالة الواتساب من التطبيق.';
-        }
-      } catch (error) {
-        statusError = error instanceof Error ? error.message : 'تعذر قراءة حالة الواتساب من التطبيق.';
+      const res = await fetch('/api/whatsapp/status', {
+        headers: await getWhatsAppApiHeaders(),
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'تعذر قراءة حالة الواتساب.');
       }
 
-      if (!data && serverUrl && apiKey) {
-        try {
-          const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/status`, {
-            headers: { 'Authorization': `Bearer ${apiKey}` },
-            cache: 'no-store'
-          });
-          if (directRes.ok) {
-            const directJson = await directRes.json();
-            if (directJson.success && directJson.data) {
-              data = directJson.data;
-            } else {
-              statusError = directJson.error || 'تعذر قراءة حالة خادم الواتساب مباشرة.';
-            }
-          } else {
-            statusError = `تعذر الاتصال المباشر بخادم الواتساب (${directRes.status}).`;
-          }
-        } catch (error) {
-          statusError = error instanceof Error ? error.message : 'تعذر الاتصال المباشر بخادم الواتساب.';
-        }
-      }
-
-      if (data) {
-        statusError = typeof data.lastError === 'string' ? data.lastError : null;
-        if (!statusError && data.sessionStoragePathIsAbsolute === false) {
-          statusError = 'مسار SESSION_DIR نسبي؛ اضبطه على مسار القرص الدائم المرتبط بخادم الواتساب كي لا تضيع الجلسة بعد إعادة التشغيل.';
-        }
-        if (data.status === 'error' || data.status === 'not_configured') {
-          setLiveStatus('disconnected');
-          setQrCodeBase64(null);
-          statusError = data.message || data.error || statusError;
-        } else if (data.status === 'connected' || data.isConnected) {
-          setLiveStatus('connected');
-          setLivePhone(data.phoneNumber || senderPhone);
-          setQrCodeBase64(null);
-        } else if (data.status === 'qr_ready' || data.qrCodeBase64) {
-          setLiveStatus('qr_ready');
-          setQrCodeBase64(data.qrCodeBase64);
-        } else {
-          setLiveStatus('connecting');
-        }
-      } else {
+      const statusError = typeof data.lastError === 'string'
+        ? data.lastError
+        : data.sessionStoragePathIsAbsolute === false
+          ? 'مسار الجلسة ليس على قرص دائم؛ قد تُفقد الجلسة عند إعادة تشغيل الخادم.'
+          : null;
+      if (data.status === 'connected' || data.isConnected) {
+        setLiveStatus('connected');
+        setLivePhone(data.phoneNumber || senderPhone);
+        setQrCodeBase64(null);
+      } else if (data.status === 'qr_ready') {
+        setLiveStatus('qr_ready');
+        setQrCodeBase64(data.qrCodeBase64 || null);
+      } else if (data.status === 'error' || data.status === 'not_configured') {
         setLiveStatus('disconnected');
         setQrCodeBase64(null);
+      } else {
+        setLiveStatus('connecting');
       }
       setLiveStatusError(statusError);
     } catch (error) {
       console.error('Error polling WhatsApp status:', error);
       setLiveStatus('disconnected');
       setQrCodeBase64(null);
-      setLiveStatusError(error instanceof Error ? error.message : 'تعذر الاتصال بخادم الواتساب.');
+      setLiveStatusError(error instanceof Error ? error.message : 'تعذر الاتصال بخلفية الواتساب.');
     } finally {
       setIsCheckingLive(false);
     }
   };
 
   useEffect(() => {
-    fetchLiveStatus();
-    const interval = setInterval(fetchLiveStatus, 5000);
+    void fetchLiveStatus();
+    const interval = setInterval(() => void fetchLiveStatus(), 5000);
     return () => clearInterval(interval);
-  }, [serverUrl, apiKey]);
+  }, [senderPhone]);
 
-  // Request 8-digit Pairing Code
+  // Request an 8-digit pairing code through the authenticated application API.
   const handleRequestPairCode = async () => {
     const phone = normalizeSaudiMobileNumber(pairPhoneInput);
     if (!phone) {
       setPairError('يرجى إدخال رقم هاتف سعودي صحيح مكون من 10 أرقام');
       return;
     }
+
     setIsRequestingPair(true);
     setPairError(null);
     setGeneratedPairCode(null);
     try {
-      let code: string | null = null;
-      let proxyError = 'تعذر توليد رمز الاقتران عبر التطبيق.';
-      try {
-        const res = await fetch('/api/whatsapp/pair-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone })
-        });
-        const json = await res.json();
-        if (res.ok && json.success && json.code) {
-          code = normalizeWhatsAppPairingCode(json.code);
-          if (!code) {
-            proxyError = 'استلم التطبيق رمز ربط غير مكتمل. أعد الطلب مرة واحدة.';
-          }
-        } else {
-          proxyError = json.error || proxyError;
-        }
-      } catch (err) {
-        proxyError = err instanceof Error ? err.message : 'تعذر الاتصال بخادم الواتساب.';
+      const res = await fetch('/api/whatsapp/pair-code', {
+        method: 'POST',
+        headers: await getWhatsAppApiHeaders(true),
+        body: JSON.stringify({ phone })
+      });
+      const json = await res.json();
+      const code = json.success && typeof json.code === 'string'
+        ? normalizeWhatsAppPairingCode(json.code)
+        : null;
+      if (!res.ok || !code) {
+        setPairError(json.error || 'تعذر توليد رمز اقتران صالح.');
+        return;
       }
-
-      let directError = '';
-      if (!code && serverUrl && apiKey) {
-        try {
-          const directRes = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/pair-code`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({ phone })
-          });
-          const directJson = await directRes.json();
-          if (directRes.ok && directJson.success && directJson.data?.code) {
-            code = normalizeWhatsAppPairingCode(directJson.data.code);
-            if (!code) directError = 'أعاد خادم الواتساب رمز اقتران غير صالح.';
-          } else {
-            directError = directJson.error || `تعذر توليد رمز الاقتران من الخادم (${directRes.status}).`;
-          }
-        } catch (error) {
-          directError = error instanceof Error ? error.message : 'تعذر الاتصال المباشر بخادم الواتساب.';
-        }
-      }
-
-      if (code) {
-        setGeneratedPairCode(code);
-      } else {
-        setPairError(directError || proxyError);
-      }
-    } catch (err: any) {
-      setPairError(err?.message || 'خطأ في الاتصال بالخادم');
+      setGeneratedPairCode(code);
+    } catch (error) {
+      setPairError(error instanceof Error ? error.message : 'تعذر الاتصال بخلفية الواتساب.');
     } finally {
       setIsRequestingPair(false);
     }
@@ -273,18 +190,20 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     if (!confirm('هل أنت متأكد من رغبتك في فصل الرقم الحالي لإعادة الاقتران برقم المنشأة الرسمي؟')) return;
     setIsLoggingOut(true);
     try {
-      await fetch('/api/whatsapp/status?action=logout', { method: 'GET' }).catch(() => {});
-      await fetch(`${serverUrl.replace(/\/+$/, '')}/api/session/logout`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      }).catch(() => {});
-
+      const response = await fetch('/api/whatsapp/status?action=logout', {
+        method: 'GET',
+        headers: await getWhatsAppApiHeaders()
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'تعذر فصل جلسة الواتساب من الخادم.');
+      }
       setLiveStatus('qr_ready');
       setLivePhone(null);
       setGeneratedPairCode(null);
-      fetchLiveStatus();
-    } catch (e) {
-      alert('حدث خطأ أثناء تسجيل الخروج');
+      void fetchLiveStatus();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'حدث خطأ أثناء تسجيل الخروج');
     } finally {
       setIsLoggingOut(false);
     }
@@ -295,8 +214,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setIsSaving(true);
     const updated: IWhatsAppSettings = {
       ...settings,
-      evolution_server_url: serverUrl,
-      evolution_api_key: apiKey,
       sender_phone: senderPhone,
       admin_phone: adminPhone,
       auto_send_enabled: autoSendEnabled,
@@ -324,7 +241,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     try {
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getWhatsAppApiHeaders(true),
         body: JSON.stringify({
           phone: testPhoneInput,
           message: testMessageInput
@@ -932,110 +849,19 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             )}
           </div>
 
-          {/* Server Config & API Key Card */}
           <div style={{
             background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.9) 0%, rgba(10, 15, 29, 0.95) 100%)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.4)'
+            padding: '20px'
           }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
               <Server size={18} color="#38bdf8" />
-              <span>إعدادات رابط خادم المحرك ومفتاح الأمان (Server Configuration)</span>
+              <span>اتصال آمن بخادم الواتساب</span>
             </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px' }}>
-                  رابط خادم الواتساب المستقل (URL):
-                </label>
-                <input
-                  type="text"
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="https://your-whatsapp-addon.example.com"
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    fontSize: '0.85rem',
-                    direction: 'ltr',
-                    textAlign: 'left',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '6px' }}>
-                  مفتاح الأمان السري (API Secret Key):
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="your_api_key_here"
-                    style={{
-                      width: '100%',
-                      padding: '10px 38px 10px 14px',
-                      borderRadius: '12px',
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#ffffff',
-                      fontSize: '0.85rem',
-                      direction: 'ltr',
-                      textAlign: 'left',
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#94a3b8',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                style={{
-                  padding: '10px 24px',
-                  background: 'linear-gradient(135deg, #10b981, #059669)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  color: '#050811',
-                  fontWeight: 900,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)'
-                }}
-              >
-                <Check size={16} />
-                <span>{isSaving ? 'جارِ الحفظ...' : saveSuccess ? 'تم الحفظ بنجاح ✓' : 'حفظ الإعدادات'}</span>
-              </button>
-            </div>
+            <p style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.7 }}>
+              تتم إدارة رابط الخادم ومفتاحه سرياً على خلفية التطبيق. لا تُدخل المفتاح هنا؛ يتصل تطبيق Windows عبر Vercel دون كشف بيانات الاعتماد.
+            </p>
           </div>
         </div>
       )}
