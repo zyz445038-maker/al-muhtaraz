@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
-import { sessionManager } from '../engine/sessionManager';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { sessionManager } from '../engine/sessionManager.js';
 
 export const sessionRouter = Router();
 

@@ -2,6 +2,7 @@
   "name": "whatsapp-addon-server",
   "version": "1.0.0",
   "description": "Standalone WhatsApp Microservice Engine for Al-Muhtaraz ERP",
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",

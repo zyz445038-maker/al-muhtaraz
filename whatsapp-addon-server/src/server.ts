@@ -1,13 +1,16 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { authenticateApiKey } from './middleware/auth';
-import { sessionRouter } from './routes/sessionRoutes';
-import { messageRouter } from './routes/messageRoutes';
-import { sessionManager } from './engine/sessionManager';
+import { authenticateApiKey } from './middleware/auth.js';
+import { sessionRouter } from './routes/sessionRoutes.js';
+import { messageRouter } from './routes/messageRoutes.js';
+import { sessionManager } from './engine/sessionManager.js';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 5050;
 

@@ -1,4 +1,4 @@
-import { sessionManager } from './sessionManager';
+import { sessionManager } from './sessionManager.js';
 
 export interface SendMessageOptions {
   phone: string;

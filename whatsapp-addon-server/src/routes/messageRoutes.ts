@@ -1,5 +1,7 @@
-import { Router, Request, Response } from 'express';
-import { sendWhatsAppMessage, SendMessageOptions } from '../engine/whatsappClient';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { sendWhatsAppMessage } from '../engine/whatsappClient.js';
+import type { SendMessageOptions } from '../engine/whatsappClient.js';
 
 export const messageRouter = Router();
 
