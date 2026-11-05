@@ -55,8 +55,9 @@ export const COMPANY_OFFICIAL_INFO = {
   subNameArabic: 'المحترز لتأجير الحاويات',
   activity: 'تأجير حاويات - رفع أنقاض',
   crNumber: '3400019882',
+  vatNumber: '300099887700003',
   nameEnglish: 'ALMUHTAREZ',
-  address: 'المملكة العربية السعودية — الجوف — سكاكا — شارع مكة المكرمة',
+  address: 'المملكة العربية السعودية – الجوف – سكاكا',
   phone: '0532643000',
   email: 'almuhtaraz20@gmail.com'
 };

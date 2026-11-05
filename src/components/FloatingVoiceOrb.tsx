@@ -26,6 +26,7 @@ import { AlMuhtarazExecutiveAgent, AgentMemoryState } from '@/utils/aiExecutiveA
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
+import { getSpeechRecognitionConstructor, type SpeechRecognitionLike } from './speechRecognition';
 
 interface FloatingVoiceOrbProps {
   userRole: UserRole;
@@ -46,11 +47,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   receipts,
   vehicles = []
 }) => {
-  // STRICT ADMIN ONLY: If not admin, hide completely from UI
-  if (userRole !== 'admin') {
-    return null;
-  }
-
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
@@ -63,7 +59,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
   const [lastSpeechText, setLastSpeechText] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
   const [lastResponse, setLastResponse] = useState<string>('هلا أبو ماجد أنا تحت أمرك');
   
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const isListeningRef = useRef<boolean>(false);
   const accumulatedTextRef = useRef<string>('');
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -129,8 +125,10 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
 
   // Initialize Speech Recognition with High Sensitivity Silence Detection (1.2s auto-finish)
   useEffect(() => {
+    if (userRole !== 'admin') return;
+
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition = getSpeechRecognitionConstructor();
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
@@ -142,7 +140,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           playInteractionFeedback('start_listening');
         };
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event) => {
           let interimTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
@@ -168,7 +166,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
           }, 1200);
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event) => {
           console.warn('Voice recognition error:', event.error);
           if (event.error !== 'no-speech') {
             setIsListening(false);
@@ -194,7 +192,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     return () => {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
-  }, [contracts, containers, customers, staffList, receipts]);
+  }, [userRole, contracts, containers, customers, staffList, receipts]);
 
   // Stop listening cleanly
   const stopListeningSession = () => {
@@ -269,8 +267,8 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
       const errorMsg = data.error || 'استجابة غير متوقعة من الخادم.';
       throw new Error(errorMsg);
 
-    } catch (err: any) {
-      const actualError = err.message || String(err);
+    } catch (err: unknown) {
+      const actualError = err instanceof Error ? err.message : String(err);
       console.error('Voice processing error:', actualError);
       setIsThinking(false);
       setLastResponse(`❌ **تعذر تنفيذ طلب المساعد الذكي:**\n\n\`${actualError}\`\n\n*(تحقق من اتصال التطبيق وتسجيل الدخول، ثم أعد المحاولة. إذا استمرت المشكلة، راجع سجل الخادم.)*`);
@@ -309,6 +307,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     setIsOpen(true);
   };
 
+  if (userRole !== 'admin') return null;
 
   return (
     <>
@@ -495,7 +494,7 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
                   borderRadius: '8px',
                   border: '1px solid rgba(245, 158, 11, 0.2)'
                 }}>
-                  🎤 جاري الاستماع: "{transcript}"
+                  🎤 جاري الاستماع: &ldquo;{transcript}&rdquo;
                 </div>
               )}
 

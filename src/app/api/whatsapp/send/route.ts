@@ -126,11 +126,13 @@ export async function POST(request: Request) {
       provider: 'railway'
     }, { status: sendResult.success ? 200 : 502 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Send WhatsApp Error:', error);
+    const errorMessage = error !== null && typeof error === 'object' && 'message' in error
+      && typeof error.message === 'string' ? error.message : undefined;
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: errorMessage
     }, { status: 500 });
   }
 }

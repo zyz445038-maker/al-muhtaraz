@@ -32,7 +32,7 @@ import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';
 import { SmartAssistantHub } from '@/components/SmartAssistantHub';
 import { FloatingVoiceOrb } from '@/components/FloatingVoiceOrb';
-import { NewContractModal } from '@/components/NewContractModal';
+import { NewContractModal, type NewContractPayload, type PaymentChoice } from '@/components/NewContractModal';
 import { ReceiptModal } from '@/components/ReceiptModal';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
 import { ExtendContractModal } from '@/components/ExtendContractModal';
@@ -53,7 +53,7 @@ import {
   sendWhatsAppAutomatically,
   type WhatsAppDeliveryOutcome
 } from '@/lib/whatsappApiClient';
-import { createReceiptImageUrl } from '@/lib/receiptVerification';
+import { createReceiptNumberVerificationUrl, createReceiptVerificationUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import {
   MarketingCustomer,
@@ -63,6 +63,8 @@ import {
 import { VehiclesManagement } from '@/components/VehiclesManagement';
 import { TransportVehicle } from '@/types/database';
 import { FinancialReportsView } from '@/components/FinancialReportsView';
+import { allocatePaymentAmounts, calculateVatAmounts, getContractPaymentContext, roundCurrency } from '@/utils/invoiceAmounts';
+import { normalizeSaudiVatNumber } from '@/utils/saudiVatNumber';
 
 // Sample Seed Data
 const initialStaff: Profile[] = [
@@ -1395,6 +1397,15 @@ function MainDashboard() {
       return false;
     }
 
+    const allocation = allocatePaymentAmounts({
+      enteredAmount: amount,
+      ...getContractPaymentContext(contract)
+    });
+    if (!allocation || amount <= 0) {
+      alert('مبلغ التحصيل يتجاوز الرصيد المتبقي قبل الضريبة.');
+      return false;
+    }
+
     const receiptNumber = `RCP-${new Date().getFullYear()}-${crypto.randomUUID().toUpperCase()}`;
     try {
       const { data, error } = await supabase.rpc('record_contract_payment', {
@@ -1420,8 +1431,15 @@ function MainDashboard() {
       }
 
       const receiptAmount = Number(payment.receipt.amount);
-      if (!Number.isFinite(receiptAmount) || receiptAmount !== amount) {
-        throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير مطابق للمبلغ المسجل.');
+      if (!Number.isFinite(receiptAmount) || receiptAmount !== allocation.grossAmount) {
+        throw new Error('أعادت قاعدة البيانات مبلغاً غير مطابق لإجمالي الدفعة بعد الضريبة.');
+      }
+      if (
+        Number(payment.receipt.non_taxable_amount ?? 0) !== allocation.nonTaxableAmount
+        || Number(payment.receipt.subtotal_amount ?? 0) !== allocation.subtotalAmount
+        || Number(payment.receipt.vat_amount ?? 0) !== allocation.vatAmount
+      ) {
+        throw new Error('أعادت قاعدة البيانات توزيعاً ضريبياً غير مطابق للدفعة.');
       }
 
       const updatedContract: Contract = {
@@ -1468,6 +1486,11 @@ function MainDashboard() {
   // 2. [💳 سداد] - Send Electronic Invoice link via WhatsApp
   const handleSendSadadLink = async (contract: Contract) => {
     const remaining = Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount));
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      alert('لا يوجد رصيد متبقٍ لإرسال رابط سداد.');
+      return;
+    }
+
     try {
       const res = await fetch('/api/payment/create-invoice', {
         method: 'POST',
@@ -1475,7 +1498,7 @@ function MainDashboard() {
         body: JSON.stringify({
           contract_id: contract.id,
           contract_number: contract.contract_number,
-          amount: remaining > 0 ? remaining : contract.total_cost,
+          amount: remaining,
           customer_name: contract.customer?.name,
           customer_phone: contract.customer?.phone
         })
@@ -1488,7 +1511,7 @@ function MainDashboard() {
         const fallbackLink = `https://checkout.moyasar.com/invoices/inv_${contract.contract_number}`;
         handleSendWhatsApp(
           contract.customer!.phone,
-          `مرحباً ${contract.customer?.name}، رابط سداد عقد الحاوية (${contract.contract_number}) بمبلغ (${remaining || contract.total_cost} ر.س) عبر Apple Pay ومدى:\n${fallbackLink}`
+          `مرحباً ${contract.customer?.name}، رابط سداد عقد الحاوية (${contract.contract_number}) بمبلغ (${remaining.toFixed(2)} ر.س شامل الضريبة) عبر Apple Pay ومدى:\n${fallbackLink}`
         );
       }
     } catch (err) {
@@ -1496,7 +1519,7 @@ function MainDashboard() {
         const fallbackLink = `https://checkout.moyasar.com/invoices/inv_${contract.contract_number}`;
         handleSendWhatsApp(
           contract.customer.phone,
-          `مرحباً ${contract.customer?.name}، رابط سداد عقد الحاوية (${contract.contract_number}) بمبلغ (${remaining || contract.total_cost} ر.س) عبر Apple Pay ومدى:\n${fallbackLink}`
+          `مرحباً ${contract.customer?.name}، رابط سداد عقد الحاوية (${contract.contract_number}) بمبلغ (${remaining.toFixed(2)} ر.س شامل الضريبة) عبر Apple Pay ومدى:\n${fallbackLink}`
         );
       }
     }
@@ -1507,7 +1530,7 @@ function MainDashboard() {
     contractId: string,
     additionalDays: number,
     additionalCost: number,
-    paymentChoice: 'cash' | 'sadad' | 'postpaid',
+    paymentChoice: PaymentChoice,
     newEndDate: string,
     paidAmount?: number,
     discountAmount?: number,
@@ -1518,36 +1541,56 @@ function MainDashboard() {
 
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const isCash = paymentChoice === 'cash';
+    const isBankTransfer = paymentChoice === 'bank_transfer';
     const isSadad = paymentChoice === 'sadad';
 
-    const netCost = Number(additionalCost) || 0;
-    const effectivePaid = Number(paidAmount ?? (isCash ? netCost : 0));
+    const netCost = roundCurrency(Number(additionalCost) || 0);
+    const extensionVat = calculateVatAmounts(netCost);
+    const paidSubtotal = roundCurrency(Number(paidAmount ?? (isCash ? netCost : 0)));
+    const extensionPayment = allocatePaymentAmounts({
+      enteredAmount: paidSubtotal,
+      nonTaxableAmount: 0,
+      nonTaxablePaidAmount: 0,
+      subtotalAmount: netCost,
+      subtotalPaidAmount: 0,
+      vatAmount: extensionVat.vatAmount,
+      vatPaidAmount: 0
+    });
+    if (!extensionPayment) {
+      alert('مبلغ دفعة التمديد يتجاوز قيمة التمديد قبل الضريبة.');
+      return false;
+    }
 
     let extensionNotes = `تمديد (+${additionalDays} يوم)`;
     const notesParts = [];
-    if (discountAmount && discountAmount > 0) notesParts.push(`خصم: ${discountAmount} ر.س`);
-    if (downPayment && downPayment > 0) notesParts.push(`دفعة: ${downPayment} ر.س`);
+    if (discountAmount && discountAmount > 0) notesParts.push(`خصم قبل الضريبة: ${discountAmount} ر.س`);
+    if (downPayment && downPayment > 0) notesParts.push(`دفعة قبل الضريبة: ${downPayment} ر.س`);
     if (notesParts.length > 0) {
       extensionNotes += ` [${notesParts.join(' - ')}]`;
     }
 
-    const shouldCreateReceipt = isCash || effectivePaid > 0;
-    const receiptAmount = effectivePaid;
-    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم) ${effectivePaid < netCost ? `(دفعة على الحساب بمبلغ ${effectivePaid} ر.س ومتبقي ${Math.max(0, netCost - effectivePaid)} ر.س)` : `بمبلغ ${effectivePaid} ر.س`}`;
+    const shouldCreateReceipt = isCash || isBankTransfer || paidSubtotal > 0;
+    const receiptAmount = extensionPayment.grossAmount;
+    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم): قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
     let updatedContract: Contract;
     let persistedReceipt: Receipt | null = null;
 
     try {
-      const { data, error } = await supabase.rpc('extend_container_rental_contract', {
+      const { data, error } = await supabase.rpc('extend_container_rental_contract_vat', {
         p_contract_id: contract.id,
         p_additional_days: additionalDays,
-        p_additional_cost: netCost,
+        p_additional_subtotal: netCost,
+        p_additional_vat: extensionVat.vatAmount,
         p_new_end_date: newEndDate,
-        p_paid_amount: effectivePaid,
+        p_paid_subtotal: paidSubtotal,
+        p_paid_vat: extensionPayment.vatAmount,
         p_payment_choice: paymentChoice,
         p_extension_notes: extensionNotes,
         p_receipt_number: shouldCreateReceipt ? receiptNumber : null,
         p_receipt_amount: shouldCreateReceipt ? receiptAmount : null,
+        p_receipt_non_taxable_amount: 0,
+        p_receipt_subtotal_amount: shouldCreateReceipt ? extensionPayment.subtotalAmount : null,
+        p_receipt_vat_amount: shouldCreateReceipt ? extensionPayment.vatAmount : null,
         p_receipt_notes: shouldCreateReceipt ? receiptNotes : null
       });
       if (error) throw error;
@@ -1577,8 +1620,8 @@ function MainDashboard() {
 
       if (extension.receipt) {
         const persistedAmount = Number(extension.receipt.amount);
-        if (!Number.isFinite(persistedAmount) || persistedAmount < 0) {
-          throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير صالح.');
+        if (!Number.isFinite(persistedAmount) || persistedAmount !== receiptAmount) {
+          throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير مطابق لإجمالي التمديد بعد الضريبة.');
         }
         persistedReceipt = {
           ...extension.receipt,
@@ -1588,7 +1631,7 @@ function MainDashboard() {
           customer_id: contract.customer_id,
           customer_name: contract.customer?.name || 'العميل',
           amount: persistedAmount,
-          payment_method: isCash ? 'cash' : 'mada',
+          payment_method: isCash ? 'cash' : isBankTransfer ? 'bank_transfer' : 'mada',
           contract_number: contract.contract_number,
           container_number: contract.container?.container_number,
           container_type: contract.contract_type,
@@ -1613,10 +1656,10 @@ function MainDashboard() {
 
     // Prepare WhatsApp Message
     const formattedDate = new Date(newEndDate).toLocaleDateString('ar-SA');
-    let messageContent = `مرحباً ${contract.customer?.name}، تم تمديد عقد الحاوية (${contract.contract_number}) بنجاح بمقدار (+${additionalDays} يوم) حتى تاريخ: ${formattedDate}. قيمة التمديد: ${additionalCost} ر.س.`;
+    let messageContent = `مرحباً ${contract.customer?.name}، تم تمديد عقد الحاوية (${contract.contract_number}) بنجاح بمقدار (+${additionalDays} يوم) حتى تاريخ: ${formattedDate}. قيمة التمديد بعد الضريبة: ${extensionVat.grossAmount.toFixed(2)} ر.س.`;
 
     if (isSadad) {
-      const invoiceLink = `https://checkout.moyasar.com/invoices/inv_${contract.contract_number}_ext?amount=${additionalCost}`;
+      const invoiceLink = `https://checkout.moyasar.com/invoices/inv_${contract.contract_number}_ext?amount=${extensionVat.grossAmount}`;
       messageContent += `\n\n💳 رابط سداد التمديد عبر Apple Pay ومدى:\n${invoiceLink}`;
     }
 
@@ -1929,11 +1972,12 @@ function MainDashboard() {
   };
 
   // Save New Contract Handler
-  const handleSaveContract = async (contractData: any): Promise<boolean> => {
+  const handleSaveContract = async (contractData: NewContractPayload): Promise<boolean> => {
     let customerObj: Customer = {
       id: '',
       name: contractData.customer_name,
       phone: contractData.customer_phone,
+      vat_number: normalizeSaudiVatNumber(contractData.customer_vat_number || '') || undefined,
       customer_type: 'individual',
       address: contractData.location_address,
       created_at: '',
@@ -1955,9 +1999,25 @@ function MainDashboard() {
     const isBankTransfer = !isFree && contractData.payment_choice === 'bank_transfer';
     const isSadad = !isFree && contractData.payment_choice === 'sadad';
     const isCollectedAtCreation = isCash || isPos || isBankTransfer;
-    const totalCost = isFree ? 0 : (Number(contractData.total_cost) || 0);
-    const paidAmount = isFree ? 0 : Number(contractData.paid_amount ?? (isCollectedAtCreation ? totalCost : 0));
-    const remainingAmount = isFree ? 0 : Number(contractData.remaining_amount ?? Math.max(0, totalCost - paidAmount));
+    const subtotalAmount = isFree ? 0 : roundCurrency(Number(contractData.subtotal_amount) || 0);
+    const contractVat = calculateVatAmounts(subtotalAmount);
+    const totalCost = isFree ? 0 : contractVat.grossAmount;
+    const paidSubtotalAmount = isFree ? 0 : roundCurrency(Number(contractData.subtotal_paid_amount) || 0);
+    const initialPayment = allocatePaymentAmounts({
+      enteredAmount: paidSubtotalAmount,
+      nonTaxableAmount: 0,
+      nonTaxablePaidAmount: 0,
+      subtotalAmount,
+      subtotalPaidAmount: 0,
+      vatAmount: isFree ? 0 : contractVat.vatAmount,
+      vatPaidAmount: 0
+    });
+    if (!initialPayment) {
+      setBusinessDataError('مبلغ الدفعة الأولى يتجاوز قيمة العقد قبل الضريبة.');
+      return false;
+    }
+    const paidAmount = initialPayment.grossAmount;
+    const remainingAmount = isFree ? 0 : Math.max(0, roundCurrency(totalCost - paidAmount));
     const paymentStatus: PaymentStatus = isFree ? 'paid' : (remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid'));
     const paymentMethod: PaymentMethod | undefined = isFree
       ? 'free'
@@ -1976,8 +2036,9 @@ function MainDashboard() {
       id: '',
       contract_number: contractData.contract_number,
       customer_id: customerObj.id,
+      customer_vat_number: normalizeSaudiVatNumber(contractData.customer_vat_number || '') || undefined,
       container_id: contractData.container_id,
-      assigned_employee_id: contractData.assigned_employee_id,
+      assigned_employee_id: contractData.assigned_employee_id ?? undefined,
       assigned_employee: assignedStaff,
       contract_type: contractData.contract_type,
       period_type: contractData.period_type,
@@ -1985,13 +2046,19 @@ function MainDashboard() {
       start_date: contractData.start_date,
       end_date: contractData.end_date,
       expected_pickup_time: contractData.expected_pickup_time,
-      location_latitude: contractData.location_latitude,
-      location_longitude: contractData.location_longitude,
+      location_latitude: contractData.location_latitude ?? undefined,
+      location_longitude: contractData.location_longitude ?? undefined,
       google_maps_url: contractData.google_maps_url,
       location_address: contractData.location_address,
       total_cost: totalCost,
       paid_amount: paidAmount,
       remaining_amount: remainingAmount,
+      non_taxable_amount: 0,
+      subtotal_amount: subtotalAmount,
+      vat_amount: isFree ? 0 : contractVat.vatAmount,
+      non_taxable_paid_amount: 0,
+      subtotal_paid_amount: initialPayment.subtotalAmount,
+      vat_paid_amount: initialPayment.vatAmount,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
       is_free: isFree,
@@ -2005,10 +2072,10 @@ function MainDashboard() {
     };
 
     const shouldCreateReceipt = isFree || isCollectedAtCreation || paidAmount > 0;
-    const receiptAmount = isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost);
+    const receiptAmount = isFree ? 0 : paidAmount;
     const receiptNotes = isFree
       ? 'عقد تأجير معتمد'
-      : `فاتورة ${paidAmount < totalCost ? `(دفعة على الحساب بمبلغ ${paidAmount} ر.س ومتبقي ${remainingAmount} ر.س)` : '(سداد كامل العقد)'}`;
+      : `قبل الضريبة ${initialPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${initialPayment.vatAmount.toFixed(2)} ر.س، الإجمالي المستلم ${receiptAmount.toFixed(2)} ر.س`;
     let persistedReceipt: Partial<Receipt> | null = null;
 
     try {
@@ -2018,6 +2085,7 @@ function MainDashboard() {
           container_id: newContract.container_id,
           customer_name: customerObj.name,
           customer_phone: customerObj.phone,
+          customer_vat_number: normalizeSaudiVatNumber(contractData.customer_vat_number || ''),
           customer_type: customerObj.customer_type,
           assigned_employee_id: newContract.assigned_employee_id,
           contract_type: newContract.contract_type,
@@ -2032,12 +2100,21 @@ function MainDashboard() {
           location_address: newContract.location_address,
           total_cost: totalCost,
           paid_amount: paidAmount,
+          non_taxable_amount: 0,
+          subtotal_amount: subtotalAmount,
+          vat_amount: isFree ? 0 : contractVat.vatAmount,
+          non_taxable_paid_amount: 0,
+          subtotal_paid_amount: initialPayment.subtotalAmount,
+          vat_paid_amount: initialPayment.vatAmount,
           payment_status: paymentStatus,
           payment_method: paymentMethod ?? null,
           is_free: isFree,
           notes: newContract.notes,
           receipt_number: shouldCreateReceipt ? receiptNumber : null,
           receipt_amount: shouldCreateReceipt ? receiptAmount : null,
+          receipt_non_taxable_amount: shouldCreateReceipt ? 0 : null,
+          receipt_subtotal_amount: shouldCreateReceipt ? initialPayment.subtotalAmount : null,
+          receipt_vat_amount: shouldCreateReceipt ? initialPayment.vatAmount : null,
           receipt_notes: shouldCreateReceipt ? receiptNotes : null
         }
       });
@@ -2157,11 +2234,19 @@ function MainDashboard() {
         receiptNumber: (isFree || isCollectedAtCreation || paidAmount > 0) ? receiptNumber : 'غير صادر بعد',
         contractNumber: newContract.contract_number,
         customerName: customerObj.name,
+        customerVatNumber: customerObj.vat_number || '',
+        contractPaidAmount: paidAmount,
         customerPhone: customerObj.phone,
         containerNumber: containerObj?.container_number || '-',
         contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
         paidAmount,
         totalCost,
+        nonTaxableAmount: 0,
+        subtotalAmount,
+        vatAmount: isFree ? 0 : contractVat.vatAmount,
+        receiptNonTaxableAmount: 0,
+        receiptSubtotalAmount: shouldCreateReceipt ? initialPayment.subtotalAmount : 0,
+        receiptVatAmount: shouldCreateReceipt ? initialPayment.vatAmount : 0,
         paymentMethod: paymentMethod || 'deferred',
         startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
         endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
@@ -2174,18 +2259,27 @@ function MainDashboard() {
       let imageOutcome: WhatsAppDeliveryOutcome | undefined;
       let imageAlertId: string | undefined;
       try {
-        const verificationImageUrl = await createReceiptImageUrl(receiptPayload);
+        const verificationImageUrl = newContract.public_verification_token
+          ? createReceiptVerificationUrl(newContract.public_verification_token)
+          : createReceiptNumberVerificationUrl(receiptPayload.receiptNumber);
 
         // Generate High-Definition Digital Card Image
         const imageBase64 = await generateContractVoucherImage({
           contractNumber: newContract.contract_number,
           receiptNumber: (isCollectedAtCreation || paidAmount > 0) ? receiptNumber : undefined,
           customerName: customerObj.name,
+          customerVatNumber: customerObj.vat_number || '',
           customerPhone: customerObj.phone,
           containerNumber: containerObj?.container_number || '-',
           contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
           totalCost,
           paidAmount,
+          nonTaxableAmount: 0,
+          subtotalAmount,
+          vatAmount: isFree ? 0 : contractVat.vatAmount,
+          receiptNonTaxableAmount: 0,
+          receiptSubtotalAmount: shouldCreateReceipt ? initialPayment.subtotalAmount : 0,
+          receiptVatAmount: shouldCreateReceipt ? initialPayment.vatAmount : 0,
           remainingAmount,
           paymentMethod: paymentMethod === 'cash' ? 'نقدي كاش'
             : paymentMethod === 'pos' ? 'نقطة بيع (POS)'
@@ -2194,7 +2288,8 @@ function MainDashboard() {
           startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
           endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
           locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',
-          verificationUrl: verificationImageUrl
+          verificationUrl: verificationImageUrl,
+          issueDate: new Date().toISOString()
         });
 
         const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;

@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body: unknown = await req.json();
+    if (body === null) {
+      throw new TypeError('Invalid social webhook payload');
+    }
     console.log('📢 Received Social Campaign Webhook Payload:', body);
 
     const {
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest) {
       contact,
       scheduled_for,
       timestamp
-    } = body;
+    } = Object(body) as Record<string, unknown>;
 
     // Simulated successful intake & validation
     return NextResponse.json({
@@ -31,11 +34,11 @@ export async function POST(req: NextRequest) {
       }
     }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Social Webhook intake error:', error);
     return NextResponse.json({
       success: false,
-      error: error.message || 'Invalid webhook payload JSON'
+      error: error instanceof Error ? error.message : 'Invalid webhook payload JSON'
     }, { status: 400 });
   }
 }

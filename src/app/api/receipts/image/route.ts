@@ -1,10 +1,16 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import QRCode from 'qrcode';
 import { NextResponse } from 'next/server';
 import { decodeReceiptVerificationPayload } from '@/utils/receiptEncoder';
 import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
+import { createInvoicePresentation } from '@/utils/invoicePresentation';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const invoiceLogo = readFile(join(process.cwd(), 'public', 'invoice-logo.jpg'))
+  .then(image => `data:image/jpeg;base64,${image.toString('base64')}`);
 
 function escapeXml(value: string): string {
   return value
@@ -15,29 +21,24 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function text(value: string, x: number, y: number, size = 25, color = '#172033', weight = 400): string {
-  return `<text x="${x}" y="${y}" text-anchor="start" direction="rtl" unicode-bidi="plaintext" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" fill="${color}">${escapeXml(value)}</text>`;
+function text(
+  value: string,
+  x: number,
+  y: number,
+  size = 22,
+  color = '#1c1917',
+  weight = 400,
+  anchor: 'start' | 'middle' | 'end' = 'start'
+): string {
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" direction="rtl" unicode-bidi="plaintext" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" fill="${color}">${escapeXml(value)}</text>`;
 }
 
 function wrapText(value: string, maxLength: number): string[] {
+  const words = value.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
 
-  for (const word of value.split(/\s+/)) {
-    if (!word) continue;
-
-    if (word.length > maxLength) {
-      if (line) lines.push(line);
-      line = '';
-      const characters = Array.from(word);
-      for (let index = 0; index < characters.length; index += maxLength) {
-        const part = characters.slice(index, index + maxLength).join('');
-        if (index + maxLength < characters.length) lines.push(part);
-        else line = part;
-      }
-      continue;
-    }
-
+  for (const word of words) {
     if (line && line.length + word.length + 1 > maxLength) {
       lines.push(line);
       line = word;
@@ -50,47 +51,23 @@ function wrapText(value: string, maxLength: number): string[] {
   return lines.length ? lines : ['-'];
 }
 
-function paymentLabel(method: string): string {
-  const labels: Record<string, string> = {
-    apple_pay: 'Apple Pay',
-    mada: 'بطاقة مدى',
-    credit_card: 'Visa / Master',
-    cash: 'نقدي كاش',
-    pos: 'نقاط البيع POS',
-    bank_transfer: 'تحويل بنكي',
-    deferred: 'آجل على الحساب',
-    free: 'معتمد رسمي'
-  };
-  return labels[method] || method || 'سداد إلكتروني';
-}
-
-function formatIssueDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-
-  return date.toLocaleString('ar-SA', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  });
-}
-
 function renderField(
   label: string,
+  value: string,
   x: number,
   y: number,
   width: number,
-  lines: string[],
-  background: string
+  height = 76
 ): string {
-  const height = Math.max(92, 63 + lines.length * 28);
-  const valueLines = lines.map((line, index) =>
-    `<tspan x="${x + width - 18}" dy="${index === 0 ? 0 : 28}">${escapeXml(line)}</tspan>`
+  const lines = wrapText(value, width > 500 ? 70 : 30);
+  const valueLines = lines.slice(0, 2).map((line, index) =>
+    `<tspan x="${x + width - 18}" dy="${index === 0 ? 0 : 26}">${escapeXml(line)}</tspan>`
   ).join('');
 
   return [
-    `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" fill="${background}" stroke="#e2e8f0" stroke-width="2"/>`,
-    text(label, x + width - 18, y + 31, 18, '#64748b', 700),
-    `<text x="${x + width - 18}" y="${y + 65}" text-anchor="start" direction="rtl" unicode-bidi="plaintext" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#0f172a">${valueLines}</text>`
+    `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="8" fill="#fafaf9" stroke="#e7e5e4" stroke-width="2"/>`,
+    text(label, x + width - 18, y + 26, 17, '#78716c', 600),
+    `<text x="${x + width - 18}" y="${y + 57}" text-anchor="start" direction="rtl" unicode-bidi="plaintext" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#1c1917">${valueLines}</text>`
   ].join('');
 }
 
@@ -105,148 +82,108 @@ export async function GET(request: Request) {
     return new NextResponse('Receipt image data is invalid.', { status: 400 });
   }
 
-  const remaining = Math.max(0, payload.totalCost - payload.paidAmount);
-  const isFree = payload.paymentMethod === 'free' || (payload.paidAmount === 0 && payload.totalCost === 0);
-  const isPartial = !isFree && remaining > 0;
-  const issueDate = formatIssueDate(payload.issueDate);
-  const amountBackground = isFree ? '#f8fafc' : '#f0fdf4';
-  const amountBorder = isFree ? '#e2e8f0' : '#86efac';
-  const amountColor = isFree ? '#64748b' : '#059669';
-  const invoiceStatus = isFree ? 'معتمد رسمي' : isPartial ? 'دفعة مسددة جزئياً' : 'مسدد بالكامل رسمياً';
-  const amountY = 320;
-  const amountHeight = 132;
-  const partialNoticeY = amountY + amountHeight + 14;
-  const qr = QRCode.create(request.url, { errorCorrectionLevel: 'M' });
-  const qrModuleSize = Math.min(3.5, 340 / (qr.modules.size + 8));
+  const logo = await invoiceLogo;
+  const presentation = createInvoicePresentation({
+    ...payload,
+    isFree: payload.paymentMethod === 'free' || payload.totalCost === 0
+  });
+  const { invoiceAmounts, receiptAmounts, isFree, remainingAmount, issueDate, formatMoney, paymentMethod } = presentation;
+  const verificationUrl = request.url;
+  const qr = QRCode.create(verificationUrl, { errorCorrectionLevel: 'M' });
+  const qrModuleSize = Math.floor(220 / (qr.modules.size + 8));
+  if (qrModuleSize < 2) {
+    return new NextResponse('Receipt verification URL is too long to render.', { status: 422 });
+  }
+
+  const qrX = 710;
+  const qrY = 1106;
   const qrQuietZone = 4;
-  const qrSize = (qr.modules.size + qrQuietZone * 2) * qrModuleSize;
-  const qrX = 70;
   const qrSquares: string[] = [];
   for (let row = 0; row < qr.modules.size; row++) {
     for (let column = 0; column < qr.modules.size; column++) {
       if (qr.modules.get(row, column)) {
         qrSquares.push(
-          `<rect x="${qrX + (column + qrQuietZone) * qrModuleSize}" y="${(row + qrQuietZone) * qrModuleSize}" width="${qrModuleSize}" height="${qrModuleSize}"/>`
+          `<rect x="${qrX + (column + qrQuietZone) * qrModuleSize}" y="${qrY + (row + qrQuietZone) * qrModuleSize}" width="${qrModuleSize}" height="${qrModuleSize}"/>`
         );
       }
     }
   }
 
-  const gridWidth = 420;
-  const gridGap = 20;
-  const gridTop = isPartial ? partialNoticeY + 92 : amountY + amountHeight + 18;
-  const fields: Array<{ label: string; value: string; fullWidth?: boolean }> = [
-    { label: 'رقم الفاتورة', value: payload.receiptNumber },
-    { label: 'رقم العقد', value: payload.contractNumber },
-    { label: 'اسم العميل / المستأجر', value: payload.customerName },
-    { label: 'رقم جوال العميل', value: payload.customerPhone },
-    { label: 'رقم الحاوية', value: payload.containerNumber },
-    { label: 'نوع العقد والحاوية', value: payload.contractType },
-    { label: 'تاريخ بداية الإيجار', value: payload.startDate },
-    { label: 'تاريخ نهاية الإيجار', value: payload.endDate },
-    { label: 'تاريخ وتوقيت الإصدار', value: issueDate },
-    { label: 'حالة الفاتورة', value: invoiceStatus }
-  ];
-  if (payload.locationAddress) {
-    fields.push({ label: 'موقع تنزيل الحاوية', value: payload.locationAddress, fullWidth: true });
-  }
-
-  let nextY = gridTop;
-  let fieldMarkup = '';
-  for (let index = 0; index < fields.length;) {
-    const first = fields[index];
-    if (first.fullWidth) {
-      const lines = wrapText(first.value, 66);
-      const height = Math.max(92, 63 + lines.length * 28);
-      fieldMarkup += renderField(first.label, 70, nextY, 860, lines, '#f8fafc');
-      nextY += height + 12;
-      index++;
-      continue;
-    }
-
-    const second = fields[index + 1];
-    const firstLines = wrapText(first.value, 28);
-    const secondLines = second ? wrapText(second.value, 28) : [];
-    const rowHeight = Math.max(
-      92,
-      63 + Math.max(firstLines.length, secondLines.length) * 28
-    );
-    fieldMarkup += renderField(
-      first.label,
-      510,
-      nextY,
-      gridWidth,
-      firstLines,
-      index % 4 === 0 ? '#f1f5f9' : '#ffffff'
-    );
-    if (second) {
-      fieldMarkup += renderField(
-        second.label,
-        70,
-        nextY,
-        gridWidth,
-        secondLines,
-        index % 4 === 0 ? '#f1f5f9' : '#ffffff'
-      );
-    }
-    nextY += rowHeight + 12;
-    index += second ? 2 : 1;
-  }
-
-  const footerY = nextY + 28;
-  const height = footerY + Math.max(430, qrSize + 100);
-  const qrTop = footerY + 20;
-  const qrBackground = `<rect x="${qrX}" y="${qrTop}" width="${qrSize}" height="${qrSize}" rx="8" fill="#ffffff" stroke="#0f172a" stroke-width="3"/>`;
-  const qrContent = `<g transform="translate(0 ${qrTop})" fill="#000000">${qrSquares.join('')}</g>`;
-  const qrCaption = [
-    text('✓ فاتورة إلكترونية موثقة', 900, qrTop + 55, 20, '#059669', 700),
-    text('امسح للتحقق من الفاتورة', 900, qrTop + 87, 17, '#475569')
+  const left = 70;
+  const right = 930;
+  const cardWidth = 270;
+  const cardGap = 25;
+  const rightCardX = right - cardWidth;
+  const middleCardX = rightCardX - cardGap - cardWidth;
+  const leftCardX = left;
+  const fields = [
+    renderField('اسم العميل / المستأجر', payload.customerName, rightCardX, 365, cardWidth, 80),
+    renderField('الرقم الضريبي للعميل', payload.customerVatNumber?.trim() || 'غير مسجل', middleCardX, 365, cardWidth, 80),
+    renderField('رقم العقد', payload.contractNumber, leftCardX, 365, cardWidth, 80),
+    renderField('رقم جوال العميل', payload.customerPhone, rightCardX, 456, cardWidth, 80),
+    renderField('رقم الحاوية', payload.containerNumber, middleCardX, 456, cardWidth, 80),
+    renderField('نوع العقد والحاوية', payload.contractType, leftCardX, 456, cardWidth, 80),
+    renderField('تاريخ البداية', payload.startDate, rightCardX, 547, cardWidth, 80),
+    renderField('تاريخ نهاية الإيجار', payload.endDate, middleCardX, 547, cardWidth, 80),
+    renderField('حالة الفاتورة', isFree ? 'عقد مجاني' : remainingAmount > 0 ? 'دفعة جزئية' : 'مسدد بالكامل', leftCardX, 547, cardWidth, 80),
+    ...(payload.locationAddress
+      ? [renderField('موقع تنزيل الحاوية', payload.locationAddress, left, 638, right - left, 72)]
+      : [])
   ].join('');
+  const totalsY = payload.locationAddress ? 728 : 637;
+  const hasNonTaxableAmount = invoiceAmounts.nonTaxableAmount > 0;
+  const rowOffset = hasNonTaxableAmount ? 36 : 0;
+  const totalRows = [
+    ...(hasNonTaxableAmount ? [
+      text('رصيد سابق غير خاضع للضريبة', right - 28, totalsY + 40, 18, '#57534e', 600),
+      text(`${formatMoney(invoiceAmounts.nonTaxableAmount)} ر.س`, left + 28, totalsY + 40, 18, '#57534e', 600, 'end')
+    ] : []),
+    text('المبلغ قبل الضريبة', right - 28, totalsY + 45 + rowOffset, 20, '#44403c', 600),
+    text(`${formatMoney(invoiceAmounts.subtotalAmount)} ر.س`, left + 28, totalsY + 45 + rowOffset, 20, '#44403c', 600, 'end'),
+    text('ضريبة القيمة المضافة (15%)', right - 28, totalsY + 88 + rowOffset, 20, '#44403c', 600),
+    text(`${formatMoney(invoiceAmounts.vatAmount)} ر.س`, left + 28, totalsY + 88 + rowOffset, 20, '#44403c', 600, 'end'),
+    `<rect x="${left + 14}" y="${totalsY + 112 + rowOffset}" width="${right - left - 28}" height="55" rx="8" fill="#f6eedb"/>`,
+    text('الإجمالي بعد الضريبة', right - 28, totalsY + 148 + rowOffset, 22, '#78571d', 700),
+    text(`${formatMoney(invoiceAmounts.grossAmount)} ر.س`, left + 28, totalsY + 148 + rowOffset, 22, '#78571d', 700, 'end'),
+    ...(!invoiceAmounts.isVatAware
+      ? [text('قيمة عقد سابقة معروضة كما خُزنت دون إعادة احتساب الضريبة.', 500, totalsY + 190 + rowOffset, 15, '#78716c', 500, 'middle')]
+      : [])
+  ].join('');
+  const paymentY = totalsY + 205 + rowOffset;
+  const paymentDetails = !isFree ? [
+    `<rect x="${left}" y="${paymentY}" width="${right - left}" height="62" rx="8" fill="#ffffff" stroke="#e7e5e4" stroke-width="2"/>`,
+    text(`قبل الضريبة في الدفعة: ${formatMoney(receiptAmounts.subtotalAmount + receiptAmounts.nonTaxableAmount)} ر.س`, right - 18, paymentY + 25, 16, '#57534e', 600),
+    text(`إجمالي الدفعة الحالية: ${formatMoney(receiptAmounts.grossAmount)} ر.س`, 500, paymentY + 25, 16, '#57534e', 600, 'middle'),
+    text(`طريقة السداد: ${paymentMethod.label}`, left + 18, paymentY + 25, 16, '#57534e', 600, 'end')
+  ].join('') : '';
+  const footerY = 1090;
+  const qrSize = (qr.modules.size + qrQuietZone * 2) * qrModuleSize;
+  const stampX = left + 12;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1000 ${height}" preserveAspectRatio="xMidYMin meet" style="display:block;width:100vw;height:auto;max-width:100vw">
-    <defs>
-      <linearGradient id="header" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#d97706"/>
-        <stop offset="100%" stop-color="#b45309"/>
-      </linearGradient>
-    </defs>
-    <rect width="1000" height="${height}" fill="#f8fafc"/>
-    <rect x="35" y="35" width="930" height="${height - 70}" rx="24" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
-
-    <rect x="55" y="55" width="890" height="180" rx="18" fill="url(#header)"/>
-    ${text(COMPANY_OFFICIAL_INFO.nameArabic, 910, 105, 34, '#ffffff', 700)}
-    ${text('تأجير الحاويات التجارية وعقود الأنقاض', 910, 141, 20, '#fff7ed', 400)}
-    ${text('الرياض — المملكة العربية السعودية', 910, 172, 18, '#fff7ed', 400)}
-    <rect x="75" y="75" width="300" height="140" rx="14" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2"/>
-    ${text('INVOICE', 345, 106, 16, '#ffedd5', 700)}
-    ${text('فاتورة', 345, 137, 25, '#ffffff', 700)}
-    ${text(payload.receiptNumber, 345, 168, 18, '#ffffff', 700)}
-    ${text(issueDate, 345, 196, 14, '#ffedd5', 400)}
-
-    ${text('الرقم الضريبي: 300099887700003', 910, 269, 17, '#475569', 700)}
-    ${text('السجل التجاري: 1010889900', 490, 269, 17, '#475569', 700)}
-    ${text('هاتف: 920001234', 910, 298, 17, '#475569', 700)}
-
-    <rect x="70" y="${amountY}" width="860" height="${amountHeight}" rx="16" fill="${amountBackground}" stroke="${amountBorder}" stroke-width="3"/>
-    ${text(isFree ? 'فاتورة تأجير رسمية معتمدة' : 'المبلغ المقبوض والمسدد', 500, amountY + 29, 18, '#64748b', 700)}
-    <text x="500" y="${amountY + 73}" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="${amountColor}">${isFree ? '—' : `${payload.paidAmount.toLocaleString('ar-SA')} ر.س`}</text>
-    ${text(isPartial ? `إجمالي العقد: ${payload.totalCost.toLocaleString('ar-SA')} ر.س` : paymentLabel(payload.paymentMethod), 500, amountY + 101, 16, '#334155', 700)}
-    ${isPartial ? text(`المتبقي: ${remaining.toLocaleString('ar-SA')} ر.س`, 500, amountY + 124, 15, '#9a3412', 700) : ''}
-
-    ${isPartial ? `<rect x="70" y="${partialNoticeY}" width="860" height="72" rx="12" fill="#fff7ed" stroke="#fed7aa" stroke-width="2"/>
-      ${text(`دفعة جزئية على الحساب — إجمالي العقد: ${payload.totalCost.toLocaleString('ar-SA')} ر.س`, 900, partialNoticeY + 34, 18, '#9a3412', 700)}
-      ${text(`المتبقي: ${remaining.toLocaleString('ar-SA')} ر.س`, 900, partialNoticeY + 57, 16, '#9a3412', 700)}` : ''}
-
-    ${fieldMarkup}
-    <line x1="430" y1="${footerY}" x2="930" y2="${footerY}" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="10 8"/>
-    ${qrBackground}
-    ${qrContent}
-    ${qrCaption}
-    <rect x="610" y="${qrTop + 112}" width="300" height="150" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
-    ${text(COMPANY_OFFICIAL_INFO.nameArabic, 885, qrTop + 166, 21, '#0f172a', 700)}
-    <line x1="640" y1="${qrTop + 221}" x2="880" y2="${qrTop + 221}" stroke="#0f172a" stroke-width="2"/>
-    ${text('الختم والتوقيع المعتمد', 885, qrTop + 249, 16, '#475569', 700)}
-    <text x="500" y="${height - 36}" text-anchor="middle" direction="rtl" font-family="Arial, sans-serif" font-size="17" fill="#92400e">تعتبر هذه الفاتورة إشعاراً مالياً صادراً من النظام السحابي لـ ${COMPANY_OFFICIAL_INFO.nameArabic} ومسجلة برقم فريد.</text>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1000 1414" preserveAspectRatio="xMidYMin meet" style="display:block;width:100vw;height:auto;max-width:100vw" role="img" aria-label="فاتورة ${escapeXml(payload.receiptNumber)}">
+    <rect width="1000" height="1414" fill="#ffffff"/>
+    <image href="${logo}" x="68" y="48" width="145" height="140" preserveAspectRatio="xMidYMid meet"/>
+    ${text(issueDate, 140, 216, 16, '#171717', 700, 'middle')}
+    ${text(COMPANY_OFFICIAL_INFO.nameArabic, 930, 76, 22, '#171717', 700)}
+    ${text('تأجير الحاويات التجارية وعقود الإنشاءات', 930, 107, 15, '#57534e')}
+    ${text(`الرقم الضريبي: ${COMPANY_OFFICIAL_INFO.vatNumber}  |  السجل التجاري: ${COMPANY_OFFICIAL_INFO.crNumber}`, 930, 136, 14, '#44403c', 600)}
+    ${text('المملكة العربية السعودية', 930, 164, 15, '#57534e')}
+    ${text(`${COMPANY_OFFICIAL_INFO.address.replace('المملكة العربية السعودية – ', '')}  |  هاتف: ${COMPANY_OFFICIAL_INFO.phone}`, 930, 192, 14, '#57534e')}
+    <rect x="70" y="235" width="860" height="1" fill="#d6d3d1"/>
+    ${text('فاتورة', 500, 284, 34, '#171717', 700, 'middle')}
+    ${text(`رقم الفاتورة: ${payload.receiptNumber}`, 500, 319, 17, '#1c1917', 700, 'middle')}
+    ${fields}
+    <rect x="${left}" y="${totalsY}" width="${right - left}" height="${205 + rowOffset}" rx="10" fill="#ffffff" stroke="#e7e5e4" stroke-width="2"/>
+    ${totalRows}
+    ${paymentDetails}
+    ${!isFree && remainingAmount > 0 ? text(`المتبقي من العقد: ${formatMoney(remainingAmount)} ر.س`, 500, paymentY + 82, 15, '#78716c', 600, 'middle') : ''}
+    <rect x="${qrX - 10}" y="${qrY - 10}" width="${qrSize + 20}" height="${qrSize + 20}" rx="4" fill="#ffffff"/>
+    <g fill="#000000" shape-rendering="crispEdges">${qrSquares.join('')}</g>
+    ${text('✓ فاتورة إلكترونية موثقة', 500, footerY + 40, 20, '#292524', 700, 'middle')}
+    ${text('امسح كود QR للتحقق من صحة الفاتورة', 500, footerY + 72, 16, '#57534e', 500, 'middle')}
+    ${text(COMPANY_OFFICIAL_INFO.nameArabic, stampX + 120, footerY + 40, 16, '#171717', 700, 'middle')}
+    <rect x="${stampX}" y="${footerY + 68}" width="240" height="1" fill="#78716c"/>
+    ${text('الختم والتوقيع المعتمد', stampX + 120, footerY + 94, 14, '#57534e', 600, 'middle')}
   </svg>`;
 
   return new NextResponse(svg, {

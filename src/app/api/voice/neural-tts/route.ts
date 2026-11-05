@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     // 1. Instant Cache Hit (0ms response time!)
     if (ttsAudioCache.has(cacheKey)) {
       const cachedBuffer = ttsAudioCache.get(cacheKey)!;
-      return new NextResponse(cachedBuffer as any, {
+      return new NextResponse(new Uint8Array(cachedBuffer), {
         status: 200,
         headers: {
           'Content-Type': 'audio/mpeg',
@@ -89,12 +89,11 @@ export async function GET(req: NextRequest) {
         'Transfer-Encoding': 'chunked'
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('TTS Generation Error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate neural speech', details: error?.message },
+      { error: 'Failed to generate neural speech', details: error instanceof Error ? error.message : undefined },
       { status: 500 }
     );
   }
 }
-

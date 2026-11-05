@@ -600,7 +600,7 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setSelectedCategory(tab.id as any)}
+                  onClick={() => setSelectedCategory(tab.id as 'all' | CustomerCategory)}
                   style={{
                     padding: '6px 12px',
                     borderRadius: '8px',
@@ -874,7 +874,7 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setCampaignTarget(opt.id as any)}
+                    onClick={() => setCampaignTarget(opt.id as 'all' | 'selected' | 'companies' | 'individuals')}
                     style={{
                       padding: '10px 12px',
                       borderRadius: '10px',
@@ -1101,7 +1101,7 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
                   <select
                     className="form-select"
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value as any)}
+                    onChange={(e) => setFormCategory(e.target.value as CustomerCategory)}
                   >
                     <option value="individual">فرد / مالك</option>
                     <option value="company">شركة ومؤسسة</option>

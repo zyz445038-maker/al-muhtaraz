@@ -45,6 +45,8 @@ import { formatSaudiCheerResponse } from '@/utils/voiceAssistant';
 import { SocialMediaAIHub } from '@/components/SocialMediaAIHub';
 import { AlMuhtarazExecutiveAgent } from '@/utils/aiExecutiveAgent';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
+import type { AgentExecutionResult } from '@/utils/aiExecutiveAgent';
+import { getSpeechRecognitionConstructor, type SpeechRecognitionLike } from './speechRecognition';
 import { Contract, Container, Customer, Profile, Receipt } from '@/types/database';
 
 interface DevLabProps {
@@ -99,7 +101,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [isReplying, setIsReplying] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // ─── Dynamic AI Education & Learning States ───────
@@ -245,7 +247,7 @@ export const DevLab: React.FC<DevLabProps> = ({
   const handleToggleVoiceRecognition = () => {
     if (typeof window === 'undefined') return;
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = getSpeechRecognitionConstructor();
     if (!SpeechRecognition) {
       alert('المتصفح الحالي لا يدعم التعرف الصوتي المباشر. يُفضل استخدام متصفح Chrome أو Edge.');
       return;
@@ -267,14 +269,14 @@ export const DevLab: React.FC<DevLabProps> = ({
         setIsListening(true);
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event) => {
         const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
+          .map((result) => result[0].transcript)
           .join('');
         setChatInput(transcript);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event) => {
         console.warn('Speech recognition notice:', event.error);
         setIsListening(false);
       };
@@ -340,7 +342,7 @@ export const DevLab: React.FC<DevLabProps> = ({
       }
 
       // 2. ⚡ Autonomous AI Executive Agent (Live Tool Execution from Database via Server Route)
-      let agentResult: any;
+      let agentResult: AgentExecutionResult;
       try {
         const response = await fetch('/api/ai/executive', {
           method: 'POST',
@@ -362,14 +364,14 @@ export const DevLab: React.FC<DevLabProps> = ({
           const errData = await response.json().catch(() => ({}));
           throw new Error(errData.error || `HTTP ${response.status}`);
         }
-        const data = await response.json();
+        const data = (await response.json()) as { result: AgentExecutionResult };
         agentResult = data.result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to contact Executive Agent API', err);
         agentResult = {
           toolExecuted: 'error',
           speechResponse: 'عذراً، حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي.',
-          displayMarkdown: `❌ **تعذر تنفيذ طلب المساعد الذكي:**\n\n\`${err.message || String(err)}\`\n\n*(تحقق من اتصال التطبيق وتسجيل الدخول، ثم أعد المحاولة. إذا استمرت المشكلة، راجع سجل الخادم.)*`
+          displayMarkdown: `❌ **تعذر تنفيذ طلب المساعد الذكي:**\n\n\`${err instanceof Error ? err.message : String(err)}\`\n\n*(تحقق من اتصال التطبيق وتسجيل الدخول، ثم أعد المحاولة. إذا استمرت المشكلة، راجع سجل الخادم.)*`
         };
       }
 
@@ -515,8 +517,8 @@ export const DevLab: React.FC<DevLabProps> = ({
       } else {
         setDiscordStatus({ ok: false, msg: 'تعذر الإرسال. تأكد من صحة رابط الـ Webhook.' });
       }
-    } catch (e: any) {
-      setDiscordStatus({ ok: false, msg: 'خطأ في الاتصال بديسكورد: ' + e?.message });
+    } catch (e: unknown) {
+      setDiscordStatus({ ok: false, msg: 'خطأ في الاتصال بديسكورد: ' + (e instanceof Error ? e.message : String(e)) });
     } finally {
       setIsSendingDiscord(false);
     }
@@ -1176,7 +1178,7 @@ export const DevLab: React.FC<DevLabProps> = ({
                   </label>
                   <select
                     value={newRuleCategory}
-                    onChange={(e: any) => setNewRuleCategory(e.target.value)}
+                    onChange={(e) => setNewRuleCategory(e.target.value as 'pricing' | 'policy' | 'drivers' | 'containers' | 'custom_rule')}
                     style={{
                       width: '100%',
                       padding: '11px',

@@ -5,11 +5,16 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
 import { apiErrorResponse } from '@/lib/apiSafety';
+import type { PaymentSettings } from '@/types/database';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { contract_id, contract_number, amount, customer_name, customer_phone, description } = body;
+    const body: unknown = await request.json();
+    if (body === null) {
+      throw new TypeError('Invalid invoice request body');
+    }
+    const { contract_id, contract_number, amount, customer_name, customer_phone, description } =
+      Object(body) as Record<string, unknown>;
 
     if (!contract_id || !amount) {
       return NextResponse.json({ success: false, error: 'Contract ID and amount are required' }, { status: 400 });
@@ -20,7 +25,7 @@ export async function POST(request: Request) {
     let isEnabled = true;
 
     try {
-      const settingsResult = await runDbQuery<any>('payment.settings.read', () => supabase
+      const settingsResult = await runDbQuery<PaymentSettings>('payment.settings.read', () => supabase
         .from('payment_settings')
         .select('*')
         .limit(1)

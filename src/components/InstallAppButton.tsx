@@ -39,7 +39,9 @@ export const InstallAppButton: React.FC = () => {
 
     // 2. Check if iOS device
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent) && !(window as any).MSStream;
+    const isIosDevice =
+      /iphone|ipad|ipod/.test(userAgent) &&
+      !(window as Window & { MSStream?: object }).MSStream;
     setIsIOS(isIosDevice);
 
     // 3. Listen for Android / Chrome / Edge 'beforeinstallprompt'
@@ -356,7 +358,7 @@ export const InstallAppButton: React.FC = () => {
                     </div>
                     <div>
                       <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>
-                        2. اختر "إضافة إلى الشاشة الرئيسية"
+                        2. اختر &ldquo;إضافة إلى الشاشة الرئيسية&rdquo;
                       </div>
                       <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
                         (Add to Home Screen) ليظهر التطبيق مع تطبيقات هاتفك

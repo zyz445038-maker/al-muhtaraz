@@ -429,7 +429,7 @@ export const VehiclesManagement: React.FC<VehiclesManagementProps> = ({
               </div>
               <div>
                 <label className="form-label" style={{ color: '#e0f2fe' }}>حالة السيارة</label>
-                <select className="form-input" value={status} onChange={e => setStatus(e.target.value as any)}>
+                <select className="form-input" value={status} onChange={e => setStatus(e.target.value as TransportVehicle['status'])}>
                   <option value="excellent">ممتازة</option>
                   <option value="needs_maintenance">تحتاج صيانة</option>
                   <option value="in_maintenance">في الصيانة</option>

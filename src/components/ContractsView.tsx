@@ -258,7 +258,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
           <select
             className="form-select"
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
+            onChange={(e) => setFilterStatus(e.target.value as ContractStatus)}
             style={{ width: 'auto', padding: '7px 12px', fontSize: '0.82rem' }}
           >
             <option value="all">كافة الحالات</option>

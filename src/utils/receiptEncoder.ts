@@ -8,11 +8,20 @@ export interface PublicReceiptPayload {
   receiptNumber: string;
   contractNumber: string;
   customerName: string;
+  customerVatNumber?: string;
+  publicVerificationToken?: string;
   customerPhone: string;
   containerNumber: string;
   contractType: string;
   paidAmount: number;
   totalCost: number;
+  contractPaidAmount?: number;
+  nonTaxableAmount?: number;
+  subtotalAmount?: number;
+  vatAmount?: number;
+  receiptNonTaxableAmount?: number;
+  receiptSubtotalAmount?: number;
+  receiptVatAmount?: number;
   paymentMethod: string;
   startDate: string;
   endDate: string;
@@ -47,7 +56,7 @@ export type PublicVerificationPayload = PublicReceiptPayload | PublicOfficialCon
 
 export async function encodeCompactReceiptPayload(payload: PublicReceiptPayload): Promise<string> {
   const compact = [
-    1,
+    3,
     payload.receiptNumber,
     payload.contractNumber,
     payload.customerName,
@@ -60,7 +69,15 @@ export async function encodeCompactReceiptPayload(payload: PublicReceiptPayload)
     payload.startDate,
     payload.endDate,
     payload.locationAddress,
-    payload.issueDate
+    payload.issueDate,
+    payload.customerVatNumber || '',
+    payload.contractPaidAmount ?? payload.paidAmount,
+    payload.nonTaxableAmount ?? 0,
+    payload.subtotalAmount ?? payload.totalCost,
+    payload.vatAmount ?? 0,
+    payload.receiptNonTaxableAmount ?? 0,
+    payload.receiptSubtotalAmount ?? payload.paidAmount,
+    payload.receiptVatAmount ?? 0
   ];
   const json = JSON.stringify(compact);
   const plainBytes = new TextEncoder().encode(json);
@@ -96,7 +113,13 @@ export async function decodeReceiptVerificationPayload(encoded: string): Promise
     }
 
     const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    if (!Array.isArray(value) || value.length !== 14 || value[0] !== 1) return null;
+    if (
+      !Array.isArray(value)
+      || (value[0] === 1 && value.length !== 14)
+      || (value[0] === 2 && value.length !== 16)
+      || (value[0] === 3 && value.length !== 22)
+      || (value[0] !== 1 && value[0] !== 2 && value[0] !== 3)
+    ) return null;
     if (
       !value.slice(1, 7).every(item => typeof item === 'string')
       || !value.slice(7, 9).every(item => typeof item === 'number' && Number.isFinite(item))
@@ -104,6 +127,15 @@ export async function decodeReceiptVerificationPayload(encoded: string): Promise
     ) {
       return null;
     }
+
+    if (
+      value[0] >= 2
+      && (typeof value[14] !== 'string' || typeof value[15] !== 'number' || !Number.isFinite(value[15]))
+    ) return null;
+    if (
+      value[0] === 3
+      && !value.slice(16, 22).every(item => typeof item === 'number' && Number.isFinite(item))
+    ) return null;
 
     return {
       type: 'receipt',
@@ -115,11 +147,21 @@ export async function decodeReceiptVerificationPayload(encoded: string): Promise
       contractType: value[6],
       paidAmount: value[7],
       totalCost: value[8],
+      ...(value[0] >= 2 ? { contractPaidAmount: value[15] } : {}),
       paymentMethod: value[9],
       startDate: value[10],
       endDate: value[11],
       locationAddress: value[12],
-      issueDate: value[13]
+      issueDate: value[13],
+      ...(value[0] >= 2 && value[14] ? { customerVatNumber: value[14] } : {}),
+      ...(value[0] === 3 ? {
+        nonTaxableAmount: value[16],
+        subtotalAmount: value[17],
+        vatAmount: value[18],
+        receiptNonTaxableAmount: value[19],
+        receiptSubtotalAmount: value[20],
+        receiptVatAmount: value[21]
+      } : {})
     };
   } catch (error) {
     console.error('Could not decode compact receipt verification data:', error);

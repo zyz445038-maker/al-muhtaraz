@@ -239,7 +239,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
               <button
                 key={tab.id}
                 id={`filter-${tab.id}`}
-                onClick={() => setActiveFilter(tab.id as any)}
+                onClick={() => setActiveFilter(tab.id as 'all' | 'commercial' | 'debris' | 'customers' | 'contracts')}
                 style={{
                   padding: '7px 18px',
                   borderRadius: '999px',

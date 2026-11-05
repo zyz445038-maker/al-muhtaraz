@@ -46,6 +46,7 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  vat_number?: string;
   alt_phone?: string;
   customer_type: 'individual' | 'company';
   address?: string;
@@ -96,6 +97,14 @@ export interface Contract {
   total_cost: number;
   paid_amount: number;
   remaining_amount: number;
+  non_taxable_amount?: number | null;
+  subtotal_amount?: number | null;
+  vat_amount?: number | null;
+  non_taxable_paid_amount?: number | null;
+  subtotal_paid_amount?: number | null;
+  vat_paid_amount?: number | null;
+  customer_vat_number?: string | null;
+  public_verification_token?: string | null;
   payment_status: PaymentStatus;
   payment_method?: PaymentMethod;
   is_free?: boolean; // عقد مجاني / إهداء
@@ -202,6 +211,11 @@ export interface Receipt {
   customer_id: string;
   customer_name: string;
   amount: number;
+  non_taxable_amount?: number | null;
+  subtotal_amount?: number | null;
+  vat_amount?: number | null;
+  customer_vat_number?: string | null;
+  public_verification_token?: string | null;
   payment_method: PaymentMethod;
   transaction_ref?: string;
   contract_number: string;

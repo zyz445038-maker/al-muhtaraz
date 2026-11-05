@@ -1,15 +1,23 @@
 import QRCode from 'qrcode';
 import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
+import { createInvoicePresentation } from '@/utils/invoicePresentation';
 
 export interface GenerateContractCardParams {
   contractNumber: string;
   receiptNumber?: string;
   customerName: string;
+  customerVatNumber?: string;
   customerPhone: string;
   containerNumber: string;
   contractType: string;
   totalCost: number;
   paidAmount: number;
+  nonTaxableAmount?: number;
+  subtotalAmount?: number;
+  vatAmount?: number;
+  receiptNonTaxableAmount?: number;
+  receiptSubtotalAmount?: number;
+  receiptVatAmount?: number;
   remainingAmount: number;
   paymentMethod: string;
   startDate: string;
@@ -17,278 +25,299 @@ export interface GenerateContractCardParams {
   locationAddress?: string;
   verificationUrl?: string;
   isFree?: boolean;
+  issueDate?: string;
 }
 
-/**
- * Generates an ultra-high-definition Luxury Digital Contract Voucher Card (JPEG Base64)
- * Runs purely on HTML5 Canvas in the browser. Zero server overhead.
- */
 export async function generateContractVoucherImage(params: GenerateContractCardParams): Promise<string> {
   if (typeof window === 'undefined') {
     throw new Error('generateContractVoucherImage must be called in browser environment');
   }
 
-  // Ensure Arabic fonts are loaded for crisp glyphs
-  try {
-    if (document.fonts) {
-      await document.fonts.ready;
-    }
-  } catch (e) {}
+  if (document.fonts) await document.fonts.ready;
 
   const width = 900;
-  const height = 1200;
-
+  const height = 1273;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get 2D canvas context');
 
-  // 1. Background Gradient (Luxury Dark Slate Navy)
-  const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-  bgGrad.addColorStop(0, '#0a0f1d');
-  bgGrad.addColorStop(0.5, '#0f172a');
-  bgGrad.addColorStop(1, '#080c14');
-  ctx.fillStyle = bgGrad;
+  const logo = await loadImage('/invoice-logo.jpg');
+  const presentation = createInvoicePresentation({
+    type: 'receipt',
+    receiptNumber: params.receiptNumber || params.contractNumber,
+    contractNumber: params.contractNumber,
+    customerName: params.customerName,
+    customerVatNumber: params.customerVatNumber,
+    customerPhone: params.customerPhone,
+    containerNumber: params.containerNumber,
+    contractType: params.contractType,
+    totalCost: params.totalCost,
+    contractPaidAmount: Math.max(0, params.totalCost - params.remainingAmount),
+    paidAmount: params.paidAmount,
+    nonTaxableAmount: params.nonTaxableAmount,
+    subtotalAmount: params.subtotalAmount,
+    vatAmount: params.vatAmount,
+    receiptNonTaxableAmount: params.receiptNonTaxableAmount,
+    receiptSubtotalAmount: params.receiptSubtotalAmount,
+    receiptVatAmount: params.receiptVatAmount,
+    paymentMethod: params.paymentMethod,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    locationAddress: params.locationAddress || '',
+    issueDate: params.issueDate || new Date().toISOString(),
+    isFree: params.isFree,
+    remainingAmount: params.remainingAmount
+  });
+  const { invoiceAmounts, receiptAmounts, issueDate, formatMoney } = presentation;
+
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
+  ctx.direction = 'rtl';
+  ctx.textBaseline = 'alphabetic';
 
-  // 2. Outer Border (Gold Glow)
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(16, 16, width - 32, height - 32);
-
-  ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(22, 22, width - 44, height - 44);
-
-  // 3. Top Header Box
-  const headerGrad = ctx.createLinearGradient(30, 30, width - 60, 160);
-  headerGrad.addColorStop(0, '#d97706');
-  headerGrad.addColorStop(1, '#b45309');
-  ctx.fillStyle = headerGrad;
-  roundRect(ctx, 32, 32, width - 64, 150, 18);
-  ctx.fill();
-
-  // Header Text
+  drawContainedImage(ctx, logo, 48, 48, 136, 124);
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 36px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(COMPANY_OFFICIAL_INFO.nameArabic, width / 2, 85);
-
-  ctx.font = '600 18px "Cairo", "Tajawal", sans-serif';
-  ctx.fillStyle = '#fef3c7';
-  ctx.fillText('تأجير الحاويات التجارية وعقود الأنقاض — الرياض، المملكة العربية السعودية', width / 2, 118);
-
-  // Sub Badge
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-  roundRect(ctx, width / 2 - 180, 134, 360, 34, 12);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#1c1917';
   ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('📄 فاتورة وعقد تأجير إلكتروني 📄', width / 2, 157);
+  ctx.fillText(issueDate, 116, 190);
 
-  // 4. Main Financial Amount Box
-  const isFree = params.isFree || (params.totalCost === 0 && params.paidAmount === 0 && params.remainingAmount === 0);
-  const isPaidFull = params.remainingAmount === 0;
-  const isPartial = params.paidAmount > 0 && params.remainingAmount > 0;
-  
-  const amountGrad = ctx.createLinearGradient(40, 200, width - 80, 320);
-  if (isFree || isPaidFull) {
-    amountGrad.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
-    amountGrad.addColorStop(1, 'rgba(5, 150, 105, 0.25)');
-  } else if (isPartial) {
-    amountGrad.addColorStop(0, 'rgba(245, 158, 11, 0.15)');
-    amountGrad.addColorStop(1, 'rgba(217, 119, 6, 0.25)');
-  } else {
-    amountGrad.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
-    amountGrad.addColorStop(1, 'rgba(37, 99, 235, 0.25)');
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#171717';
+  ctx.font = 'bold 22px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(COMPANY_OFFICIAL_INFO.nameArabic, 910, 72, 430);
+  ctx.fillStyle = '#57534e';
+  ctx.font = '500 15px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('تأجير الحاويات التجارية وعقود الإنشاءات', 910, 99, 430);
+  ctx.font = '600 13px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(`الرقم الضريبي: ${COMPANY_OFFICIAL_INFO.vatNumber}  |  السجل التجاري: ${COMPANY_OFFICIAL_INFO.crNumber}`, 910, 126, 430);
+  ctx.font = '500 15px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('المملكة العربية السعودية', 910, 153, 430);
+  ctx.fillText(`${COMPANY_OFFICIAL_INFO.address.replace('المملكة العربية السعودية – ', '')}  |  هاتف: ${COMPANY_OFFICIAL_INFO.phone}`, 910, 180, 430);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#171717';
+  ctx.font = 'bold 32px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('فاتورة', width / 2, 258);
+  ctx.fillStyle = '#1c1917';
+  ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(`رقم الفاتورة: ${params.receiptNumber || 'غير صادر بعد'}`, width / 2, 286);
+  ctx.fillStyle = '#d6d3d1';
+  ctx.fillRect(48, 210, width - 96, 1);
+
+  const margin = 48;
+  const gap = 10;
+  const cardWidth = (width - margin * 2 - gap * 2) / 3;
+  const cardHeight = 70;
+  const infoTop = 322;
+  const fieldRows = [
+    [
+      { label: 'اسم العميل / المستأجر', value: params.customerName },
+      { label: 'الرقم الضريبي للعميل', value: params.customerVatNumber?.trim() || 'غير مسجل' },
+      { label: 'رقم العقد', value: params.contractNumber }
+    ],
+    [
+      { label: 'رقم جوال العميل', value: params.customerPhone || '-' },
+      { label: 'رقم الحاوية', value: params.containerNumber || '-' },
+      { label: 'نوع العقد والحاوية', value: params.contractType }
+    ],
+    [
+      { label: 'تاريخ البداية', value: params.startDate },
+      { label: 'تاريخ نهاية الإيجار', value: params.endDate },
+      { label: 'حالة الفاتورة', value: params.isFree ? 'عقد مجاني' : params.remainingAmount > 0 ? 'دفعة جزئية' : 'مسدد بالكامل' }
+    ]
+  ];
+  fieldRows.forEach((row, rowIndex) => {
+    row.forEach((field, columnIndex) => {
+      const x = width - margin - cardWidth - columnIndex * (cardWidth + gap);
+      drawInfoCard(ctx, x, infoTop + rowIndex * (cardHeight + 8), cardWidth, cardHeight, field.label, field.value);
+    });
+  });
+  const locationY = infoTop + fieldRows.length * (cardHeight + 8);
+  if (params.locationAddress) {
+    drawInfoCard(ctx, margin, locationY, width - margin * 2, 62, 'موقع تنزيل الحاوية', params.locationAddress);
   }
 
-  ctx.fillStyle = amountGrad;
-  roundRect(ctx, 40, 200, width - 80, 140, 16);
+  const totalsY = params.locationAddress ? 638 : 626;
+  const totalsHeight = 236;
+  ctx.fillStyle = '#fafaf9';
+  roundRect(ctx, margin, totalsY, width - margin * 2, totalsHeight, 12);
   ctx.fill();
-  ctx.strokeStyle = isFree || isPaidFull ? '#10b981' : isPartial ? '#f59e0b' : '#3b82f6';
+  ctx.strokeStyle = '#e7e5e4';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '700 18px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(isFree ? 'فاتورة وعقد تأجير' : 'المبلغ الإجمالي للعقد', width / 2, 235);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 48px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(isFree ? '—' : `${params.totalCost.toLocaleString('ar-SA')} ريال سعودي`, width / 2, 290);
-
-  ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-  ctx.fillStyle = isFree || isPaidFull ? '#34d399' : isPartial ? '#fbbf24' : '#60a5fa';
-  const payStatusText = isFree
-    ? '✓ معتمد وموثق رسمياً بسجلات المحترز'
-    : isPaidFull 
-      ? '✓ تم السداد بالكامل رسمياً' 
-      : isPartial 
-        ? `دفعة مسددة: ${params.paidAmount} ر.س | المتبقي: ${params.remainingAmount} ر.س` 
-        : 'آجل / في انتظار السداد';
-  ctx.fillText(payStatusText, width / 2, 324);
-
-  // 5. Contract Info Grid (Two Columns)
-  const startY = 365;
-  const colWidth = (width - 100) / 2;
-  const rowHeight = 70;
-  const gap = 16;
-
-  const infoFields = [
-    { label: 'رقم العقد:', value: params.contractNumber, color: '#fbbf24' },
-    { label: 'رقم الفاتورة:', value: params.receiptNumber || 'فاتورة آجلة', color: '#38bdf8' },
-    { label: 'اسم العميل / المستأجر:', value: params.customerName, color: '#ffffff' },
-    { label: 'رقم الجوال:', value: params.customerPhone, color: '#ffffff' },
-    { label: 'رقم الحاوية:', value: params.containerNumber, color: '#34d399' },
-    { label: 'نوع العقد والحاوية:', value: params.contractType, color: '#ffffff' },
-    { label: 'تاريخ بداية التأجير:', value: params.startDate, color: '#ffffff' },
-    { label: 'موعد السحب وانتهاء العقد:', value: params.endDate, color: '#f87171' },
+  const totals = [
+    ...(invoiceAmounts.nonTaxableAmount > 0
+      ? [['رصيد سابق غير خاضع للضريبة', `${formatMoney(invoiceAmounts.nonTaxableAmount)} ر.س`]]
+      : []),
+    ['المبلغ قبل الضريبة', `${formatMoney(invoiceAmounts.subtotalAmount)} ر.س`],
+    ['ضريبة القيمة المضافة (15%)', `${formatMoney(invoiceAmounts.vatAmount)} ر.س`]
   ];
-
-  infoFields.forEach((field, idx) => {
-    const col = idx % 2;
-    const row = Math.floor(idx / 2);
-    const x = col === 0 ? 50 + colWidth + gap : 50; // RTL (Right is col 0)
-    const y = startY + row * (rowHeight + gap);
-
-    // Box
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
-    roundRect(ctx, x, y, colWidth, rowHeight, 12);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Text RTL
+  totals.forEach(([label, amount], index) => {
+    const y = totalsY + 42 + index * 42;
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 14px "Cairo", "Tajawal", sans-serif';
-    ctx.fillText(field.label, x + colWidth - 14, y + 26);
-
-    ctx.fillStyle = field.color;
-    ctx.font = 'bold 18px "Cairo", "Tajawal", sans-serif';
-    ctx.fillText(field.value, x + colWidth - 14, y + 54);
+    ctx.fillStyle = '#44403c';
+    ctx.font = '600 19px "Cairo", "Tajawal", sans-serif';
+    ctx.fillText(label, width - margin - 24, y);
+    ctx.textAlign = 'left';
+    ctx.fillText(amount, margin + 24, y);
   });
 
-  // Location Box (Full Width)
-  if (params.locationAddress) {
-    const locY = startY + 4 * (rowHeight + gap);
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
-    roundRect(ctx, 50, locY, width - 100, 60, 12);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  ctx.fillStyle = '#f6eedb';
+  roundRect(ctx, margin + 14, totalsY + 132, width - margin * 2 - 28, 56, 8);
+  ctx.fill();
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#78571d';
+  ctx.font = 'bold 21px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('الإجمالي بعد الضريبة', width - margin - 28, totalsY + 168);
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 23px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(`${formatMoney(invoiceAmounts.grossAmount)} ر.س`, margin + 28, totalsY + 168);
 
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '700 13px "Cairo", "Tajawal", sans-serif';
-    ctx.fillText('موقع تنزيل الحاوية:', width - 65, locY + 22);
-
+  if (!params.isFree) {
+    const paymentY = totalsY + totalsHeight + 12;
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-    ctx.fillText(`📍 ${params.locationAddress}`, width - 65, locY + 46);
+    roundRect(ctx, margin, paymentY, width - margin * 2, 64, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.stroke();
+    ctx.fillStyle = '#57534e';
+    ctx.font = '600 14px "Cairo", "Tajawal", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`قبل الضريبة في الدفعة: ${formatMoney(receiptAmounts.subtotalAmount + receiptAmounts.nonTaxableAmount)} ر.س`, width - margin - 16, paymentY + 25, 250);
+    ctx.textAlign = 'center';
+    ctx.fillText(`إجمالي الدفعة الحالية: ${formatMoney(receiptAmounts.grossAmount)} ر.س`, width / 2, paymentY + 25, 265);
+    ctx.textAlign = 'left';
+    ctx.fillText(`طريقة السداد: ${presentation.paymentMethod.label || 'آجل'}`, margin + 16, paymentY + 25, 250);
   }
 
-  // 6. Bottom Footer & Verification QR Code
-  const footerY = height - 420;
-  ctx.strokeStyle = 'rgba(245, 158, 11, 0.2)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(50, footerY);
-  ctx.lineTo(width - 50, footerY);
-  ctx.stroke();
-
-  // Generate QR Code onto Image
   const verifyUrl = params.verificationUrl || `https://al-muhtaraz.vercel.app/receipt/${params.receiptNumber || params.contractNumber}`;
-  try {
-    const qr = QRCode.create(verifyUrl, { errorCorrectionLevel: 'L' });
-    const moduleSize = Math.floor(330 / (qr.modules.size + 8));
-    if (moduleSize < 3) {
-      throw new Error('Verification link is too long to render a reliably readable QR code.');
-    }
+  const qr = QRCode.create(verifyUrl, { errorCorrectionLevel: 'M' });
+  const qrModuleSize = Math.floor(220 / (qr.modules.size + 8));
+  if (qrModuleSize < 3) {
+    throw new Error('Verification link is too long to render a reliably readable QR code.');
+  }
 
-    const qrX = 45;
-    const qrY = footerY + 20;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(35, footerY + 10, 350, 350);
-    ctx.fillStyle = '#000000';
-    for (let row = 0; row < qr.modules.size; row++) {
-      for (let column = 0; column < qr.modules.size; column++) {
-        if (qr.modules.get(row, column)) {
-          ctx.fillRect(
-            qrX + (column + 4) * moduleSize,
-            qrY + (row + 4) * moduleSize,
-            moduleSize,
-            moduleSize
-          );
-        }
+  const qrSize = (qr.modules.size + 8) * qrModuleSize;
+  const qrX = width - margin - qrSize;
+  const qrY = 1040;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16);
+  ctx.fillStyle = '#000000';
+  for (let row = 0; row < qr.modules.size; row++) {
+    for (let column = 0; column < qr.modules.size; column++) {
+      if (qr.modules.get(row, column)) {
+        ctx.fillRect(
+          qrX + (column + 4) * qrModuleSize,
+          qrY + (row + 4) * qrModuleSize,
+          qrModuleSize,
+          qrModuleSize
+        );
       }
     }
-  } catch (error) {
-    throw new Error('Could not generate the invoice verification QR code.', { cause: error });
   }
 
-  // Verification text next to QR
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#10b981';
-  ctx.font = 'bold 20px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('✓ وثيقة إلكترونية موثقة', width - 260, footerY + 60);
-
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '600 15px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('امسح الـ QR لفتح صورة الفاتورة الأصلية مباشرة', width - 260, footerY + 90);
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText(`الختم والتوقيع معتمد إلكترونياً من ${COMPANY_OFFICIAL_INFO.nameArabic}`, width - 260, footerY + 115);
-
-  // Official Stamp Box on the Left
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 2;
-  roundRect(ctx, width - 240, footerY + 30, 180, 140, 12);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#292524';
+  ctx.font = 'bold 18px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('✓ فاتورة إلكترونية موثقة', 470, 1100, 250);
+  ctx.fillStyle = '#57534e';
+  ctx.font = '500 15px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('امسح كود QR للتحقق من صحة الفاتورة', 470, 1130, 250);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#171717';
+  ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(COMPANY_OFFICIAL_INFO.nameArabic, 48, 1092, 250);
+  ctx.fillStyle = '#78716c';
+  ctx.font = '600 14px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText('الختم والتوقيع المعتمد', 48, 1150, 250);
+  ctx.strokeStyle = '#78716c';
+  ctx.beginPath();
+  ctx.moveTo(48, 1132);
+  ctx.lineTo(298, 1132);
   ctx.stroke();
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('مؤسسة المحترز', width - 150, footerY + 65);
-  ctx.fillText('للحاويات', width - 150, footerY + 90);
-  ctx.font = '600 12px "Cairo", "Tajawal", sans-serif';
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('الختم والاعتماد الرسمي', width - 150, footerY + 140);
+  if (presentation.remainingAmount > 0) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#78716c';
+    ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';
+    ctx.fillText(`المتبقي من العقد: ${formatMoney(presentation.remainingAmount)} ر.س`, width / 2, 1022, 300);
+  }
 
-  // Bottom Notice
-  ctx.fillStyle = '#64748b';
-  ctx.font = '500 13px "Cairo", "Tajawal", sans-serif';
-  ctx.fillText('هذا الإشعار صادر آلياً من نظام إدارة الحاويات ويعد مستنداً رسمياً ملزماً لطرفي العقد.', width / 2, height - 35);
-
-  // Convert Canvas to High-Quality JPEG DataURL
-  return canvas.toDataURL('image/jpeg', 0.98);
+  return canvas.toDataURL('image/jpeg', 0.96);
 }
 
-// ─── Helper Functions ────────────────────────────────────────────────────────
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  if (w < 2 * r) r = w / 2;
-  if (h < 2 * r) r = h / 2;
+function drawInfoCard(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  value: string
+) {
+  ctx.fillStyle = '#fafaf9';
+  roundRect(ctx, x, y, width, height, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#e7e5e4';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#78716c';
+  ctx.font = '600 13px "Cairo", "Tajawal", sans-serif';
+  ctx.fillText(label, x + width - 12, y + 23);
+  ctx.fillStyle = '#1c1917';
+  ctx.font = 'bold 16px "Cairo", "Tajawal", sans-serif';
+  const words = value.trim().split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > width - 24) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  lines.slice(0, 2).forEach((valueLine, index) => {
+    ctx.fillText(valueLine, x + width - 12, y + 46 + index * 17, width - 24);
+  });
+}
+
+function drawContainedImage(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const drawWidth = image.naturalWidth * scale;
+  const drawHeight = image.naturalHeight * scale;
+  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
+  ctx.moveTo(x + safeRadius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, safeRadius);
+  ctx.arcTo(x + width, y + height, x, y + height, safeRadius);
+  ctx.arcTo(x, y + height, x, y, safeRadius);
+  ctx.arcTo(x, y, x + width, y, safeRadius);
   ctx.closePath();
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = (e) => reject(e);
-    img.src = src;
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Could not load invoice logo: ${src}`));
+    image.src = src;
   });
 }

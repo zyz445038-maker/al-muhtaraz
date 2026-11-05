@@ -105,7 +105,7 @@ export default async function DashboardPage() {
       <section className={styles['latest-docs']}>
         <h2 className={styles.title}>آخر المستندات (5)</h2>
         <ul className={styles['documents-list']}>
-          {data.latest_documents.map((doc: any) => (
+          {data.latest_documents.map((doc: { id: string; title: string | null; created_at: string }) => (
             <li key={doc.id} className="doc-item">
               <a href={`/document/${doc.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 <strong>{doc.title ?? 'بدون عنوان'}</strong>
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
           <p className={styles['no-stale']}>لا توجد وظائف متأخرة.</p>
         ) : (
           <ul className={styles['jobs-list']}>
-            {data.staleProcessingJobs.map((job: any) => (
+            {data.staleProcessingJobs.map((job: { id: string; status: string; locked_at: string }) => (
               <li key={job.id} className="job-item">
                 <span>معرّف: {job.id}</span>
                 <span>الحالة: {job.status}</span>

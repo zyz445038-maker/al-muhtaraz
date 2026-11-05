@@ -43,8 +43,8 @@ export default function DocumentView({ documentId }: { documentId: string }) {
           throw new Error(json.error || 'Failed to fetch document');
         }
         setData(json);
-      } catch (e: any) {
-        setError(e.message);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
       }
