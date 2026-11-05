@@ -2253,16 +2253,23 @@ function MainDashboard() {
     await new Promise(r => setTimeout(r, 800));
 
     // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin (ONLY if real admin phone configured)
-    const shouldNotifyAdmin = assistantSettings.whatsapp_routing?.notify_admin ?? true;
-    const adminPhone = gatewaySettings.admin_phone || assistantSettings.daily_report?.admin_phone;
-    if (shouldNotifyAdmin && adminPhone && isRealCallablePhone(adminPhone)) {
+    const adminProfile = currentProfile?.role === 'admin'
+      ? currentProfile
+      : staffList.find(profile => profile.role === 'admin' && profile.is_active);
+    const adminPhone = [
+      gatewaySettings.admin_phone,
+      assistantSettings.daily_report?.admin_phone,
+      adminProfile?.phone
+    ].find(isRealCallablePhone);
+    if (adminPhone) {
       const adminAlertMsg = formatAdminAlertMessage({
         contract: newContract,
         customer: customerObj,
         container: containerObj,
         staffName: currentProfile?.full_name || assignedStaff?.full_name,
         paidAmount,
-        isCash
+        remainingAmount,
+        paymentMethod
       });
       await sendSilentWhatsApp(
         adminPhone,
@@ -2272,6 +2279,19 @@ function MainDashboard() {
         newContract.contract_number,
         { contract_id: newContract.id, recipient_role: 'admin', notification_type: 'admin_alert' }
       );
+    } else {
+      const warnAlertId = `wa-alert-admin-${Date.now()}`;
+      setWhatsappAlerts(prev => [{
+        id: warnAlertId,
+        type: 'error',
+        recipient: 'admin',
+        recipientName: 'المدير العام',
+        recipientPhone: 'غير مسجل',
+        contractNumber: newContract.contract_number,
+        message: 'تعذر إرسال إشعار العقد للإدارة لعدم وجود رقم جوال مدير صالح.',
+        errorMessage: 'أضف رقم المدير الصحيح في إعدادات واتساب أو ملف المدير.',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
     }
 
     if (currentProfile?.role === 'employee' && currentProfile.phone && isRealCallablePhone(currentProfile.phone)) {

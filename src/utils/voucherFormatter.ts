@@ -1,4 +1,4 @@
-import { Contract, Customer, Container, Profile, Receipt } from '@/types/database';
+import { Contract, Customer, Container, Profile, Receipt, PaymentMethod } from '@/types/database';
 import { getDebrisContractTypeLabel } from './rentalPricing';
 import { 
   formatCleanArabicDate, 
@@ -142,16 +142,25 @@ export function formatAdminAlertMessage(params: {
   container?: Container;
   staffName?: string;
   paidAmount: number;
-  isCash: boolean;
+  remainingAmount: number;
+  paymentMethod?: PaymentMethod;
 }): string {
-  const { contract, customer, container, staffName, paidAmount, isCash } = params;
+  const { contract, customer, container, staffName, paidAmount, remainingAmount, paymentMethod } = params;
+  const paymentMethodLabel = paymentMethod === 'cash' ? 'كاش 💵'
+    : paymentMethod === 'pos' ? 'نقطة بيع 💳'
+      : paymentMethod === 'bank_transfer' ? 'تحويل بنكي 🏦'
+        : paymentMethod === 'mada' ? 'مدى / سداد إلكتروني 💳'
+          : paymentMethod === 'apple_pay' ? 'Apple Pay 🍎'
+            : paymentMethod === 'credit_card' ? 'بطاقة ائتمانية 💳'
+              : contract.is_free ? 'مجاني 🎁' : 'آجل ⏳';
 
   return `👑 *إشعار إداري: توثيق عقد جديد*
 ━━━━━━━━━━━━━━━━━━
 📄 *العقد:* ${contract.contract_number}
 👤 *العميل:* ${customer.name}
 🚚 *الحاوية:* ${container?.container_number || '-'} (${contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})
-💰 *المبلغ المحصل:* ${paidAmount.toLocaleString('ar-SA')} ر.س (${isCash ? 'كاش 💵' : 'إلكتروني 💳'})
+💰 *المبلغ المحصل:* ${paidAmount.toLocaleString('ar-SA')} ر.س
+${remainingAmount > 0 ? `⏳ *المتبقي:* ${remainingAmount.toLocaleString('ar-SA')} ر.س\n` : ''}💳 *طريقة السداد:* ${paymentMethodLabel}
 👷 *الموظف المسجل:* ${staffName || 'المدير العام'}
 ⏱️ *الوقت:* ${formatCleanArabicTime(new Date())}
 ━━━━━━━━━━━━━━━━━━`;
