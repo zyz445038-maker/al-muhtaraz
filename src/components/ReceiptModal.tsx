@@ -258,7 +258,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       padding: 7mm;
       direction: rtl !important;
     }
-    .invoice-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8mm; }
+    .invoice-header { display: flex; flex-direction: column; gap: 0; }
     .invoice-meta, .invoice-details, .invoice-totals, .invoice-footer { page-break-inside: avoid; break-inside: avoid; }
     .invoice-customer { min-width: 0; overflow-wrap: anywhere; }
     .invoice-sheet { width: 100%; }
