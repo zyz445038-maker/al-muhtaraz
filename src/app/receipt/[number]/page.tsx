@@ -849,7 +849,7 @@ export default function ReceiptPage({
           }
           .info-grid, .amount-box, .footer-row, .info-cell { break-inside: avoid; page-break-inside: avoid; }
         }
-        @media (max-width: 480px) {
+        @media screen and (max-width: 480px) {
           .receipt-header-top { align-items: flex-start; gap: 8px; }
           .brand-info { gap: 0; }
           .company-meta { font-size: 0.55rem; }
