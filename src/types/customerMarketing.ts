@@ -32,6 +32,19 @@ export interface MarketingCampaign {
   completed_at?: string;
 }
 
+export interface CampaignSendProgress {
+  processed: number;
+  total: number;
+  sent: number;
+  failed: number;
+  unknown: number;
+  skipped: number;
+}
+
+export interface CampaignSendSummary extends CampaignSendProgress {
+  connectionError?: string;
+}
+
 export interface CampaignTemplate {
   id: string;
   title: string;

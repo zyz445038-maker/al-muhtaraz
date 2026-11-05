@@ -36,7 +36,9 @@ import {
   MarketingCustomer, 
   CustomerCategory, 
   DEFAULT_CAMPAIGN_TEMPLATES, 
-  CampaignTemplate 
+  CampaignTemplate,
+  CampaignSendProgress,
+  CampaignSendSummary
 } from '@/types/customerMarketing';
 import { UserRole } from '@/types/database';
 import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
@@ -49,7 +51,11 @@ interface CustomersDirectoryViewProps {
   onDeleteCustomer: (id: string) => void;
   onSyncCustomersFromContracts: () => number;
   onSendSingleWhatsApp: (phone: string, message: string) => void;
-  onBulkSendCampaign: (recipients: { name: string; phone: string }[], messageTemplate: string, onProgress: (sent: number, total: number) => void) => Promise<void>;
+  onBulkSendCampaign: (
+    recipients: { name: string; phone: string }[],
+    messageTemplate: string,
+    onProgress: (progress: CampaignSendProgress) => void
+  ) => Promise<CampaignSendSummary>;
 }
 
 export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
@@ -92,7 +98,14 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
   const [campaignTarget, setCampaignTarget] = useState<'all' | 'selected' | 'companies' | 'individuals'>('all');
   const [campaignMessage, setCampaignMessage] = useState(DEFAULT_CAMPAIGN_TEMPLATES[0].message);
   const [isCampaignSending, setIsCampaignSending] = useState(false);
-  const [campaignProgress, setCampaignProgress] = useState({ sent: 0, total: 0 });
+  const [campaignProgress, setCampaignProgress] = useState<CampaignSendProgress>({
+    processed: 0,
+    total: 0,
+    sent: 0,
+    failed: 0,
+    unknown: 0,
+    skipped: 0
+  });
 
   // Open Edit
   const handleOpenEdit = (c: MarketingCustomer) => {
@@ -322,15 +335,37 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
     }
 
     setIsCampaignSending(true);
-    setCampaignProgress({ sent: 0, total: campaignRecipients.length });
-
-    await onBulkSendCampaign(campaignRecipients, campaignMessage, (sent, total) => {
-      setCampaignProgress({ sent, total });
+    setCampaignProgress({
+      processed: 0,
+      total: campaignRecipients.length,
+      sent: 0,
+      failed: 0,
+      unknown: 0,
+      skipped: 0
     });
 
-    setIsCampaignSending(false);
-    confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-    alert('تم اكتمال إرسال الحملة الترويجية بنجاح إلى جميع العملاء المستهدفين! 🚀');
+    try {
+      const summary = await onBulkSendCampaign(campaignRecipients, campaignMessage, setCampaignProgress);
+      if (summary.connectionError) {
+        alert(`لم تبدأ الحملة لأن اتصال واتساب غير جاهز:\n${summary.connectionError}`);
+        return;
+      }
+
+      if (summary.sent > 0) {
+        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+      }
+      alert([
+        'اكتملت محاولة الحملة.',
+        `تم الإرسال المؤكد: ${summary.sent}`,
+        `فشل مؤكد: ${summary.failed}`,
+        `نتيجة غير مؤكدة (لا تعِد إرسالها تلقائيًا): ${summary.unknown}`,
+        `تم التخطي: ${summary.skipped}`
+      ].join('\n'));
+    } catch (error) {
+      alert(`تعذر إكمال الحملة: ${error instanceof Error ? error.message : 'حدث خطأ غير متوقع.'}`);
+    } finally {
+      setIsCampaignSending(false);
+    }
   };
 
   return (
@@ -926,7 +961,7 @@ export const CustomersDirectoryView: React.FC<CustomersDirectoryViewProps> = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 800, color: '#34d399' }}>
                     <span>جارٍ إرسال الحملة بأمان عبر الواتساب...</span>
-                    <span>{campaignProgress.sent} من {campaignProgress.total}</span>
+                    <span>{campaignProgress.processed} من {campaignProgress.total} — أُرسل: {campaignProgress.sent}</span>
                   </div>
                   <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{

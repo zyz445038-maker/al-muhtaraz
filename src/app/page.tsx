@@ -55,7 +55,11 @@ import {
 } from '@/lib/whatsappApiClient';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
-import { MarketingCustomer } from '@/types/customerMarketing';
+import {
+  MarketingCustomer,
+  CampaignSendProgress,
+  CampaignSendSummary
+} from '@/types/customerMarketing';
 import { VehiclesManagement } from '@/components/VehiclesManagement';
 import { TransportVehicle } from '@/types/database';
 import { FinancialReportsView } from '@/components/FinancialReportsView';
@@ -862,24 +866,78 @@ function MainDashboard() {
   const handleBulkSendCampaign = async (
     recipients: { name: string; phone: string }[],
     messageTemplate: string,
-    onProgress: (sent: number, total: number) => void
-  ): Promise<void> => {
-    let sent = 0;
+    onProgress: (progress: CampaignSendProgress) => void
+  ): Promise<CampaignSendSummary> => {
+    const summary: CampaignSendSummary = {
+      processed: 0,
+      total: recipients.length,
+      sent: 0,
+      failed: 0,
+      unknown: 0,
+      skipped: 0
+    };
+
+    try {
+      const statusResponse = await fetch('/api/whatsapp/status', {
+        headers: await getWhatsAppApiHeaders(),
+        cache: 'no-store'
+      });
+      const statusData: unknown = await statusResponse.json().catch(() => null);
+      const status = statusData && typeof statusData === 'object' && 'status' in statusData
+        ? statusData.status
+        : undefined;
+      const statusMessage = statusData && typeof statusData === 'object' && 'message' in statusData
+        && typeof statusData.message === 'string'
+        ? statusData.message
+        : 'تعذر التحقق من اتصال خدمة واتساب.';
+
+      if (!statusResponse.ok || status !== 'connected') {
+        summary.connectionError = statusMessage;
+        summary.skipped = recipients.length;
+        summary.processed = recipients.length;
+        onProgress({ ...summary });
+        return summary;
+      }
+    } catch (error) {
+      summary.connectionError = error instanceof Error
+        ? error.message
+        : 'تعذر التحقق من اتصال خدمة واتساب.';
+      summary.skipped = recipients.length;
+      summary.processed = recipients.length;
+      onProgress({ ...summary });
+      return summary;
+    }
+
     for (const recipient of recipients) {
       if (recipient.phone && isRealCallablePhone(recipient.phone)) {
         const personalized = messageTemplate.replace(/{الاسم}/g, recipient.name);
         try {
-          if (await handleSendWhatsApp(recipient.phone, personalized)) {
-            sent++;
-            onProgress(sent, recipients.length);
+          const result = await sendSilentWhatsApp(
+            recipient.phone,
+            personalized,
+            'customer',
+            recipient.name,
+            ''
+          );
+          if (result.outcome === 'unknown') {
+            summary.unknown++;
+          } else if (result.success) {
+            summary.sent++;
+          } else {
+            summary.failed++;
           }
-          // Wait 1.8s between messages to prevent spam detection
-          await new Promise(r => setTimeout(r, 1800));
         } catch (e) {
-          console.warn('Failed to send campaign message to:', recipient.phone, e);
+          summary.unknown++;
+          console.error('Campaign message result is unknown.', e);
         }
+        await new Promise(r => setTimeout(r, 1800));
+      } else {
+        summary.skipped++;
       }
+      summary.processed++;
+      onProgress({ ...summary });
     }
+    return summary;
   };
 
   // Driver Mission WhatsApp Dispatch Modal State
