@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { runDbQuery } from '@/lib/db';
 import { ArchiveDocument, canTransitionImportJob, CreateDocumentInput, CreateImportJobInput, DocumentImportJob, ImportJobStatus } from '@/services/archive/types';
@@ -6,7 +7,7 @@ import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archi
 export class DocumentRepository {
   private readonly local = isLocalArchiveEnabled() ? getLocalArchiveDatabase() : null;
 
-  constructor(private readonly client: any = supabase) {}
+  constructor(private readonly client: SupabaseClient = supabase) {}
 
   async create(input: CreateDocumentInput) {
     if (this.local) return this.local.createDocument(input);

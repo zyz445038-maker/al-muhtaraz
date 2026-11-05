@@ -73,7 +73,7 @@ export function tafqeetNumber(num: number, isFeminine: boolean = false): string 
   if (num === 0) return 'صفر';
 
   function convertUnder1000(n: number, isFem: boolean): string {
-    let parts: string[] = [];
+    const parts: string[] = [];
     const h = Math.floor(n / 100);
     const rem = n % 100;
 

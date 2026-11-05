@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface PronunciationEntry {
@@ -45,7 +46,6 @@ function getSupabaseClient(): SupabaseClient | null {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return null;
   try {
-    const { createClient } = require('@supabase/supabase-js');
     return createClient(url, key);
   } catch (e) {
     return null;

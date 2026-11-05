@@ -10,6 +10,10 @@ import { apiErrorResponse } from '@/lib/apiSafety';
 import { getArchiveAuthorizedProfile } from '@/lib/archiveAuthorization';
 import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archive/storage/localArchiveDatabase';
 
+type ServerSupabaseClient = Awaited<ReturnType<typeof getSupabaseServerClient>>;
+type ImportJobRow = { status: string };
+type DocumentRow = Record<string, unknown>;
+
 // Initialize Supabase client for server‑side auth & RLS
 // Moved inside GET() to prevent "cookies called outside request scope" error
 
@@ -17,7 +21,7 @@ import { getLocalArchiveDatabase, isLocalArchiveEnabled } from '@/services/archi
  * Helper to get a count of rows for a table.
  * Uses Supabase `select('*', { count: 'exact', head: true })` to avoid fetching data.
  */
-async function getCount(supabase: any, table: string): Promise<number> {
+async function getCount(supabase: ServerSupabaseClient, table: string): Promise<number> {
   const { count, error } = await supabase
     .from(table)
     .select('*', { count: 'exact', head: true });
@@ -92,8 +96,11 @@ export async function GET() {
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    const isAdmin = (user.role as any) === 'admin';
-    const hasPermission = (user as any).permissions?.can_view_all_records ?? false;
+    const isAdmin = user.role === 'admin';
+    const permissions = (user as unknown as { permissions?: unknown }).permissions;
+    const hasPermission = permissions !== null && typeof permissions === 'object'
+      ? Boolean((permissions as Record<string, unknown>).can_view_all_records)
+      : false;
     if (!isAdmin && !hasPermission) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
@@ -104,11 +111,11 @@ export async function GET() {
       // Total document versions
       getCount(supabase, 'document_versions'),
       // Import jobs (fetch status of each job)
-      runDbQuery<any[]>('archive.import-jobs.list-all', () =>
+      runDbQuery<ImportJobRow[]>('archive.import-jobs.list-all', () =>
         supabase.from('document_import_jobs').select('status')
       ),
       // Latest documents (most recent 5)
-      runDbQuery<any[]>('archive.documents.latest', () =>
+      runDbQuery<DocumentRow[]>('archive.documents.latest', () =>
         supabase
           .from('documents')
           .select('*')

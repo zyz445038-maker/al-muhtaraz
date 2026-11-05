@@ -1,9 +1,10 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 
 const STORAGE_BUCKET = 'documents';
 
 export class SupabaseArchiveStorageService {
-  constructor(private readonly client: any) {}
+  constructor(private readonly client: SupabaseClient) {}
 
   ensureDirectories(): Promise<void> {
     return Promise.resolve();

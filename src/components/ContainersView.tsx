@@ -211,7 +211,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
           <select
             className="form-select"
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as any)}
+            onChange={(e) => setFilterType(e.target.value as ContainerType)}
             style={{ width: 'auto', padding: '7px 12px', fontSize: '0.82rem' }}
           >
             <option value="all">كافة الأنواع</option>

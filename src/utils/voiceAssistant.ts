@@ -145,7 +145,8 @@ let currentAudio: HTMLAudioElement | null = null;
 export function unlockAudio(): void {
   if (typeof window === 'undefined') return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtx = window.AudioContext
+      || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (AudioCtx && !unlockedAudioContext) {
       unlockedAudioContext = new AudioCtx();
       if (unlockedAudioContext.state === 'suspended') {

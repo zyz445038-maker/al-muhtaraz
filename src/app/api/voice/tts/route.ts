@@ -7,12 +7,23 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { text: rawText, voice = 'ar-SA-ZariyahNeural', rate = '+0%' } = body;
+    const body: unknown = await req.json();
+    if (body === null) {
+      throw new TypeError('Invalid TTS request body');
+    }
+    const payload = Object(body) as Record<string, unknown>;
+    const rawText = payload.text;
+    const voiceValue = payload.voice;
+    const voice = voiceValue === undefined ? 'ar-SA-ZariyahNeural' : voiceValue;
+    const rate = payload.rate === undefined ? '+0%' : payload.rate;
 
-    if (!rawText || !rawText.trim()) {
+    if (!rawText) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
+    if (typeof rawText !== 'string' || typeof voice !== 'string') {
+      throw new TypeError('Invalid TTS request values');
+    }
+    if (!rawText.trim()) return NextResponse.json({ error: 'Text is required' }, { status: 400 });
 
     const text = cleanSpeechText(rawText);
 
@@ -26,7 +37,7 @@ export async function POST(req: NextRequest) {
     await new Promise<void>((resolve, reject) => {
       audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
       audioStream.on('end', () => resolve());
-      audioStream.on('error', (err: any) => reject(err));
+      audioStream.on('error', (err: Error) => reject(err));
     });
 
     const audioBuffer = Buffer.concat(chunks);
@@ -40,8 +51,11 @@ export async function POST(req: NextRequest) {
         'Accept-Ranges': 'bytes'
       }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Neural TTS Route Error:', error);
-    return NextResponse.json({ error: 'Failed to synthesize speech', details: error?.message }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to synthesize speech',
+      details: error instanceof Error ? error.message : undefined
+    }, { status: 500 });
   }
 }

@@ -51,14 +51,14 @@ export interface AgentMemoryState {
 
 export interface AgentExecutionResult {
   toolExecuted: string | null;
-  toolParameters?: any;
+  toolParameters?: unknown;
   speechResponse: string;
   displayMarkdown: string;
   actionCard?: {
     type: 'contract' | 'container' | 'finance' | 'alert' | 'marketing';
     title: string;
-    data: any;
-    actionButtons?: { label: string; actionId: string; payload?: any }[];
+    data: unknown;
+    actionButtons?: { label: string; actionId: string; payload?: unknown }[];
   };
   updatedMemory?: AgentMemoryState;
 }
@@ -164,7 +164,9 @@ export class AlMuhtarazExecutiveAgent {
           res = this.tool_auditContainersStock();
           break;
         case 'searchEntity':
-          res = this.tool_searchEntity((intent.args as any)?.searchQuery || rawQuery);
+          res = this.tool_searchEntity(
+            typeof intent.args.searchQuery === 'string' ? intent.args.searchQuery : rawQuery
+          );
           break;
         case 'auditDriversFleet':
           res = this.tool_auditDriversFleet();
@@ -182,7 +184,9 @@ export class AlMuhtarazExecutiveAgent {
           res = this.tool_fetchTodayOperations();
           break;
         case 'fetchContractVoucherOrImage':
-          res = this.tool_fetchContractVoucherOrImage((intent.args as any)?.searchQuery || rawQuery);
+          res = this.tool_fetchContractVoucherOrImage(
+            typeof intent.args.searchQuery === 'string' ? intent.args.searchQuery : rawQuery
+          );
           break;
         case 'executiveReasoning':
           res = await this.tool_executiveReasoning(rawQuery);
@@ -190,14 +194,18 @@ export class AlMuhtarazExecutiveAgent {
         case 'memoryRecall':
           res = await this.tool_memoryRecall(rawQuery);
           break;
-        case 'generalConversation':
+        case 'generalConversation': {
+          const reply = typeof intent.args.reply === 'string'
+            ? intent.args.reply
+            : 'مرحباً بك، كيف يمكنني مساعدتك اليوم؟';
           res = {
             toolExecuted: 'generalConversation',
-            speechResponse: cleanSpeechText((intent.args as any)?.reply || 'مرحباً بك، كيف يمكنني مساعدتك اليوم؟'),
-            displayMarkdown: (intent.args as any)?.reply || 'مرحباً بك، كيف يمكنني مساعدتك اليوم؟',
+            speechResponse: cleanSpeechText(reply),
+            displayMarkdown: reply,
             updatedMemory: this.memory
           };
           break;
+        }
         default:
           res = this.generateSmartGreeting();
       }

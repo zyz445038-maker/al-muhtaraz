@@ -8,7 +8,7 @@ export type SafetyResult<T> = {
   error?: string;
 };
 
-export function validateRequiredFields(payload: Record<string, any>, required: string[]) {
+export function validateRequiredFields(payload: Record<string, unknown>, required: string[]) {
   const missing = required.filter((field) => {
     const value = payload?.[field];
     return value === undefined || value === null || value === '';

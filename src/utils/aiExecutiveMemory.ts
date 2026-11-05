@@ -13,7 +13,7 @@ export interface AIMemoryRecord {
   created_at?: string;
 }
 
-let inMemoryDecisionLogs: AIMemoryRecord[] = [];
+const inMemoryDecisionLogs: AIMemoryRecord[] = [];
 
 function parseMemoryRecord(value: unknown): AIMemoryRecord | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

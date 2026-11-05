@@ -444,8 +444,8 @@ export const SocialMediaAIHub: React.FC = () => {
       } else {
         setWebhookStatus({ ok: false, msg: `خطأ من خادم الـ Webhook (كود ${res.status})` });
       }
-    } catch (err: any) {
-      setWebhookStatus({ ok: false, msg: `تعذر الاتصال بالرابط: ${err.message || 'خطأ غير متوقع'}` });
+    } catch (err: unknown) {
+      setWebhookStatus({ ok: false, msg: `تعذر الاتصال بالرابط: ${err instanceof Error ? err.message : 'خطأ غير متوقع'}` });
     } finally {
       setIsDispatchingWebhook(false);
     }

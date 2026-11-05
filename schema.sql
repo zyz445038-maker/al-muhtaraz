@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     name TEXT NOT NULL,                                          -- اسم العميل أو المؤسسة
     phone TEXT NOT NULL,                                         -- رقم الجوال مع كود الدولة للواتساب (مثال: +966500000000)
     alt_phone TEXT,                                              -- رقم بديل
+    vat_number TEXT,                                             -- الرقم الضريبي للعميل السعودي
     customer_type TEXT NOT NULL DEFAULT 'individual' CHECK (customer_type IN ('individual', 'company')), -- فرد أو شركة
     address TEXT,                                                -- العنوان التقريبي
     notes TEXT,                                                  -- ملاحظات العميل
@@ -126,6 +127,8 @@ CREATE TABLE IF NOT EXISTS public.contracts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     contract_number TEXT UNIQUE NOT NULL,                        -- رقم العقد المميز (مثال: CTR-2026-001)
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
+    customer_vat_number TEXT,                                    -- لقطة رقم العميل وقت إصدار العقد
+    public_verification_token TEXT,                              -- رمز عام عشوائي للتحقق دون كشف بيانات في الرابط
     container_id UUID REFERENCES public.containers(id) ON DELETE SET NULL,
     
     -- نوع وفترة العقد
@@ -145,9 +148,15 @@ CREATE TABLE IF NOT EXISTS public.contracts (
     location_address TEXT,                                       -- وصف الموقع أو الحي
     
     -- التكلفة والماليات
-    total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00,             -- تكلفة العقد الإجمالية
-    paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,            -- المبلغ المدفوع
+    total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00,             -- الالتزام الإجمالي؛ شامل الضريبة للعقود الجديدة
+    paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,            -- إجمالي التحصيل شامل الضريبة للعقود الجديدة
     remaining_amount NUMERIC(10, 2) GENERATED ALWAYS AS (total_cost - paid_amount) STORED, -- المتبقي المحسوب تلقائياً
+    non_taxable_amount NUMERIC(10, 2),                           -- الرصيد التاريخي المعفى من إعادة احتساب الضريبة
+    subtotal_amount NUMERIC(10, 2),                               -- إجمالي المبلغ الخاضع للضريبة قبل الضريبة
+    vat_amount NUMERIC(10, 2),                                    -- إجمالي ضريبة القيمة المضافة
+    non_taxable_paid_amount NUMERIC(10, 2),                       -- المحصل من الرصيد غير الخاضع للضريبة
+    subtotal_paid_amount NUMERIC(10, 2),                          -- المحصل من المبلغ الخاضع للضريبة قبل الضريبة
+    vat_paid_amount NUMERIC(10, 2),                               -- الضريبة المحصلة
     payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid')),
     
     -- حالة العقد
@@ -437,7 +446,12 @@ CREATE TABLE IF NOT EXISTS public.receipts (
     receipt_number TEXT UNIQUE NOT NULL,                        -- رقم السند (مثال: RCP-2026-001)
     contract_id UUID NOT NULL REFERENCES public.contracts(id) ON DELETE CASCADE,
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
+    customer_vat_number TEXT,                                    -- لقطة الرقم الضريبي وقت إصدار الفاتورة
+    public_verification_token TEXT,                              -- رمز تحقق عشوائي خاص بهذه الفاتورة
     amount NUMERIC(10, 2) NOT NULL,                              -- المبلغ المقبوض
+    non_taxable_amount NUMERIC(10, 2),                           -- الجزء السابق غير الخاضع للضريبة
+    subtotal_amount NUMERIC(10, 2),                               -- الجزء قبل الضريبة من الإيصال
+    vat_amount NUMERIC(10, 2),                                    -- ضريبة الإيصال
     payment_method TEXT NOT NULL CHECK (payment_method IN (
         'apple_pay', 'mada', 'credit_card', 'cash', 'pos', 'bank_transfer'
     )),                                                          -- طريقة الدفع

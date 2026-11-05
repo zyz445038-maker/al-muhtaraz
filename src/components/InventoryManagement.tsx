@@ -384,7 +384,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
           <select
             className="form-select"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as 'all' | ContainerStatus)}
             style={{ width: 'auto', padding: '7px 12px', fontSize: '0.82rem' }}
           >
             <option value="all">كافة الحالات</option>

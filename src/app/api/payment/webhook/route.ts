@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeErrorMessage, validateRequiredFields, withDbSafety } from '@/lib/apiSafety';
 import { runDbQuery } from '@/lib/db';
 import { logEvent } from '@/lib/eventLogger';
@@ -88,88 +88,80 @@ export async function POST(request: Request) {
       }, { status: 200 });
     }
 
-    const dbResult = await withDbSafety('webhook-update-contract', async () => {
-      let query = supabase.from('contracts').update({
-        payment_status: 'paid',
-        payment_method: paymentMethod,
-        paid_amount: amount,
-        receipt_number: receiptNumber,
-        updated_at: new Date().toISOString()
-      });
-
-      if (contractId) {
-        query = query.eq('id', contractId);
-      } else {
-        query = query.eq('contract_number', contractNumber);
+    const dbResult = await withDbSafety('webhook-record-contract-payment', async () => {
+      const admin = getSupabaseAdminClient();
+      let resolvedContractId = contractId;
+      if (!resolvedContractId && contractNumber) {
+        const lookup = await runDbQuery<{ id: string }>(
+          'payment.webhook.contract.lookup',
+          () => admin.from('contracts').select('id').eq('contract_number', contractNumber).maybeSingle()
+        );
+        if (!lookup.ok || !lookup.data?.id) {
+          throw new Error(lookup.ok ? 'لم يُعثر على العقد المرتبط بالسداد.' : lookup.error);
+        }
+        resolvedContractId = lookup.data.id;
       }
 
-      const contractResult = await runDbQuery<any>(
-        'payment.webhook.contract.update',
-        () => query.select('*, customer:customers(*), container:containers(*)').single()
+      if (!resolvedContractId) {
+        throw new Error('لا يوجد رقم عقد صالح في بيانات السداد.');
+      }
+
+      const paymentResult = await runDbQuery(
+        'payment.webhook.record',
+        () => admin.rpc('record_contract_payment_gross', {
+          p_contract_id: resolvedContractId,
+          p_amount: amount,
+          p_payment_method: paymentMethod,
+          p_receipt_number: receiptNumber,
+          p_transaction_ref: transactionRef
+        })
       );
+      if (!paymentResult.ok) throw new Error(paymentResult.error);
 
-      if (!contractResult.ok) {
-        throw new Error(contractResult.error);
+      const payment = paymentResult.data as {
+        contract?: { id?: string; contract_number?: string; customer_id?: string };
+        receipt?: { id?: string };
+        already_processed?: boolean;
+      } | null;
+      if (!payment?.contract?.id || !payment.receipt?.id) {
+        throw new Error('لم تؤكد قاعدة البيانات حفظ التحصيل الإلكتروني وإيصال الضريبة.');
       }
 
-      const updatedContract = contractResult.data;
+      if (!payment.already_processed) {
+        const notificationResult = await runDbQuery('payment.webhook.notification.insert', () => admin.from('notifications').insert([{
+          contract_id: payment.contract!.id,
+          title: `💳 سداد إلكتروني ناجح (${payment.contract!.contract_number || contractNumber || ''})`,
+          message: `تم تسجيل مبلغ ${amount.toFixed(2)} ر.س شاملاً الضريبة للعقد.`,
+          type: 'payment_alert'
+        }]));
+        if (!notificationResult.ok) throw new Error(notificationResult.error);
 
-      if (!updatedContract) {
-        return { updatedContract: null };
+        logEvent('payment.webhook.processed', {
+          contractId: payment.contract.id,
+          transactionReference: transactionRef,
+          amount
+        });
       }
 
-      const receiptResult = await runDbQuery('payment.webhook.receipt.insert', () => supabase.from('receipts').insert([{
-        receipt_number: receiptNumber,
-        contract_id: updatedContract.id,
-        customer_id: updatedContract.customer_id,
-        customer_name: updatedContract.customer?.name || 'عميل المحترز',
-        amount: amount,
-        payment_method: paymentMethod,
-        transaction_reference: transactionRef,
-        contract_number: updatedContract.contract_number,
-        container_number: updatedContract.container?.container_number,
-        container_type: updatedContract.contract_type,
-        notes: 'تم التحصيل إلكترونياً بنجاح عبر سداد / مدى / Apple Pay'
-      }]));
-
-      if (!receiptResult.ok) {
-        throw new Error(receiptResult.error);
-      }
-
-      const notificationResult = await runDbQuery('payment.webhook.notification.insert', () => supabase.from('notifications').insert([{
-        contract_id: updatedContract.id,
-        title: `💳 سداد إلكتروني ناجح (${updatedContract.contract_number})`,
-        message: `قام العميل ${updatedContract.customer?.name} بسداد ${amount} ر.س إلكترونياً بنجاح.`,
-        type: 'payment_received'
-      }]));
-
-      if (!notificationResult.ok) {
-        throw new Error(notificationResult.error);
-      }
-
-      logEvent('payment.webhook.processed', {
-        contractId: updatedContract.id,
-        transactionReference: transactionRef,
-        amount
-      });
-
-      return { updatedContract };
+      return { alreadyProcessed: !!payment.already_processed };
     });
 
-    if (!dbResult.ok) {
+    if (!dbResult.ok || !dbResult.data) {
       return NextResponse.json({
         success: false,
         warning: 'Payment was received but local database update failed.',
-        error: dbResult.error,
+        error: dbResult.error || 'Database operation returned no confirmation.',
         message: 'Payment webhook accepted but persistence failed. Manual reconciliation required.'
       }, { status: 200 });
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Payment processed and verified successfully'
+      message: dbResult.data.alreadyProcessed
+        ? 'Payment was already recorded.'
+        : 'Payment processed and verified successfully'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Webhook error:', error);
     return NextResponse.json({
       success: false,

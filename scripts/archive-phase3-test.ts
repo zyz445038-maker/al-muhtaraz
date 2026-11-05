@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { DocumentRepository } from '@/services/archive/documents/documentRepository';
 import { DocumentVersionRepository } from '@/services/archive/documents/documentVersionRepository';
 import { LocalArchiveStorageService } from '@/services/archive/storage/localStorageService';
@@ -67,7 +68,8 @@ async function testStorageSecurity() {
 }
 
 async function testRepositories() {
-  const client = new FakeClient();
+  const fakeClient = new FakeClient();
+  const client = fakeClient as unknown as SupabaseClient;
   const documents = new DocumentRepository(client);
   const versions = new DocumentVersionRepository(client);
 
@@ -95,11 +97,13 @@ async function testRepositories() {
   });
   assert.equal(job.ok, true);
   assert.equal((job.data as { document_id: string }).document_id, 'doc-1');
-  assert.ok(client.calls.some(call => call.table === 'document_import_jobs' && call.operation === 'insert'));
+  assert.ok(fakeClient.calls.some(call => call.table === 'document_import_jobs' && call.operation === 'insert'));
 }
 
 async function testDatabaseFailure() {
-  const repository = new DocumentRepository(new FakeClient({ code: 'DB_DOWN', message: 'database unavailable' }));
+  const repository = new DocumentRepository(
+    new FakeClient({ code: 'DB_DOWN', message: 'database unavailable' }) as unknown as SupabaseClient
+  );
   const result = await repository.getById('doc-1');
   assert.equal(result.ok, false);
   assert.match(result.error || '', /database unavailable/);

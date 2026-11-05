@@ -2,7 +2,10 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { createReceiptImageUrl } from '@/lib/receiptVerification';
+import {
+  createReceiptNumberVerificationUrl,
+  createReceiptVerificationUrl
+} from '@/lib/receiptVerification';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import { printHtmlDocument } from '@/lib/printHtmlDocument';
 import {
@@ -11,18 +14,14 @@ import {
   Share2,
   CheckCircle2,
   ShieldCheck,
-  Calendar,
-  CreditCard,
-  Building2,
   FileText,
-  DollarSign,
-  MapPin,
-  User,
-  Truck
+  MapPin
 } from 'lucide-react';
-import { Contract, Receipt, PaymentMethod } from '@/types/database';
+import { Contract, Receipt } from '@/types/database';
 import { COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { getDebrisContractTypeLabel } from '@/utils/rentalPricing';
+import { createInvoicePresentation } from '@/utils/invoicePresentation';
+import type { PublicReceiptPayload } from '@/utils/receiptEncoder';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -34,44 +33,6 @@ interface ReceiptModalProps {
     message: string,
     imageBase64: string
   ) => Promise<{ success: boolean; error?: string }>;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function numberToArabicWords(amount: number): string {
-  const num = Math.floor(amount);
-  if (num === 0) return 'صفر ريال';
-  const table: Record<number, string> = {
-    150: 'مائة وخمسون ريالاً سعودياً فقط لا غير',
-    300: 'ثلاثمائة ريال سعودي فقط لا غير',
-    450: 'أربعمائة وخمسون ريالاً سعودياً فقط لا غير',
-    500: 'خمسمائة ريال سعودي فقط لا غير',
-    750: 'سبعمائة وخمسون ريالاً سعودياً فقط لا غير',
-    1000: 'ألف ريال سعودي فقط لا غير',
-    1500: 'ألف وخمسمائة ريال سعودي فقط لا غير',
-    2000: 'ألفا ريال سعودي فقط لا غير',
-    2500: 'ألفان وخمسمائة ريال سعودي فقط لا غير',
-    3000: 'ثلاثة آلاف ريال سعودي فقط لا غير',
-    3500: 'ثلاثة آلاف وخمسمائة ريال سعودي فقط لا غير',
-    4000: 'أربعة آلاف ريال سعودي فقط لا غير',
-    5000: 'خمسة آلاف ريال سعودي فقط لا غير',
-    7000: 'سبعة آلاف ريال سعودي فقط لا غير',
-    10000: 'عشرة آلاف ريال سعودي فقط لا غير',
-    21000: 'واحد وعشرون ألف ريال سعودي فقط لا غير',
-    42000: 'اثنان وأربعون ألف ريال سعودي فقط لا غير',
-  };
-  return table[num] ?? `${num.toLocaleString('ar-SA')} ريالاً سعودياً فقط لا غير`;
-}
-
-function getPaymentMethodLabel(method?: PaymentMethod): { label: string; icon: string } {
-  switch (method) {
-    case 'apple_pay':   return { label: 'Apple Pay', icon: '🍎' };
-    case 'mada':        return { label: 'بطاقة مدى', icon: '💳' };
-    case 'credit_card': return { label: 'Visa / Master', icon: '💳' };
-    case 'cash':        return { label: 'نقدي كاش', icon: '💵' };
-    case 'pos':         return { label: 'نقاط البيع POS', icon: '🖥️' };
-    case 'bank_transfer': return { label: 'تحويل بنكي', icon: '🏦' };
-    default:            return { label: 'سداد إلكتروني', icon: '💳' };
-  }
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -94,15 +55,60 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     || `RCP-${new Date().getFullYear()}-${(contract?.contract_number || '').replace(/[^0-9]/g, '') || '0001'}`);
 
   const paidAmount    = Number(receipt?.amount ?? contract?.paid_amount ?? contract?.total_cost ?? 0);
-  const totalCost     = Number(contract?.total_cost ?? paidAmount);
-  const remaining     = Math.max(0, totalCost - paidAmount);
+  const receiptHasVatData = receipt?.subtotal_amount != null && receipt.vat_amount != null;
+  const totalCost     = Number(receipt && !receiptHasVatData ? receipt.amount : contract?.total_cost ?? paidAmount);
+  const contractPaidAmount = Number(receipt && !receiptHasVatData ? paidAmount : contract?.paid_amount ?? 0);
+  const remaining = receipt && !receiptHasVatData
+    ? 0
+    : Math.max(0, Number(contract?.remaining_amount ?? totalCost - contractPaidAmount));
   const paymentMethod = receipt?.payment_method || contract?.payment_method || 'mada';
-  const methodInfo    = getPaymentMethodLabel(paymentMethod);
-  const arabicWords   = numberToArabicWords(paidAmount);
+  const customerVatNumber = receipt
+    ? receipt.customer_vat_number || ''
+    : contract?.customer_vat_number || '';
   const issueDate     = receipt?.issued_at
     ? new Date(receipt.issued_at)
     : new Date(contract?.updated_at || contract?.created_at || Date.now());
   const isFree = contract?.is_free || contract?.payment_method === 'free';
+  const invoicePayload: PublicReceiptPayload = {
+    type: 'receipt',
+    receiptNumber,
+    contractNumber: contract?.contract_number || '',
+    customerName: contract?.customer?.name || '-',
+    customerVatNumber,
+    customerPhone: contract?.customer?.phone || '-',
+    containerNumber: contract?.container?.container_number || '-',
+    contractType: contract?.contract_type === 'commercial'
+      ? 'تجاري مغلق'
+      : getDebrisContractTypeLabel(contract?.period_type || 'daily', contract?.duration_days || 7),
+    totalCost,
+    contractPaidAmount,
+    paidAmount,
+    ...(contract && (!receipt || receiptHasVatData) ? {
+      nonTaxableAmount: contract.non_taxable_amount ?? undefined,
+      subtotalAmount: contract.subtotal_amount ?? undefined,
+      vatAmount: contract.vat_amount ?? undefined
+    } : {}),
+    ...(receipt ? {
+      receiptNonTaxableAmount: receipt.non_taxable_amount ?? undefined,
+      receiptSubtotalAmount: receipt.subtotal_amount ?? undefined,
+      receiptVatAmount: receipt.vat_amount ?? undefined
+    } : contract?.subtotal_amount != null && contract.vat_amount != null ? {
+      receiptNonTaxableAmount: contract.non_taxable_paid_amount ?? undefined,
+      receiptSubtotalAmount: contract.subtotal_paid_amount ?? undefined,
+      receiptVatAmount: contract.vat_paid_amount ?? undefined
+    } : {}),
+    paymentMethod,
+    startDate: contract?.start_date ? new Date(contract.start_date).toLocaleDateString('ar-SA') : '-',
+    endDate: contract?.end_date ? new Date(contract.end_date).toLocaleDateString('ar-SA') : '-',
+    locationAddress: contract?.location_address || '',
+    issueDate: issueDate.toISOString()
+  };
+  const presentation = createInvoicePresentation({
+    ...invoicePayload,
+    isFree,
+    remainingAmount: remaining
+  });
+  const { invoiceAmounts, receiptAmounts, paymentMethod: methodInfo, formatMoney } = presentation;
   const contractType  = contract?.contract_type === 'commercial'
     ? 'تجاري مغلق'
     : getDebrisContractTypeLabel(contract?.period_type || 'daily', contract?.duration_days || 7);
@@ -122,46 +128,40 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     setReceiptUrl('');
     setReceiptUrlError('');
     setReceiptImage('');
-    const receiptData = {
-      type: 'receipt' as const,
-      receiptNumber,
-      contractNumber: contract.contract_number,
-      customerName: contract.customer?.name || '-',
-      customerPhone: contract.customer?.phone || '-',
-      containerNumber: contract.container?.container_number || '-',
-      contractType,
-      paidAmount,
-      totalCost,
-      paymentMethod,
-      startDate,
-      endDate,
-      locationAddress: contract.location_address || '',
-      issueDate: issueDate.toISOString(),
-      notes: receipt?.notes || contract?.notes || ''
-    };
-
     void (async () => {
       try {
-        const imageUrl = await createReceiptImageUrl(receiptData);
+        const verificationUrl = receipt?.public_verification_token
+          ? createReceiptVerificationUrl(receipt.public_verification_token)
+          : contract.public_verification_token
+            ? createReceiptVerificationUrl(contract.public_verification_token)
+            : createReceiptNumberVerificationUrl(receiptNumber);
         const image = await generateContractVoucherImage({
           contractNumber: contract.contract_number,
           receiptNumber,
           customerName: contract.customer?.name || '-',
+          customerVatNumber,
           customerPhone: contract.customer?.phone || '-',
           containerNumber: contract.container?.container_number || '-',
           contractType,
           totalCost,
           paidAmount,
+          nonTaxableAmount: invoiceAmounts.nonTaxableAmount,
+          subtotalAmount: invoiceAmounts.subtotalAmount,
+          vatAmount: invoiceAmounts.vatAmount,
+          receiptNonTaxableAmount: receiptAmounts.nonTaxableAmount,
+          receiptSubtotalAmount: receiptAmounts.subtotalAmount,
+          receiptVatAmount: receiptAmounts.vatAmount,
           remainingAmount: remaining,
           paymentMethod: methodInfo.label,
           startDate,
           endDate,
           locationAddress: contract.location_address || '',
-          verificationUrl: imageUrl,
-          isFree
+          verificationUrl,
+          isFree,
+          issueDate: issueDate.toISOString()
         });
         if (!cancelled) {
-          setReceiptUrl(imageUrl);
+          setReceiptUrl(verificationUrl);
           setReceiptImage(image);
         }
       } catch (error) {
@@ -179,6 +179,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     contract?.id,
     contract?.contract_number,
     contract?.customer?.name,
+    customerVatNumber,
     contract?.customer?.phone,
     contract?.container?.container_number,
     contract?.contract_type,
@@ -193,6 +194,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     receiptNumber,
     paidAmount,
     totalCost,
+    contract?.non_taxable_amount,
+    contract?.subtotal_amount,
+    contract?.vat_amount,
+    contract?.non_taxable_paid_amount,
+    contract?.subtotal_paid_amount,
+    contract?.vat_paid_amount,
+    contract?.paid_amount,
+    contract?.remaining_amount,
+    receipt?.amount,
+    receipt?.non_taxable_amount,
+    receipt?.subtotal_amount,
+    receipt?.vat_amount,
+    receipt?.customer_vat_number,
+    receipt?.public_verification_token,
+    contract?.customer_vat_number,
+    contract?.public_verification_token,
     paymentMethod,
     isFree
   ]);
@@ -202,8 +219,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    const content = printRef.current?.innerHTML;
-    if (!content) return;
+    const logoUrl = new URL('/invoice-logo.jpg', window.location.origin).href;
+    const rawContent = printRef.current?.innerHTML;
+    if (!rawContent) return;
+    const content = rawContent.replaceAll('src="/invoice-logo.jpg"', `src="${logoUrl}"`);
     const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -232,12 +251,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       text-align: right;
       width: 100%;
     }
-    .receipt-paper { 
-      max-width: 760px; 
+    .receipt-paper {
+      width: 194mm;
+      min-height: 281mm;
       margin: 0 auto; 
-      padding: 24px; 
+      padding: 7mm;
       direction: rtl !important;
     }
+    .invoice-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8mm; }
+    .invoice-meta, .invoice-details, .invoice-totals, .invoice-footer { page-break-inside: avoid; break-inside: avoid; }
+    .invoice-customer { min-width: 0; overflow-wrap: anywhere; }
+    .invoice-sheet { width: 100%; }
     table { 
       border-collapse: collapse; 
       width: 100%;
@@ -250,17 +274,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     @media print {
       @page {
         size: A4 portrait;
-        margin: 10mm;
+        margin: 12mm;
       }
       body {
+        width: 186mm;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
+      .receipt-paper { width: 186mm !important; min-height: 273mm !important; padding: 0 !important; }
+      .invoice-sheet { min-height: 273mm !important; }
+      .no-print { display: none !important; }
+      tr, .invoice-meta, .invoice-details, .invoice-totals, .invoice-footer { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
 <body>
-  <div class="receipt-paper">${content}</div>
+  <div class="receipt-paper" data-logo-url="${logoUrl}">${content}</div>
 </body>
 </html>`;
     try {
@@ -281,13 +310,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     setIsSharing(true);
     try {
       const customerName = contract.customer.name || 'عزيزنا العميل';
-      const containerNumber = contract.container?.container_number || '-';
-      const contractType = contract.contract_type === 'commercial'
-        ? 'تجاري مغلق'
-        : getDebrisContractTypeLabel(contract.period_type, contract.duration_days);
       const message = isFree
         ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`
-        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${paidAmount.toLocaleString('ar-SA')} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${issueDate.toLocaleDateString('ar-SA')}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`;
+        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${formatMoney(paidAmount)} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${presentation.issueDate}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`;
       const result = await onSendWhatsAppReceipt(contract.customer.phone, message, receiptImage);
       if (!result.success) {
         throw new Error(result.error || 'تعذر إرسال صورة الفاتورة عبر واتساب.');
@@ -302,7 +327,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   /* ─── Shared cell styles ─────────────────────────────────────────────────── */
   const rowLabel: React.CSSProperties = {
-    padding: '9px 14px',
+    padding: '6px 10px',
     background: '#f8fafc',
     fontWeight: 700,
     color: '#475569',
@@ -312,7 +337,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     whiteSpace: 'nowrap'
   };
   const rowValue: React.CSSProperties = {
-    padding: '9px 14px',
+    padding: '6px 10px',
     color: '#0f172a',
     fontSize: '0.88rem',
     verticalAlign: 'middle'
@@ -367,14 +392,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <FileText size={18} color="#fbbf24" />
               <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
                 فاتورة مالية رسمية
-              </span>
-              <span style={{
-                fontSize: '0.72rem', fontWeight: 700,
-                background: 'rgba(16,185,129,0.15)',
-                color: '#34d399', padding: '2px 8px',
-                borderRadius: '20px', border: '1px solid rgba(52,211,153,0.3)'
-              }}>
-                {receiptNumber}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -432,8 +449,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           {/* ── PRINTABLE RECEIPT BODY ──────────────────────────────── */}
           <div
             ref={printRef}
+            className="invoice-sheet"
             style={{
-              padding: '28px 24px',
+              width: '100%',
+              minHeight: '297mm',
+              padding: '9mm',
+              margin: '0 auto',
               background: '#ffffff',
               color: '#0f172a',
               fontFamily: "'Cairo', 'Tajawal', sans-serif",
@@ -441,146 +462,117 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             }}
           >
             {/* HEADER */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              paddingBottom: '18px',
-              borderBottom: '2px solid #e2e8f0',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                  <div style={{
-                    width: '42px', height: '42px', borderRadius: '10px',
-                    background: 'linear-gradient(135deg,#d97706,#b45309)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                  }}>
-                    <Truck size={22} color="#fff" />
-                  </div>
-                  <div>
-                    <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                      {COMPANY_OFFICIAL_INFO.nameArabic}
-                    </h2>
-                    <div style={{ fontSize: '0.73rem', color: '#64748b' }}>
-                      تأجير الحاويات التجارية وعقود الأنقاض
-                    </div>
-                  </div>
+            <div className="invoice-header" style={{ paddingBottom: '8px' }}>
+              <div style={{
+                display: 'flex',
+                direction: 'rtl',
+                flexDirection: 'row-reverse',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                minHeight: '120px',
+                paddingBottom: '8px',
+                borderBottom: '1px solid #d6d3d1'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '130px' }}>
+                  <img
+                    src="/invoice-logo.jpg"
+                    alt={`شعار ${COMPANY_OFFICIAL_INFO.nameArabic}`}
+                    style={{ width: '124px', height: '104px', objectFit: 'contain' }}
+                  />
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1c1917' }}>{presentation.issueDate}</div>
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.6 }}>
-                  الرقم الضريبي: <strong>300099887700003</strong> &nbsp;|&nbsp; السجل التجاري: <strong>1010889900</strong><br />
-                  الرياض – المملكة العربية السعودية &nbsp;|&nbsp; 📞 920001234
+                <div style={{ minWidth: 0, textAlign: 'right', lineHeight: 1.55, marginLeft: 'auto' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                    {COMPANY_OFFICIAL_INFO.nameArabic}
+                  </h2>
+                  <div style={{ fontSize: '0.68rem', color: '#475569' }}>تأجير الحاويات التجارية وعقود الإنشاءات</div>
+                  <div style={{ fontSize: '0.66rem', color: '#475569' }}>
+                    الرقم الضريبي: <strong>{COMPANY_OFFICIAL_INFO.vatNumber}</strong>
+                    {' | '}السجل التجاري: <strong>{COMPANY_OFFICIAL_INFO.crNumber}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.66rem', color: '#475569' }}>المملكة العربية السعودية</div>
+                  <div style={{ fontSize: '0.66rem', color: '#475569' }}>
+                    {COMPANY_OFFICIAL_INFO.address.replace('المملكة العربية السعودية – ', '')} {' | '} هاتف: <strong>{COMPANY_OFFICIAL_INFO.phone}</strong>
+                  </div>
                 </div>
               </div>
-              <div style={{
-                background: '#f8fafc', border: '2px solid #e2e8f0',
-                borderRadius: '10px', padding: '10px 16px',
-                textAlign: 'center', minWidth: '160px'
-              }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                  INVOICE
-                </div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>
-                  فاتورة
-                </div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>{receiptNumber}</div>
-                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
-                  {issueDate.toLocaleDateString('ar-SA')} — {issueDate.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+              <div style={{ textAlign: 'center', paddingTop: '6px' }}>
+                <div style={{ fontSize: '1.55rem', fontWeight: 900, color: '#0f172a' }}>فاتورة</div>
+                <div style={{ color: '#1c1917', fontSize: '0.76rem', fontWeight: 800, marginTop: '2px' }}>
+                  رقم الفاتورة: {receiptNumber}
                 </div>
               </div>
             </div>
 
             {/* META STRIP */}
-            <div style={{
+            <div className="invoice-meta" style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-              gap: '10px',
-              background: '#f1f5f9', borderRadius: '8px',
-              padding: '12px 14px', margin: '16px 0', fontSize: '0.8rem'
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: '6px',
+              padding: '4px 0 10px',
+              fontSize: '0.76rem'
             }}>
-              <div>
-                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>رقم العقد:</span>
-                <strong style={{ color: '#0f172a' }}>{contract.contract_number}</strong>
-              </div>
-              <div>
-                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>نوع العقد:</span>
-                <strong style={{ color: '#0f172a' }}>{contractType}</strong>
-              </div>
-              <div>
-                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>الحاوية:</span>
-                <strong style={{ color: '#0f172a' }}>{contract.container?.container_number || '-'}</strong>
-              </div>
-              <div>
-                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>فترة العقد:</span>
-                <strong style={{ color: '#0f172a' }}>{startDate} → {endDate}</strong>
-              </div>
+              {[
+                ['اسم العميل / المستأجر', contract.customer?.name || 'العميل'],
+                ['الرقم الضريبي للعميل', customerVatNumber.trim() || 'غير مسجل'],
+                ['رقم العقد', contract.contract_number],
+                ['رقم جوال العميل', contract.customer?.phone || '-'],
+                ['رقم الحاوية', contract.container?.container_number || '-'],
+                ['نوع العقد والحاوية', contractType],
+                ['تاريخ البداية', startDate],
+                ['تاريخ نهاية الإيجار', endDate],
+                ['حالة الفاتورة', isFree ? 'عقد مجاني' : remaining > 0 ? 'دفعة جزئية' : 'مسدد بالكامل'],
+                ['موقع تنزيل الحاوية', contract.location_address || '-']
+              ].map(([label, value]) => (
+                <div key={label} style={{
+                  minWidth: 0,
+                  minHeight: '52px',
+                  padding: '6px 8px',
+                  border: '1px solid #e7e5e4',
+                  borderRadius: '6px',
+                  background: '#fafaf9',
+                  overflowWrap: 'anywhere'
+                }}>
+                  <span style={{ display: 'block', color: '#78716c', fontSize: '0.66rem', fontWeight: 700, marginBottom: '2px' }}>{label}:</span>
+                  <strong style={{ color: '#1c1917', fontSize: '0.76rem' }}>{value}</strong>
+                </div>
+              ))}
             </div>
 
             {/* MAIN TABLE */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '18px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+            <div className="invoice-details" style={{ border: '1px solid #e7e5e4', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'fixed' }}>
                 <tbody>
+                  {invoiceAmounts.nonTaxableAmount > 0 && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={rowLabel}>رصيد سابق غير خاضع للضريبة:</td>
+                      <td style={rowValue}>{formatMoney(invoiceAmounts.nonTaxableAmount)} ر.س</td>
+                    </tr>
+                  )}
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ ...rowLabel, width: '36%' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <User size={13} /> استلمنا من:
-                      </span>
-                    </td>
-                    <td style={rowValue}>
-                      <strong>{contract.customer?.name || 'العميل'}</strong>
-                      {contract.customer?.phone && (
-                        <span style={{ color: '#64748b', fontSize: '0.8rem', marginRight: '8px' }}>
-                          📞 {contract.customer.phone}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: isFree ? '#f8fafc' : '#f0fdf4' }}>
-                    <td style={{ ...rowLabel, borderLeftColor: isFree ? '#e2e8f0' : '#bbf7d0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <DollarSign size={13} /> مبلغ وقدره:
-                      </span>
-                    </td>
-                    <td style={rowValue}>
-                      {isFree ? (
-                        <span style={{ color: '#94a3b8', fontSize: '1.1rem', fontWeight: 800 }}>—</span>
-                      ) : (
-                        <>
-                          <span style={{
-                            fontSize: '1.3rem', fontWeight: 900, color: '#059669',
-                            background: '#dcfce7', padding: '2px 12px', borderRadius: '6px',
-                            display: 'inline-block', marginBottom: '4px'
-                          }}>
-                            {paidAmount.toLocaleString('ar-SA')} ر.س
-                          </span>
-                          <div style={{ fontSize: '0.78rem', color: '#374151', fontStyle: 'italic' }}>
-                            ({arabicWords})
-                          </div>
-                        </>
-                      )}
-                    </td>
+                    <td style={rowLabel}>المبلغ قبل الضريبة:</td>
+                    <td style={rowValue}>{formatMoney(invoiceAmounts.subtotalAmount)} ر.س</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={rowLabel}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <CreditCard size={13} /> طريقة السداد:
-                      </span>
+                    <td style={rowLabel}>ضريبة القيمة المضافة (15%):</td>
+                    <td style={rowValue}>{formatMoney(invoiceAmounts.vatAmount)} ر.س</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#fbf6e8' }}>
+                    <td style={{ ...rowLabel, background: '#fbf6e8', color: '#854d0e', borderLeftColor: '#d6b766' }}>
+                      الإجمالي بعد الضريبة:
                     </td>
-                    <td style={rowValue}>
-                      {isFree ? (
-                        <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 700 }}>—</span>
-                      ) : (
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '6px',
-                          padding: '4px 12px', borderRadius: '6px', fontWeight: 700,
-                          background: '#f1f5f9', border: '1px solid #cbd5e1'
-                        }}>
-                          {methodInfo.icon} {methodInfo.label}
-                        </span>
-                      )}
+                    <td style={{ ...rowValue, color: '#854d0e', fontSize: '1rem', fontWeight: 900 }}>
+                      {formatMoney(invoiceAmounts.grossAmount)} ر.س
                     </td>
                   </tr>
+                  {!invoiceAmounts.isVatAware && (
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td colSpan={2} style={{ ...rowValue, color: '#78716c', fontSize: '0.72rem' }}>
+                        قيمة عقد سابقة معروضة كما خُزنت دون إعادة احتساب الضريبة.
+                      </td>
+                    </tr>
+                  )}
                   <tr style={{ borderBottom: (!isFree && remaining > 0) || contract.google_maps_url ? '1px solid #e2e8f0' : undefined }}>
                     <td style={rowLabel}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -598,9 +590,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       <td style={rowLabel}>ملاحظات مالية:</td>
                       <td style={rowValue}>
                         <span style={{ color: '#b45309', fontWeight: 700 }}>
-                          ⚠️ إجمالي العقد: {totalCost.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp;
-                          المسدد: {paidAmount.toLocaleString('ar-SA')} ر.س &nbsp;|&nbsp;
-                          المتبقي: {remaining.toLocaleString('ar-SA')} ر.س
+                          ⚠️ إجمالي العقد: {formatMoney(invoiceAmounts.grossAmount)} ر.س &nbsp;|&nbsp;
+                          المسدد: {formatMoney(contractPaidAmount)} ر.س &nbsp;|&nbsp;
+                          المتبقي: {formatMoney(remaining)} ر.س
                         </span>
                       </td>
                     </tr>
@@ -623,72 +615,89 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               </table>
             </div>
 
+            {!isFree && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                border: '1px solid #e7e5e4',
+                borderRadius: '6px',
+                marginBottom: '10px',
+                fontSize: '0.76rem',
+                color: '#44403c'
+              }}>
+                <div style={{ padding: '8px 10px', borderLeft: '1px solid #d6d3d1' }}>
+                  قبل الضريبة في الدفعة:
+                  <strong style={{ display: 'block', marginTop: '3px' }}>
+                    {formatMoney(receiptAmounts.subtotalAmount + receiptAmounts.nonTaxableAmount)} ر.س
+                  </strong>
+                </div>
+                <div style={{ padding: '8px 10px', borderLeft: '1px solid #d6d3d1' }}>
+                  إجمالي الدفعة الحالية:
+                  <strong style={{ display: 'block', marginTop: '3px' }}>
+                    {formatMoney(receiptAmounts.grossAmount)} ر.س
+                  </strong>
+                </div>
+                <div style={{ padding: '8px 10px' }}>
+                  طريقة السداد:
+                  <strong style={{ display: 'block', marginTop: '3px' }}>{methodInfo.label}</strong>
+                </div>
+              </div>
+            )}
+
             {/* FOOTER: QR + Stamp */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-end',
-              paddingTop: '14px',
-              borderTop: '2px dashed #cbd5e1',
-              flexWrap: 'wrap',
-              gap: '16px'
+            <div className="invoice-footer" style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              alignItems: 'center',
+              paddingTop: '8px',
+              gap: '10px'
             }}>
-              {/* QR Code — points to receipt page */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                 <div style={{
-                  padding: '6px', border: '2px solid #0f172a',
-                  borderRadius: '10px', background: '#fff',
+                  padding: '4px', border: '1px solid #d6d3d1',
+                  borderRadius: '5px', background: '#fff',
                   display: 'inline-block', lineHeight: 0
                 }}>
                   {receiptUrl ? (
                     <QRCodeSVG
                       value={receiptUrl}
-                      size={156}
+                      size={160}
                       level="M"
-                      includeMargin={true}
+                      marginSize={4}
                       fgColor="#000000"
                       bgColor="#ffffff"
+                      style={{ width: '160px', height: '160px', shapeRendering: 'crispEdges' }}
                     />
                   ) : (
-                    <div style={{ width: 156, height: 156, display: 'flex', alignItems: 'center', justifyContent: 'center', color: receiptUrlError ? '#b91c1c' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center', padding: '8px' }}>
+                    <div style={{ width: 104, height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center', color: receiptUrlError ? '#b91c1c' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center', padding: '8px' }}>
                       {receiptUrlError || 'جارٍ تجهيز الرمز...'}
                     </div>
                   )}
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#475569', maxWidth: '160px', lineHeight: 1.5 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 800, marginBottom: '4px' }}>
-                    <CheckCircle2 size={12} />
-                    <span>فاتورة معتمدة إلكترونياً</span>
-                  </div>
-                  <div>امسح الرمز لعرض الفاتورة الرسمية كاملة على هاتفك</div>
-                  <div style={{ marginTop: '4px', color: '#94a3b8' }}>ت.ض: 300099887700003</div>
-                </div>
               </div>
-              {/* Stamp */}
-              <div style={{ textAlign: 'center', minWidth: '180px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.7rem', color: '#64748b', marginBottom: '28px' }}>
-                  <ShieldCheck size={12} color="#059669" />
-                  <span>التوقيع المعتمد &amp; الختم الرسمي</span>
+
+              <div style={{ textAlign: 'center', fontSize: '0.72rem', color: '#475569', lineHeight: 1.5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#059669', fontWeight: 800, marginBottom: '4px' }}>
+                  <CheckCircle2 size={12} />
+                  <span>فاتورة معتمدة إلكترونياً</span>
                 </div>
-                <div style={{ borderTop: '1.5px solid #0f172a', paddingTop: '4px', fontSize: '0.72rem', color: '#475569' }}>
-                  قسم المالية والمحاسبة – المحترز للحاويات
+                <div>امسح الرمز للتحقق من صحة الفاتورة</div>
+              </div>
+
+              <div style={{ textAlign: 'center', minWidth: '180px' }}>
+                <div style={{ fontSize: '0.7rem', color: '#1e293b', fontWeight: 800, marginBottom: '24px' }}>
+                  {COMPANY_OFFICIAL_INFO.nameArabic}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.68rem', color: '#64748b', marginBottom: '6px' }}>
+                  <ShieldCheck size={12} color="#059669" />
+                  <span>الختم والتوقيع المعتمد</span>
+                </div>
+                <div style={{ borderTop: '1px solid #78716c', paddingTop: '4px', fontSize: '0.7rem', color: '#475569' }}>
+                  التوقيع المعتمد
                 </div>
               </div>
             </div>
 
-            {/* LEGAL BAR */}
-            <div style={{
-              marginTop: '16px', padding: '8px 14px',
-              background: '#fffbeb', border: '1px solid #fde68a',
-              borderRadius: '6px', fontSize: '0.7rem', color: '#92400e',
-              display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'
-            }}>
-              <Building2 size={12} />
-              <span>
-                هذه الفاتورة صادرة إلكترونياً وهي ملزمة قانونياً. جميع المبالغ شاملة ضريبة القيمة المضافة 15%.
-                ت.ض: 300099887700003 | س.ت: 1010889900
-              </span>
-            </div>
           </div>
         </div>
       </div>

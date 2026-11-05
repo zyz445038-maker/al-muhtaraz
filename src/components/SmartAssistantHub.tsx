@@ -47,6 +47,7 @@ import { formatDailyExecutiveReport } from '@/utils/voucherFormatter';
 import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking, unlockAudio } from '@/utils/voiceAssistant';
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
+import type { AgentMemoryState } from '@/utils/aiExecutiveAgent';
 
 interface SmartAssistantHubProps {
   contracts: Contract[];
@@ -239,7 +240,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
     setTimeout(() => setSaveSuccess(false), 3500);
   };
 
-  const copilotMemoryRef = useRef<any>({
+  const copilotMemoryRef = useRef<AgentMemoryState>({
     lastFocusedContract: null,
     lastFocusedCustomer: null,
     lastFocusedContainer: null,
@@ -404,7 +405,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveSection(tab.id as any)}
+              onClick={() => setActiveSection(tab.id as 'routing' | 'reports' | 'chat' | 'shortcut')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -760,7 +761,7 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem' }}>2</div>
-              <span style={{ color: '#f8fafc', fontSize: '0.9rem' }}>اضغط ضغطة مطولة على أيقونة "المحترز" في شاشة الهاتف الرئيسية.</span>
+              <span style={{ color: '#f8fafc', fontSize: '0.9rem' }}>اضغط ضغطة مطولة على أيقونة &ldquo;المحترز&rdquo; في شاشة الهاتف الرئيسية.</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem' }}>3</div>

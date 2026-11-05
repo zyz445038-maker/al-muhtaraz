@@ -1,4 +1,4 @@
-import { Contract, Customer, Container, Profile, Receipt } from '@/types/database';
+import { Contract, Customer, Container, Profile, Receipt, PaymentMethod } from '@/types/database';
 import { getDebrisContractTypeLabel } from './rentalPricing';
 import { 
   formatCleanArabicDate, 
@@ -41,17 +41,22 @@ export function formatCustomerVoucherMessage(params: {
   customer: Customer;
   container?: Container;
   receiptNumber: string;
-  isCash: boolean;
   paidAmount: number;
   remainingAmount: number;
   totalCost: number;
 }): string {
-  const { contract, customer, container, receiptNumber, isCash, paidAmount, remainingAmount, totalCost } = params;
+  const { contract, customer, container, receiptNumber, paidAmount, remainingAmount, totalCost } = params;
   
   const typeLabel = contract.contract_type === 'commercial'
     ? 'حاوية تجارية'
     : getDebrisContractTypeLabel(contract.period_type, contract.duration_days);
-  const paymentMethodLabel = isCash ? 'نقدي كاش (في الموقع) 💵' : (contract.payment_method === 'apple_pay' ? 'Apple Pay 🍎' : 'بطاقة مدى / سداد إلكتروني 💳');
+  const paymentMethodLabel = contract.payment_method === 'cash' ? 'نقدي كاش 💵'
+    : contract.payment_method === 'pos' ? 'نقطة بيع (POS) 💳'
+      : contract.payment_method === 'bank_transfer' ? 'تحويل بنكي 🏦'
+        : contract.payment_method === 'apple_pay' ? 'Apple Pay 🍎'
+          : contract.payment_method === 'mada' ? 'بطاقة مدى 💳'
+            : contract.payment_method === 'credit_card' ? 'بطاقة ائتمانية 💳'
+              : 'آجل / بانتظار السداد ⏳';
   const durationText = contract.period_type === 'monthly' && contract.duration_days >= 30
     ? `${Math.round(contract.duration_days / 30)} شهر (${contract.duration_days} يومًا)`
     : contract.duration_days === 15
@@ -84,12 +89,11 @@ export function formatCustomerVoucherMessage(params: {
 
   return `🏛️ *مؤسسة المحترز لتأجير الحاويات*
 ━━━━━━━━━━━━━━━━━━
-🧾 *فاتورة وتوثيق عقد إلكتروني*
+${paidAmount > 0 ? '🧾 *سند قبض وتوثيق عقد إلكتروني*' : '📄 *توثيق عقد إلكتروني*'}
 ━━━━━━━━━━━━━━━━━━
 👤 *العميل:* ${customer.name}
 📄 *رقم العقد:* ${contract.contract_number}
-🔖 *رقم الفاتورة:* ${receiptNumber}
-🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
+${paidAmount > 0 ? `🔖 *رقم سند القبض:* ${receiptNumber}\n` : ''}🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
 📅 *تاريخ البدء:* ${startDateClean}
 🏁 *تاريخ الانتهاء:* ${endDateClean}
@@ -100,7 +104,7 @@ export function formatCustomerVoucherMessage(params: {
 ✍️ *المبلغ بالحروف:* ${amountWords}
 ${remainingAmount > 0 ? `⏳ *المبلغ المتبقي:* ${remainingAmount.toLocaleString('ar-SA')} ر.س\n` : ''}💳 *طريقة السداد:* ${paymentMethodLabel}
 ━━━━━━━━━━━━━━━━━━
-✅ *تم توثيق العقد واستلام الدفعة رسمياً في سجلات المحترز.*
+${paidAmount > 0 ? '✅ *تم توثيق العقد واستلام الدفعة رسمياً في سجلات المحترز.*' : '✅ *تم توثيق العقد رسمياً، والمبلغ بانتظار السداد.*'}
 📞 *للتمديد أو الاستفسار:* 0500000001
 🙏 *شكراً لثقتكم واختياركم المحترز للحاويات.*`;
 }
@@ -138,16 +142,25 @@ export function formatAdminAlertMessage(params: {
   container?: Container;
   staffName?: string;
   paidAmount: number;
-  isCash: boolean;
+  remainingAmount: number;
+  paymentMethod?: PaymentMethod;
 }): string {
-  const { contract, customer, container, staffName, paidAmount, isCash } = params;
+  const { contract, customer, container, staffName, paidAmount, remainingAmount, paymentMethod } = params;
+  const paymentMethodLabel = paymentMethod === 'cash' ? 'كاش 💵'
+    : paymentMethod === 'pos' ? 'نقطة بيع 💳'
+      : paymentMethod === 'bank_transfer' ? 'تحويل بنكي 🏦'
+        : paymentMethod === 'mada' ? 'مدى / سداد إلكتروني 💳'
+          : paymentMethod === 'apple_pay' ? 'Apple Pay 🍎'
+            : paymentMethod === 'credit_card' ? 'بطاقة ائتمانية 💳'
+              : contract.is_free ? 'مجاني 🎁' : 'آجل ⏳';
 
   return `👑 *إشعار إداري: توثيق عقد جديد*
 ━━━━━━━━━━━━━━━━━━
 📄 *العقد:* ${contract.contract_number}
 👤 *العميل:* ${customer.name}
 🚚 *الحاوية:* ${container?.container_number || '-'} (${contract.contract_type === 'commercial' ? 'تجاري' : 'أنقاض'})
-💰 *المبلغ المحصل:* ${paidAmount.toLocaleString('ar-SA')} ر.س (${isCash ? 'كاش 💵' : 'إلكتروني 💳'})
+💰 *المبلغ المحصل:* ${paidAmount.toLocaleString('ar-SA')} ر.س
+${remainingAmount > 0 ? `⏳ *المتبقي:* ${remainingAmount.toLocaleString('ar-SA')} ر.س\n` : ''}💳 *طريقة السداد:* ${paymentMethodLabel}
 👷 *الموظف المسجل:* ${staffName || 'المدير العام'}
 ⏱️ *الوقت:* ${formatCleanArabicTime(new Date())}
 ━━━━━━━━━━━━━━━━━━`;

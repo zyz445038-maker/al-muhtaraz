@@ -253,7 +253,7 @@ export async function migrateCloudArchiveBatch(
 
   const documents = (rawDocuments || []).map(parseCloudDocument);
   const ids = documents.map(document => document.id);
-  let versions: ArchiveDocumentVersion[] = [];
+  const versions: ArchiveDocumentVersion[] = [];
   if (ids.length) {
     let versionOffset = 0;
     while (true) {

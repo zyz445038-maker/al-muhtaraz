@@ -11,12 +11,14 @@ import {
   DollarSign, 
   CreditCard, 
   Banknote, 
+  Building2,
   Hourglass,
   AlertCircle,
   CheckCircle2
 } from 'lucide-react';
 import { Contract } from '@/types/database';
 import { PaymentChoice } from './NewContractModal';
+import { allocatePaymentAmounts, calculateVatAmounts, roundCurrency } from '@/utils/invoiceAmounts';
 
 interface ExtendContractModalProps {
   isOpen: boolean;
@@ -49,6 +51,12 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   const [newEndDate, setNewEndDate] = useState('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isManualPaymentChoice = paymentChoice === 'cash' || paymentChoice === 'bank_transfer';
+
+  const handlePaymentChoiceChange = (choice: PaymentChoice) => {
+    setPaymentChoice(choice);
+    if (choice === 'sadad' || choice === 'postpaid') setDownPayment(0);
+  };
 
   const isDebris = contract?.contract_type === 'debris';
 
@@ -93,14 +101,26 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   if (!isOpen || !contract) return null;
 
   // Derived Financial Calculations
-  const netExtensionCost = Math.max(0, baseExtensionCost - (discountAmount || 0));
-  const effectivePaidAmount = paymentChoice === 'cash'
-    ? (downPayment > 0 ? downPayment : netExtensionCost)
-    : (downPayment > 0 ? downPayment : 0);
-  const remainingExtensionAmount = Math.max(0, netExtensionCost - effectivePaidAmount);
+  const effectiveDiscountAmount = Math.min(discountAmount, baseExtensionCost);
+  const netExtensionCost = roundCurrency(Math.max(0, baseExtensionCost - effectiveDiscountAmount));
+  const extensionVat = calculateVatAmounts(netExtensionCost);
+  const extensionPaymentBase = isManualPaymentChoice
+    ? (downPayment > 0 ? Math.min(downPayment, netExtensionCost) : netExtensionCost)
+    : 0;
+  const extensionPayment = allocatePaymentAmounts({
+    enteredAmount: extensionPaymentBase,
+    nonTaxableAmount: 0,
+    nonTaxablePaidAmount: 0,
+    subtotalAmount: netExtensionCost,
+    subtotalPaidAmount: 0,
+    vatAmount: extensionVat.vatAmount,
+    vatPaidAmount: 0
+  });
+  const effectivePaidAmount = extensionPayment?.grossAmount ?? 0;
+  const remainingExtensionAmount = Math.max(0, extensionVat.grossAmount - effectivePaidAmount);
 
   // Overall Contract Impact
-  const newContractTotal = (contract.total_cost || 0) + netExtensionCost;
+  const newContractTotal = (contract.total_cost || 0) + extensionVat.grossAmount;
   const newContractPaid = (contract.paid_amount || 0) + effectivePaidAmount;
   const newContractRemaining = Math.max(0, newContractTotal - newContractPaid);
 
@@ -115,8 +135,8 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
       netExtensionCost,
       paymentChoice,
       new Date(newEndDate).toISOString(),
-      effectivePaidAmount,
-      discountAmount,
+      extensionPaymentBase,
+      effectiveDiscountAmount,
       downPayment
     );
 
@@ -323,14 +343,13 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
             gap: '12px'
           }}>
             
-            {/* 4-Column Row */}
+            {/* Tax totals and payment summary */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '8px',
               textAlign: 'center'
             }}>
-              {/* 1. قيمة التمديد (إجمالي المبلغ) */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -341,16 +360,16 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '2px', fontWeight: 700 }}>
-                  إجمالي المبلغ
+                  المبلغ قبل الضريبة
                 </div>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   className="form-input"
-                  aria-label="قيمة التمديد حسب الاتفاق"
+                  aria-label="قيمة التمديد قبل الضريبة"
                   value={baseExtensionCost}
-                  onChange={(e) => setBaseExtensionCost(Math.max(0, Number(e.target.value) || 0))}
+                  onChange={(e) => setBaseExtensionCost(roundCurrency(Math.max(0, Number(e.target.value) || 0)))}
                   style={{
                     width: '100%',
                     marginTop: '4px',
@@ -362,57 +381,32 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                   }}
                 />
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px' }}>
-                  قيمة التمديد حسب الاتفاق
+                  السعر قبل الخصم
                 </div>
                 {discountAmount > 0 && (
                   <div style={{ fontSize: '0.65rem', color: '#94a3b8', textDecoration: 'line-through' }}>
-                    الأصل: {baseExtensionCost} ر.س
+                    بعد الخصم: {netExtensionCost.toFixed(2)} ر.س
                   </div>
                 )}
               </div>
 
-              {/* 2. دفعة على الحساب */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
                 borderRadius: '10px',
-                padding: '6px 4px',
+                padding: '8px 4px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center'
               }}>
-                <label style={{ display: 'block', fontSize: '0.74rem', color: '#38bdf8', marginBottom: '2px', fontWeight: 700 }}>
-                  دفعة على الحساب
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max={netExtensionCost}
-                    className="form-input"
-                    style={{
-                      height: '28px',
-                      padding: '2px 4px',
-                      fontSize: '0.9rem',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      color: '#38bdf8',
-                      borderColor: 'rgba(56, 189, 248, 0.4)',
-                      background: 'rgba(56, 189, 248, 0.08)',
-                      width: '100%'
-                    }}
-                    value={downPayment === 0 ? '' : downPayment}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const val = Math.max(0, Math.min(netExtensionCost, Number(e.target.value) || 0));
-                      setDownPayment(val);
-                    }}
-                  />
-                  <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>ر.س</span>
+                <div style={{ fontSize: '0.74rem', color: '#fbbf24', marginBottom: '2px', fontWeight: 700 }}>
+                  ضريبة القيمة المضافة (15%)
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fbbf24' }}>
+                  {extensionVat.vatAmount.toFixed(2)} ر.س
                 </div>
               </div>
 
-              {/* 3. المبلغ المدفوع */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: '1px solid rgba(16, 185, 129, 0.25)',
@@ -423,17 +417,79 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.74rem', color: '#34d399', marginBottom: '2px', fontWeight: 700 }}>
-                  المبلغ المدفوع
+                  إجمالي التمديد بعد الضريبة
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#34d399' }}>
+                  {extensionVat.grossAmount.toFixed(2)} ر.س
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '10px',
+                padding: '6px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#38bdf8', marginBottom: '2px', fontWeight: 700 }}>
+                  الدفعة قبل الضريبة
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={netExtensionCost}
+                    className="form-input"
+                    disabled={!isManualPaymentChoice}
+                    style={{
+                      height: '28px',
+                      padding: '2px 4px',
+                      fontSize: '0.9rem',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      color: '#38bdf8',
+                      borderColor: 'rgba(56, 189, 248, 0.4)',
+                      background: 'rgba(56, 189, 248, 0.08)',
+                      width: '100%',
+                      opacity: isManualPaymentChoice ? 1 : 0.6
+                    }}
+                    value={downPayment === 0 ? '' : downPayment}
+                    placeholder={isManualPaymentChoice ? '0' : '—'}
+                    onChange={(e) => {
+                      const val = roundCurrency(Math.max(0, Math.min(netExtensionCost, Number(e.target.value) || 0)));
+                      setDownPayment(val);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>ر.س</span>
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '10px',
+                padding: '8px 4px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.74rem', color: '#34d399', marginBottom: '2px', fontWeight: 700 }}>
+                  المحصل شامل الضريبة
                 </div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#34d399' }}>
                   {effectivePaidAmount} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
                 </div>
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
-                  {paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة تمديد' : 'غير مسدد'}
+                  {paymentChoice === 'sadad'
+                    ? 'بانتظار تأكيد السداد الإلكتروني'
+                    : (paymentChoice === 'cash' || paymentChoice === 'bank_transfer') && downPayment === 0
+                    ? 'سداد كامل'
+                    : downPayment > 0 ? 'دفعة تمديد' : 'غير مسدد'}
                 </div>
               </div>
 
-              {/* 4. المبلغ المتبقي */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: `1px solid ${remainingExtensionAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
@@ -490,7 +546,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                     value={discountAmount === 0 ? '' : discountAmount}
                     placeholder="0"
                     onChange={(e) => {
-                      const val = Math.max(0, Math.min(baseExtensionCost, Number(e.target.value) || 0));
+                      const val = roundCurrency(Math.max(0, Math.min(baseExtensionCost, Number(e.target.value) || 0)));
                       setDiscountAmount(val);
                     }}
                   />
@@ -549,11 +605,11 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
               طريقة سداد قيمة التمديد (+{netExtensionCost} ر.س):
             </label>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               
               {/* Cash */}
               <div
-                onClick={() => setPaymentChoice('cash')}
+                onClick={() => handlePaymentChoiceChange('cash')}
                 style={{
                   padding: '10px',
                   borderRadius: '10px',
@@ -573,9 +629,31 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 </div>
               </div>
 
+              {/* Bank transfer */}
+              <div
+                onClick={() => handlePaymentChoiceChange('bank_transfer')}
+                style={{
+                  padding: '10px',
+                  borderRadius: '10px',
+                  border: `2px solid ${paymentChoice === 'bank_transfer' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                  background: paymentChoice === 'bank_transfer' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(2, 6, 23, 0.6)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Building2 size={20} color={paymentChoice === 'bank_transfer' ? '#fbbf24' : '#94a3b8'} style={{ margin: '0 auto 2px auto' }} />
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: paymentChoice === 'bank_transfer' ? '#fbbf24' : '#ffffff' }}>
+                  تحويل بنكي
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                  حوالة مستلمة
+                </div>
+              </div>
+
               {/* Sadad */}
               <div
-                onClick={() => setPaymentChoice('sadad')}
+                onClick={() => handlePaymentChoiceChange('sadad')}
                 style={{
                   padding: '10px',
                   borderRadius: '10px',
@@ -597,7 +675,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
               {/* Postpaid */}
               <div
-                onClick={() => setPaymentChoice('postpaid')}
+                onClick={() => handlePaymentChoiceChange('postpaid')}
                 style={{
                   padding: '10px',
                   borderRadius: '10px',

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 
 const AI_PROVIDER_TIMEOUT_MS = 7000;
+type ToolIntent = { toolName: string; args: Record<string, unknown> };
 
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   { type: 'function', function: { name: 'fetchLatestContract', description: 'يجلب أحدث عقد تم تسجيله في النظام.' } },
@@ -61,8 +62,8 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 
 async function callProvider(
   providerName: string,
-  request: () => Promise<{ toolName: string; args: any } | null>,
-): Promise<{ toolName: string; args: any } | null> {
+  request: () => Promise<ToolIntent | null>,
+): Promise<ToolIntent | null> {
   try {
     return await request();
   } catch (error) {
@@ -81,7 +82,7 @@ async function callProvider(
 export async function determineIntentWithGemini(
   userQuery: string,
   conversationTurns?: { query: string; response: string }[]
-): Promise<{ toolName: string; args: any } | null> {
+): Promise<ToolIntent | null> {
   // Guard: only run on server — prevents client-side OpenAI crash
   if (typeof window !== 'undefined') return null;
 
@@ -127,10 +128,10 @@ export async function determineIntentWithGemini(
     });
 
     const message = response.choices[0]?.message;
-    const toolCall = message?.tool_calls?.[0] as any;
-    if (toolCall) {
-      let args = {};
-      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+    const toolCall = message?.tool_calls?.[0];
+    if (toolCall?.type === 'function') {
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>; } catch { args = {}; }
       return { toolName: toolCall.function?.name as string, args };
     }
     if (message?.content) {
@@ -158,10 +159,10 @@ export async function determineIntentWithGemini(
       tool_choice: 'auto'
     });
     const message = response.choices[0]?.message;
-    const toolCall = message?.tool_calls?.[0] as any;
-    if (toolCall) {
-      let args = {};
-      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+    const toolCall = message?.tool_calls?.[0];
+    if (toolCall?.type === 'function') {
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>; } catch { args = {}; }
       return { toolName: toolCall.function?.name as string, args };
     }
     if (message?.content) {
@@ -190,10 +191,10 @@ export async function determineIntentWithGemini(
     });
 
     const message = response.choices[0]?.message;
-    const toolCall = message?.tool_calls?.[0] as any;
-    if (toolCall) {
-      let args = {};
-      try { args = JSON.parse(toolCall.function?.arguments || '{}'); } catch { args = {}; }
+    const toolCall = message?.tool_calls?.[0];
+    if (toolCall?.type === 'function') {
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>; } catch { args = {}; }
       return { toolName: toolCall.function?.name as string, args };
     }
     if (message?.content) {

@@ -17,6 +17,7 @@ import {
   UserCheck,
   CreditCard,
   Banknote,
+  Building2,
   Hourglass,
   Sun,
   Sunset,
@@ -26,11 +27,45 @@ import {
   Sliders,
   Gift
 } from 'lucide-react';
-import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod } from '@/types/database';
+import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod, StaffPermissions } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { getWeeklyRate } from '@/utils/rentalPricing';
+import { allocatePaymentAmounts, calculateVatAmounts, roundCurrency } from '@/utils/invoiceAmounts';
+import { getSaudiVatNumberError, normalizeSaudiVatNumber } from '@/utils/saudiVatNumber';
 
-export type PaymentChoice = 'cash' | 'sadad' | 'postpaid';
+export type PaymentChoice = 'cash' | 'sadad' | 'postpaid' | 'bank_transfer';
+export type NewContractPaymentChoice = PaymentChoice | 'pos';
+
+export interface NewContractPayload {
+  contract_number: string;
+  container_id: string;
+  assigned_employee_id: string | null;
+  customer_name: string;
+  customer_phone: string;
+  customer_vat_number: string;
+  contract_type: ContainerType;
+  period_type: ContractPeriodType;
+  duration_days: number;
+  start_date: string;
+  end_date: string;
+  expected_pickup_time: string;
+  location_latitude: number | null;
+  location_longitude: number | null;
+  google_maps_url: string;
+  location_address: string;
+  total_cost: number;
+  paid_amount: number;
+  remaining_amount: number;
+  non_taxable_amount: number;
+  subtotal_amount: number;
+  vat_amount: number;
+  non_taxable_paid_amount: number;
+  subtotal_paid_amount: number;
+  vat_paid_amount: number;
+  payment_choice: NewContractPaymentChoice | 'free';
+  is_free: boolean;
+  notes: string;
+}
 
 // Date Helpers
 const pad = (n: number) => (n < 10 ? '0' + n : `${n}`);
@@ -71,9 +106,9 @@ interface NewContractModalProps {
   containers: Container[];
   staffList?: Profile[];
   preSelectedContainerId?: string;
-  onSaveContract: (contractData: any) => Promise<boolean>;
+  onSaveContract: (contractData: NewContractPayload) => Promise<boolean>;
   userRole?: string;
-  permissions?: any;
+  permissions?: StaffPermissions;
 }
 
 export const NewContractModal: React.FC<NewContractModalProps> = ({
@@ -93,11 +128,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [assignedEmployeeId, setAssignedEmployeeId] = useState<string>('');
   
   // Mandatory Payment Choice: 'cash' (نقدي فوري) | 'sadad' (إلكتروني Apple Pay/مدى) | 'postpaid' (آجل لاحقاً)
-  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
+  const [paymentChoice, setPaymentChoice] = useState<NewContractPaymentChoice>('cash');
 
   // Customer
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('+9665');
+  const [customerVatNumber, setCustomerVatNumber] = useState('');
   
   // Dates & Durations Quick Selection State
   const [startDatePreset, setStartDatePreset] = useState<'today' | 'tomorrow' | 'after_tomorrow' | 'custom'>('today');
@@ -124,12 +160,28 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   // Derived Financial Amounts
-  const totalCost = isFreeContract ? 0 : Math.max(0, baseCost - (discountAmount || 0));
-  const effectivePaidAmount = isFreeContract
+  const effectiveDiscountAmount = Math.min(discountAmount, baseCost);
+  const subtotalAmount = isFreeContract ? 0 : roundCurrency(Math.max(0, baseCost - effectiveDiscountAmount));
+  const vatAmounts = calculateVatAmounts(subtotalAmount);
+  const totalCost = isFreeContract ? 0 : vatAmounts.grossAmount;
+  const isManualPaymentChoice = paymentChoice === 'cash'
+    || paymentChoice === 'pos'
+    || paymentChoice === 'bank_transfer';
+  const paymentBaseAmount = isFreeContract
     ? 0
-    : (paymentChoice === 'cash'
-      ? (downPayment > 0 ? downPayment : totalCost)
-      : (downPayment > 0 ? downPayment : 0));
+    : isManualPaymentChoice
+      ? (downPayment > 0 ? Math.min(downPayment, subtotalAmount) : subtotalAmount)
+      : 0;
+  const initialPayment = allocatePaymentAmounts({
+    enteredAmount: paymentBaseAmount,
+    nonTaxableAmount: 0,
+    nonTaxablePaidAmount: 0,
+    subtotalAmount,
+    subtotalPaidAmount: 0,
+    vatAmount: vatAmounts.vatAmount,
+    vatPaidAmount: 0
+  });
+  const effectivePaidAmount = isFreeContract ? 0 : (initialPayment?.grossAmount ?? 0);
   const remainingAmount = isFreeContract ? 0 : Math.max(0, totalCost - effectivePaidAmount);
 
   // Helper: Apply Date Preset
@@ -259,8 +311,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   }, [selectedContainerId, contractType, periodType, durationDays, durationMonths, containers]);
 
   // Handle Payment Choice Change
-  const handlePaymentChoiceChange = (choice: PaymentChoice) => {
+  const handlePaymentChoiceChange = (choice: NewContractPaymentChoice) => {
     setPaymentChoice(choice);
+    if (choice === 'sadad' || choice === 'postpaid') setDownPayment(0);
   };
 
   // Fetch Current Device GPS Location
@@ -317,12 +370,29 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       alert('يرجى إدخال اسم العميل ورقم الجوال.');
       return;
     }
+    const vatNumberError = getSaudiVatNumberError(customerVatNumber);
+    if (vatNumberError) {
+      alert(vatNumberError);
+      return;
+    }
 
     setIsSaving(true);
     const contractNumber = `CTR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const finalTotalCost = isFreeContract ? 0 : Math.max(0, baseCost - discountAmount);
-    const finalPaid = isFreeContract ? 0 : effectivePaidAmount;
+    const finalDiscount = Math.min(discountAmount, baseCost);
+    const finalSubtotal = isFreeContract ? 0 : roundCurrency(Math.max(0, baseCost - finalDiscount));
+    const finalVat = calculateVatAmounts(finalSubtotal);
+    const finalTotalCost = isFreeContract ? 0 : finalVat.grossAmount;
+    const finalPaidAllocation = allocatePaymentAmounts({
+      enteredAmount: isFreeContract ? 0 : paymentBaseAmount,
+      nonTaxableAmount: 0,
+      nonTaxablePaidAmount: 0,
+      subtotalAmount: finalSubtotal,
+      subtotalPaidAmount: 0,
+      vatAmount: finalVat.vatAmount,
+      vatPaidAmount: 0
+    });
+    const finalPaid = isFreeContract ? 0 : (finalPaidAllocation?.grossAmount ?? 0);
     const finalRemaining = isFreeContract ? 0 : Math.max(0, finalTotalCost - finalPaid);
 
     let notesWithFinancials = notes;
@@ -330,19 +400,20 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     if (isFreeContract) {
       financialNotes.push('🎁 عقد مجاني (بدون مقابل)');
     } else {
-      if (discountAmount > 0) financialNotes.push(`خصم: ${discountAmount} ر.س`);
-      if (downPayment > 0) financialNotes.push(`دفعة على الحساب: ${downPayment} ر.س`);
+      if (finalDiscount > 0) financialNotes.push(`خصم قبل الضريبة: ${roundCurrency(finalDiscount)} ر.س`);
+      if (downPayment > 0) financialNotes.push(`دفعة قبل الضريبة: ${roundCurrency(downPayment)} ر.س`);
     }
     if (financialNotes.length > 0) {
       notesWithFinancials = notesWithFinancials ? `${notesWithFinancials} | ${financialNotes.join(' - ')}` : financialNotes.join(' - ');
     }
 
-    const contractPayload = {
+    const contractPayload: NewContractPayload = {
       contract_number: contractNumber,
       container_id: selectedContainerId,
       assigned_employee_id: assignedEmployeeId || null,
       customer_name: customerName,
       customer_phone: customerPhone,
+      customer_vat_number: normalizeSaudiVatNumber(customerVatNumber),
       contract_type: contractType,
       period_type: periodType,
       duration_days: durationDays,
@@ -356,6 +427,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       total_cost: finalTotalCost,
       paid_amount: finalPaid,
       remaining_amount: finalRemaining,
+      non_taxable_amount: 0,
+      subtotal_amount: finalSubtotal,
+      vat_amount: isFreeContract ? 0 : finalVat.vatAmount,
+      non_taxable_paid_amount: 0,
+      subtotal_paid_amount: isFreeContract ? 0 : (finalPaidAllocation?.subtotalAmount ?? 0),
+      vat_paid_amount: isFreeContract ? 0 : (finalPaidAllocation?.vatAmount ?? 0),
       payment_choice: isFreeContract ? 'free' : paymentChoice,
       is_free: isFreeContract,
       notes: notesWithFinancials
@@ -369,6 +446,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       // Reset form
       setCustomerName('');
       setCustomerPhone('+9665');
+      setCustomerVatNumber('');
       setSelectedContainerId('');
       setGoogleMapsUrl('');
       setLocationAddress('');
@@ -546,6 +624,27 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               onChange={(val) => setCustomerPhone(val)}
               required
             />
+          </div>
+          <div>
+            <label htmlFor="customer-vat-number" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
+              الرقم الضريبي للعميل (اختياري):
+            </label>
+            <input
+              id="customer-vat-number"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={15}
+              className="form-input"
+              placeholder="15 رقمًا — يبدأ وينتهي بـ 3"
+              value={customerVatNumber}
+              onChange={(event) => setCustomerVatNumber(event.target.value)}
+              aria-describedby="customer-vat-number-help"
+              style={{ maxWidth: '420px', direction: 'ltr', textAlign: 'left' }}
+            />
+            <div id="customer-vat-number-help" style={{ marginTop: '4px', fontSize: '0.74rem', color: '#94a3b8' }}>
+              يُحفظ في سجل العميل ويُثبت كما أُدخل في كل فاتورة جديدة. لا تدخل الرقم الضريبي للشركة هنا.
+            </div>
           </div>
 
           {/* 3.5. Driver Assignment System (اختيار السائق وإشعاره بالواتساب) */}
@@ -1122,14 +1221,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               )}
             </div>
 
-            {/* Top 4-Column Row: إجمالي المبلغ | دفعة على الحساب | المبلغ المدفوع | المبلغ المتبقي */}
+            {/* Tax totals and payment summary */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '10px',
               textAlign: 'center'
             }}>
-              {/* 1. إجمالي المبلغ */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -1140,17 +1238,17 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
-                  إجمالي العقد حسب الاتفاق
+                  المبلغ قبل الضريبة
                 </div>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   className="form-input"
-                  aria-label="إجمالي مبلغ العقد حسب الاتفاق"
+                  aria-label="المبلغ قبل الضريبة"
                   disabled={isFreeContract}
                   value={isFreeContract ? 0 : baseCost}
-                  onChange={(e) => setBaseCost(Math.max(0, Number(e.target.value) || 0))}
+                  onChange={(e) => setBaseCost(roundCurrency(Math.max(0, Number(e.target.value) || 0)))}
                   style={{
                     width: '100%',
                     padding: '4px',
@@ -1161,20 +1259,53 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   }}
                 />
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '3px' }}>
-                القيمة الافتراضية قابلة للتعديل حسب الاتفاق
+                  السعر قبل الخصم حسب الاتفاق
                 </div>
                 {isFreeContract ? (
                   <div style={{ fontSize: '0.68rem', color: '#34d399', marginTop: '2px' }}>
                     (عقد مجاني)
                   </div>
-                ) : discountAmount > 0 ? (
-                  <div style={{ fontSize: '0.68rem', color: '#94a3b8', textDecoration: 'line-through', marginTop: '2px' }}>
-                    الأصل: {baseCost} ر.س
+                ) : (
+                  <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
+                    بعد الخصم: {subtotalAmount.toFixed(2)} ر.س
                   </div>
-                ) : null}
+                )}
               </div>
 
-              {/* 2. دفعة على الحساب */}
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                borderRadius: '12px',
+                padding: '10px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.76rem', color: '#fbbf24', marginBottom: '4px', fontWeight: 700 }}>
+                  ضريبة القيمة المضافة (15%)
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#fbbf24' }}>
+                  {vatAmounts.vatAmount.toFixed(2)} ر.س
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(30, 41, 59, 0.6)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '12px',
+                padding: '10px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
+                <div style={{ fontSize: '0.76rem', color: '#34d399', marginBottom: '4px', fontWeight: 700 }}>
+                  الإجمالي بعد الضريبة
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#34d399' }}>
+                  {totalCost.toFixed(2)} ر.س
+                </div>
+              </div>
+
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: '1px solid rgba(56, 189, 248, 0.3)',
@@ -1185,14 +1316,14 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <label style={{ display: 'block', fontSize: '0.76rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 700 }}>
-                  دفعة على الحساب
+                  الدفعة قبل الضريبة
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
                   <input
                     type="number"
                     min="0"
-                    max={totalCost}
-                    disabled={isFreeContract}
+                    max={subtotalAmount}
+                    disabled={isFreeContract || !isManualPaymentChoice}
                     className="form-input"
                     style={{
                       height: '32px',
@@ -1204,12 +1335,12 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                       borderColor: 'rgba(56, 189, 248, 0.4)',
                       background: 'rgba(56, 189, 248, 0.08)',
                       width: '100%',
-                      opacity: isFreeContract ? 0.6 : 1
+                      opacity: isFreeContract || !isManualPaymentChoice ? 0.6 : 1
                     }}
                     value={isFreeContract ? '' : (downPayment === 0 ? '' : downPayment)}
-                    placeholder={isFreeContract ? '—' : '0'}
+                    placeholder={isFreeContract || !isManualPaymentChoice ? '—' : '0'}
                     onChange={(e) => {
-                      const val = Math.max(0, Math.min(totalCost, Number(e.target.value) || 0));
+                      const val = roundCurrency(Math.max(0, Math.min(subtotalAmount, Number(e.target.value) || 0)));
                       setDownPayment(val);
                     }}
                   />
@@ -1217,7 +1348,6 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
 
-              {/* 3. المبلغ المدفوع */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: '1px solid rgba(16, 185, 129, 0.25)',
@@ -1228,17 +1358,22 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.76rem', color: '#34d399', marginBottom: '4px', fontWeight: 700 }}>
-                  المبلغ المدفوع
+                  المبلغ المحصل شامل الضريبة
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#34d399' }}>
                   {isFreeContract ? '—' : `${effectivePaidAmount} ر.س`}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {isFreeContract ? 'بدون مقابل' : (paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة مسددة' : 'آجل / رابط')}
+                  {isFreeContract
+                    ? 'بدون مقابل'
+                    : downPayment > 0
+                      ? 'دفعة مسددة'
+                      : ['cash', 'pos', 'bank_transfer'].includes(paymentChoice)
+                        ? 'سداد كامل'
+                        : paymentChoice === 'sadad' ? 'بانتظار السداد الإلكتروني' : 'آجل للتحصيل'}
                 </div>
               </div>
 
-              {/* 4. المبلغ المتبقي */}
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 border: `1px solid ${isFreeContract ? 'rgba(16, 185, 129, 0.35)' : remainingAmount > 0 ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`,
@@ -1296,7 +1431,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                       value={discountAmount === 0 ? '' : discountAmount}
                       placeholder="0"
                       onChange={(e) => {
-                        const val = Math.max(0, Math.min(baseCost, Number(e.target.value) || 0));
+                        const val = roundCurrency(Math.max(0, Math.min(baseCost, Number(e.target.value) || 0)));
                         setDiscountAmount(val);
                       }}
                     />
@@ -1376,7 +1511,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '12px' }}>
                 
                 {/* Choice 1: Cash */}
                 <div
@@ -1400,7 +1535,51 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
 
-              {/* Choice 2: Sadad Electronic Link */}
+              {/* Choice 2: Point of sale */}
+              <div
+                onClick={() => handlePaymentChoiceChange('pos')}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: `2px solid ${paymentChoice === 'pos' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                  background: paymentChoice === 'pos' ? 'rgba(14, 165, 233, 0.2)' : 'rgba(2, 6, 23, 0.6)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <CreditCard size={24} color={paymentChoice === 'pos' ? '#38bdf8' : '#94a3b8'} style={{ margin: '0 auto 4px auto' }} />
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: paymentChoice === 'pos' ? '#38bdf8' : '#ffffff' }}>
+                  💳 نقطة بيع (POS)
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                  مدفوع عبر الشبكة
+                </div>
+              </div>
+
+              {/* Choice 3: Bank transfer */}
+              <div
+                onClick={() => handlePaymentChoiceChange('bank_transfer')}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: `2px solid ${paymentChoice === 'bank_transfer' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                  background: paymentChoice === 'bank_transfer' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(2, 6, 23, 0.6)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Building2 size={24} color={paymentChoice === 'bank_transfer' ? '#fbbf24' : '#94a3b8'} style={{ margin: '0 auto 4px auto' }} />
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: paymentChoice === 'bank_transfer' ? '#fbbf24' : '#ffffff' }}>
+                  🏦 تحويل بنكي
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                  تم استلام الحوالة
+                </div>
+              </div>
+
+              {/* Choice 4: Sadad Electronic Link */}
               <div
                 onClick={() => handlePaymentChoiceChange('sadad')}
                 style={{
@@ -1422,7 +1601,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
 
-              {/* Choice 3: Postpaid / Later */}
+              {/* Choice 5: Postpaid / Later */}
               <div
                 onClick={() => handlePaymentChoiceChange('postpaid')}
                 style={{
@@ -1465,7 +1644,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               disabled={isSaving}
               style={{ minWidth: '220px', padding: '10px 24px', fontSize: '0.95rem' }}
             >
-              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وفاتورة فورية' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
+              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${
+                paymentChoice === 'cash' ? 'كاش وفاتورة فورية'
+                  : paymentChoice === 'pos' ? 'نقطة بيع وفاتورة فورية'
+                    : paymentChoice === 'bank_transfer' ? 'تحويل بنكي وفاتورة فورية'
+                      : paymentChoice === 'sadad' ? 'إرسال رابط سداد'
+                        : 'تسجيل كآجل'
+              })`}
             </button>
           </div>
 

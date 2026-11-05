@@ -12,6 +12,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { Contract, PaymentMethod } from '@/types/database';
+import { allocatePaymentAmounts, getContractPaymentContext, roundCurrency } from '@/utils/invoiceAmounts';
 
 interface ManualPaymentModalProps {
   isOpen: boolean;
@@ -33,20 +34,37 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const paymentContext = contract ? getContractPaymentContext(contract) : null;
   const remaining = contract
     ? Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount))
     : 0;
+  const remainingBeforeTax = paymentContext
+    ? Math.max(0, roundCurrency(
+      paymentContext.nonTaxableAmount
+      - paymentContext.nonTaxablePaidAmount
+      + paymentContext.subtotalAmount
+      - paymentContext.subtotalPaidAmount
+    ))
+    : 0;
+  const paymentPreview = paymentContext
+    ? allocatePaymentAmounts({
+      enteredAmount: paymentAmount,
+      ...paymentContext
+    })
+    : null;
 
   useEffect(() => {
     if (!isOpen || !contract) return;
-    setPaymentAmount(Math.max(0, remaining));
+    setPaymentAmount(paymentContext?.isVatAware
+      ? remainingBeforeTax
+      : Math.max(0, remaining));
     setPaymentMethod(initialPaymentMethod);
     setNotes('');
-  }, [contract?.id, initialPaymentMethod, isOpen, remaining]);
+  }, [contract?.id, initialPaymentMethod, isOpen, remaining, remainingBeforeTax, paymentContext?.isVatAware]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contract || paymentAmount <= 0 || paymentAmount > remaining) {
+    if (!contract || paymentAmount <= 0 || paymentAmount > remainingBeforeTax || !paymentPreview) {
       alert('يرجى إدخال مبلغ صحيح لا يتجاوز المبلغ المتبقي.');
       return;
     }
@@ -112,16 +130,16 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
         }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>إجمالي العقد</div>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>{contract.total_cost} ر.س</div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>{roundCurrency(contract.total_cost).toFixed(2)} ر.س</div>
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>المدفوع سابقاً</div>
-            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>{contract.paid_amount} ر.س</div>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>{roundCurrency(contract.paid_amount).toFixed(2)} ر.س</div>
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>المتبقي المطلوب</div>
             <div style={{ fontSize: '1rem', fontWeight: 900, color: remaining > 0 ? '#f87171' : '#34d399' }}>
-              {remaining} ر.س
+              {roundCurrency(remaining).toFixed(2)} ر.س
             </div>
           </div>
         </div>
@@ -132,19 +150,36 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({
           {/* Amount Input */}
           <div>
             <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '700', marginBottom: '6px', color: '#fbbf24' }}>
-              المبلغ المستلم الآن (ريال سعودي):
+              {paymentContext?.isVatAware
+                ? 'مبلغ السداد قبل الضريبة (ريال سعودي):'
+                : 'مبلغ السداد للعقد السابق (ريال سعودي):'}
             </label>
             <input
               type="number"
-              min="1"
-              max={remaining}
+              min="0.01"
+              max={remainingBeforeTax}
               step="0.01"
               className="form-input"
               value={paymentAmount}
-              onChange={(e) => setPaymentAmount(Number(e.target.value))}
+              onChange={(e) => setPaymentAmount(roundCurrency(Math.max(0, Number(e.target.value) || 0)))}
               style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}
               required
             />
+            <div style={{ marginTop: '8px', display: 'grid', gap: '3px', color: '#cbd5e1', fontSize: '0.82rem' }}>
+              {paymentContext?.isVatAware && paymentPreview && (
+                <>
+                  <span>قبل الضريبة: {paymentPreview.subtotalAmount.toFixed(2)} ر.س</span>
+                  {paymentPreview.nonTaxableAmount > 0 && (
+                    <span>رصيد سابق دون ضريبة: {paymentPreview.nonTaxableAmount.toFixed(2)} ر.س</span>
+                  )}
+                  <span>الضريبة على الدفعة: {paymentPreview.vatAmount.toFixed(2)} ر.س</span>
+                  <strong style={{ color: '#34d399' }}>الإجمالي المحصل: {paymentPreview.grossAmount.toFixed(2)} ر.س</strong>
+                </>
+              )}
+              {!paymentContext?.isVatAware && (
+                <span>سجل تاريخي: لن تُضاف ضريبة إلى رصيده أو إيصالاته السابقة.</span>
+              )}
+            </div>
           </div>
 
           {/* Payment Method Selector */}
