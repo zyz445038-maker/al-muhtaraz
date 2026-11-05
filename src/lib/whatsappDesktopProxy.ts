@@ -11,10 +11,7 @@ export async function proxyWhatsAppDesktopRequest(
 
   const configuredBaseUrl = process.env.NEXT_PUBLIC_STAFF_ADMIN_API_BASE_URL?.trim();
   if (!configuredBaseUrl) {
-    return NextResponse.json(
-      { success: false, error: 'تعذر الوصول إلى خادم التطبيق المنشور من نسخة سطح المكتب.' },
-      { status: 503 }
-    );
+    return null;
   }
 
   let destination: URL;
@@ -37,6 +34,8 @@ export async function proxyWhatsAppDesktopRequest(
   const headers = new Headers({ Accept: 'application/json' });
   const authorization = request.headers.get('authorization');
   if (authorization) headers.set('Authorization', authorization);
+  const idempotencyKey = request.headers.get('idempotency-key');
+  if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
 
   const method = request.method.toUpperCase();
   const hasBody = method !== 'GET' && method !== 'HEAD';

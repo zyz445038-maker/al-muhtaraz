@@ -7,6 +7,7 @@ export type DbQueryResponse<T> = {
 };
 
 export type NotificationLogInput = {
+  idempotency_key?: string;
   contract_id?: string | null;
   customer_id?: string | null;
   recipient_role: 'customer' | 'employee' | 'admin';
@@ -15,7 +16,9 @@ export type NotificationLogInput = {
   notification_type: 'debris_pickup_4h' | 'commercial_7d_before' | 'commercial_2d_before' | 'contract_created' | 'custom_alert';
   message_body: string;
   scheduled_for?: string;
+  sent_at?: string | null;
   status?: 'pending' | 'sent' | 'failed' | 'cancelled';
+  delivery_outcome?: 'sent' | 'failed' | 'retryable' | 'unknown';
   error_message?: string | null;
 };
 
@@ -43,11 +46,11 @@ export async function runDbQuery<T>(
 export async function insertNotificationLog(label: string, input: NotificationLogInput) {
   return runDbQuery(label, () => supabase
     .from('notification_logs')
-    .insert([{
+    .upsert([{
       ...input,
       scheduled_for: input.scheduled_for || new Date().toISOString(),
       status: input.status || 'pending'
-    }])
+    }], { onConflict: 'idempotency_key' })
     .select()
     .maybeSingle()
   );

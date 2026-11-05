@@ -19,7 +19,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { Profile, StaffPermissions, UserRole } from '@/types/database';
-import { openDriverWhatsApp } from '@/utils/driverDispatch';
+import { sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 
 export interface NewStaffAccount {
@@ -168,9 +168,17 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     await onUpdatePermissions(staff.id, updatedPerms);
   };
 
-  const handleTestDriverWhatsApp = (driver: Profile) => {
+  const handleTestDriverWhatsApp = async (driver: Profile) => {
     const msg = `مرحباً ${driver.full_name}، هذا إشعار تجريبي للتحقق من جاهزية استقبال أوامر مهام الحاويات (إنزال وسحب) لدى *المحترز للحاويات*. 🚚`;
-    openDriverWhatsApp(driver.phone || '+966550000004', msg);
+    const result = await sendWhatsAppAutomatically({
+      phone: driver.phone || '+966550000004',
+      message: msg
+    });
+    if (!result.success) {
+      alert(result.error || 'تعذر إرسال رسالة الاختبار عبر واتساب.');
+    } else {
+      alert('تم إرسال رسالة الاختبار عبر خادم واتساب المركزي.');
+    }
   };
 
   const handleSubmitNewStaff = async (e: React.FormEvent) => {

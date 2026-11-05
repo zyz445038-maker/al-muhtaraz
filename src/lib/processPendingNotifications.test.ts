@@ -52,7 +52,7 @@ test('marks failed sends as failed and preserves their error', async () => {
   assert.equal(updates[0].values.error_message, 'واتساب غير متصل');
 });
 
-test('marks thrown provider errors as failed instead of leaving notifications pending', async () => {
+test('keeps notifications pending when provider errors leave the send outcome unknown', async () => {
   const updates: Array<{ id: string; values: NotificationLogUpdate }> = [];
   const result = await processPendingNotifications(
     [notification],
@@ -66,9 +66,44 @@ test('marks thrown provider errors as failed instead of leaving notifications pe
     }
   );
 
-  assert.equal(result.failed_count, 1);
-  assert.equal(updates[0].values.status, 'failed');
+  assert.equal(result.failed_count, 0);
+  assert.equal(result.pending_count, 1);
+  assert.equal(updates[0].values.status, 'pending');
   assert.equal(updates[0].values.error_message, 'provider timeout');
+});
+
+test('keeps notifications pending when the provider explicitly reports an unknown outcome', async () => {
+  const updates: Array<{ id: string; values: NotificationLogUpdate }> = [];
+  const result = await processPendingNotifications(
+    [notification],
+    true,
+    async () => ({ success: false, outcome: 'unknown', error: 'send confirmation unavailable' }),
+    async (id, values) => {
+      updates.push({ id, values });
+      return {};
+    }
+  );
+
+  assert.equal(result.failed_count, 0);
+  assert.equal(result.pending_count, 1);
+  assert.equal(updates[0].values.status, 'pending');
+});
+
+test('keeps confirmed-not-sent notifications pending for a scheduled retry', async () => {
+  const updates: Array<{ id: string; values: NotificationLogUpdate }> = [];
+  const result = await processPendingNotifications(
+    [notification],
+    true,
+    async () => ({ success: false, outcome: 'retryable', error: 'WhatsApp is disconnected' }),
+    async (id, values) => {
+      updates.push({ id, values });
+      return {};
+    }
+  );
+
+  assert.equal(result.failed_count, 0);
+  assert.equal(result.pending_count, 1);
+  assert.equal(updates[0].values.status, 'pending');
 });
 
 test('does not send or modify pending rows when automatic sending is disabled', async () => {

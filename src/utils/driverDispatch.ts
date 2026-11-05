@@ -51,10 +51,3 @@ ${isPaid ? '✅ *العقد مدفوع مسبقاً بالكامل* (لا يلز
 
   return text;
 }
-
-export function openDriverWhatsApp(phone: string, message: string) {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  const encoded = encodeURIComponent(message);
-  const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
-  window.open(url, '_blank');
-}

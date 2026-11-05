@@ -32,12 +32,18 @@ export function formatToWhatsAppJid(phone: string): string {
   return `${cleaned}@s.whatsapp.net`;
 }
 
-export async function sendWhatsAppMessage(options: SendMessageOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export type WhatsAppSendResult =
+  | { success: true; outcome: 'sent'; messageId: string }
+  | { success: false; outcome: 'retryable' | 'failed' | 'unknown'; error: string };
+
+export async function sendWhatsAppMessage(options: SendMessageOptions): Promise<WhatsAppSendResult> {
+  let dispatchStarted = false;
   try {
     const status = sessionManager.getStatus();
     if (!status.isConnected) {
       return {
         success: false,
+        outcome: 'retryable',
         error: 'الواتساب غير متصل. يرجى مسح كود QR أو إدخال كود الاقتران أولاً.'
       };
     }
@@ -46,6 +52,7 @@ export async function sendWhatsAppMessage(options: SendMessageOptions): Promise<
     if (!sock) {
       return {
         success: false,
+        outcome: 'retryable',
         error: 'مقبس الواتساب غير متاح حالياً'
       };
     }
@@ -88,16 +95,26 @@ export async function sendWhatsAppMessage(options: SendMessageOptions): Promise<
       payload = { text: message || caption || '' };
     }
 
+    dispatchStarted = true;
     const sent = await sock.sendMessage(jid, payload);
+    if (!sent?.key?.id) {
+      return {
+        success: false,
+        outcome: 'unknown',
+        error: 'لم تُرجع خدمة واتساب معرّفًا للرسالة؛ تعذّر تأكيد نتيجة الإرسال.'
+      };
+    }
 
     return {
       success: true,
-      messageId: sent?.key?.id || undefined
+      outcome: 'sent',
+      messageId: sent.key.id
     };
   } catch (error: any) {
     console.error('❌ [WhatsApp Client] Send error:', error);
     return {
       success: false,
+      outcome: dispatchStarted ? 'unknown' : 'retryable',
       error: error?.message || 'فشل إرسال الرسالة عبر الواتساب'
     };
   }

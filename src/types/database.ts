@@ -124,6 +124,7 @@ export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'cancelled';
 
 export interface NotificationLog {
   id: string;
+  idempotency_key?: string;
   contract_id?: string;
   customer_id?: string;
   recipient_role: RecipientRole;
@@ -134,6 +135,7 @@ export interface NotificationLog {
   scheduled_for: string;
   sent_at?: string;
   status: NotificationStatus;
+  delivery_outcome?: 'sent' | 'failed' | 'retryable' | 'unknown';
   error_message?: string;
   created_at: string;
   
