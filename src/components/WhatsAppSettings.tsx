@@ -1168,24 +1168,37 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   لا توجد سجلات إرسال حتى الآن
                 </p>
               ) : (
-                notifications.slice(0, 8).map((n) => (
-                  <div key={n.id} style={{
-                    padding: '8px 12px',
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <div>
-                      <strong style={{ color: '#ffffff' }}>{(n.recipient_role as string) === 'driver' ? '🚚 سائق' : '👤 عميل'}:</strong> {n.recipient_phone}
-                      <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{(n as any).message_preview?.slice(0, 45)}...</div>
+                notifications.slice(0, 8).map((n) => {
+                  const deliveryLabel = n.delivery_outcome === 'unknown'
+                    ? '⚠ نتيجة غير مؤكدة'
+                    : n.delivery_outcome === 'retryable'
+                      ? '↻ قابلة لإعادة المحاولة'
+                      : n.status === 'sent' ? '✓ أُرسلت' : '✕ لم تُرسل';
+                  const deliveryColor = n.delivery_outcome === 'unknown'
+                    ? '#fbbf24'
+                    : n.delivery_outcome === 'retryable'
+                      ? '#38bdf8'
+                      : n.status === 'sent' ? '#34d399' : '#f87171';
+
+                  return (
+                    <div key={n.id} style={{
+                      padding: '8px 12px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <strong style={{ color: '#ffffff' }}>{(n.recipient_role as string) === 'driver' ? '🚚 سائق' : '👤 عميل'}:</strong> {n.recipient_phone}
+                        <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{n.message_body.slice(0, 45)}{n.message_body.length > 45 ? '…' : ''}</div>
+                      </div>
+                      <span style={{ color: deliveryColor, fontWeight: 800 }}>{deliveryLabel}</span>
                     </div>
-                    <span style={{ color: '#34d399', fontWeight: 800 }}>✓ أُرسلت</span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

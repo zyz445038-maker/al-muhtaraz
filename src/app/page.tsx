@@ -48,7 +48,11 @@ import { OfficialContractModal } from '@/components/OfficialContractModal';
 import { ContractAuthenticationHub } from '@/components/ContractAuthenticationHub';
 import { OfficialContractRecord, OfficialContractData, ContractSealSettings, COMPANY_OFFICIAL_INFO } from '@/types/officialContract';
 import { encodeUtf8Base64 } from '@/utils/receiptEncoder';
-import { getWhatsAppApiHeaders, sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
+import {
+  getWhatsAppApiHeaders,
+  sendWhatsAppAutomatically,
+  type WhatsAppDeliveryOutcome
+} from '@/lib/whatsappApiClient';
 import { createReceiptImageUrl } from '@/lib/receiptVerification';
 import { CustomersDirectoryView } from '@/components/CustomersDirectoryView';
 import { MarketingCustomer } from '@/types/customerMarketing';
@@ -343,6 +347,9 @@ function MainDashboard() {
   interface WhatsAppAlert {
     id: string;
     idempotencyKey?: string;
+    outcome?: WhatsAppDeliveryOutcome;
+    requestPayload?: Record<string, unknown>;
+    logError?: string;
     type: 'success' | 'error';
     recipient: 'customer' | 'driver' | 'employee' | 'admin';
     recipientName: string;
@@ -355,13 +362,19 @@ function MainDashboard() {
   const [whatsappAlerts, setWhatsappAlerts] = useState<WhatsAppAlert[]>([]);
   const dismissAlert = useCallback((id: string) => setWhatsappAlerts(prev => prev.filter(a => a.id !== id)), []);
   const retryAlert = useCallback(async (alert: WhatsAppAlert) => {
-    const idempotencyKey = alert.idempotencyKey || crypto.randomUUID();
+    if (alert.outcome !== 'retryable' || !alert.requestPayload || !alert.idempotencyKey) return;
     const result = await sendWhatsAppAutomatically(
-      { phone: alert.recipientPhone, message: alert.message },
-      idempotencyKey
+      alert.requestPayload,
+      alert.idempotencyKey
     );
     setWhatsappAlerts(prev => prev.map(a => a.id === alert.id
-      ? { ...a, idempotencyKey, type: result.success ? 'success' : 'error', errorMessage: result.error }
+      ? {
+          ...a,
+          outcome: result.outcome,
+          logError: result.logError,
+          type: result.success ? 'success' : 'error',
+          errorMessage: result.error
+        }
       : a));
     if (result.success) setTimeout(() => dismissAlert(alert.id), 4000);
   }, [dismissAlert]);
@@ -1070,15 +1083,19 @@ function MainDashboard() {
     recipient: WhatsAppAlert['recipient'],
     recipientName: string,
     contractNumber: string,
-    extraPayload?: Record<string, string>
-  ): Promise<{ success: boolean; error?: string }> => {
-    const result = await sendWhatsAppAutomatically({ phone, message, ...extraPayload });
+    extraPayload?: Record<string, unknown>
+  ): Promise<{ success: boolean; outcome: WhatsAppDeliveryOutcome; error?: string; alertId: string }> => {
+    const requestPayload = { phone, message, ...extraPayload };
+    const result = await sendWhatsAppAutomatically(requestPayload);
     const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (result.success) {
         // Success: show brief green toast that auto-dismisses after 5s
         const successAlert: WhatsAppAlert = {
           id: alertId,
           idempotencyKey: result.idempotencyKey,
+          outcome: result.outcome,
+          requestPayload: result.requestPayload,
+          logError: result.logError,
           type: 'success',
           recipient,
           recipientName,
@@ -1089,12 +1106,15 @@ function MainDashboard() {
         };
         setWhatsappAlerts(prev => [successAlert, ...prev]);
         setTimeout(() => dismissAlert(alertId), 5000);
-        return { success: true };
+        return { success: true, outcome: result.outcome, alertId };
     } else {
         // Failure: show persistent red alert that stays until manually dismissed
         const errorAlert: WhatsAppAlert = {
           id: alertId,
           idempotencyKey: result.idempotencyKey,
+          outcome: result.outcome,
+          requestPayload: result.requestPayload,
+          logError: result.logError,
           type: 'error',
           recipient,
           recipientName,
@@ -1105,7 +1125,7 @@ function MainDashboard() {
           timestamp: new Date().toISOString()
         };
         setWhatsappAlerts(prev => [errorAlert, ...prev]);
-        return { success: false, error: result.error };
+        return { success: false, outcome: result.outcome, error: result.error, alertId };
     }
   }, [dismissAlert]);
 
@@ -2079,6 +2099,9 @@ function MainDashboard() {
         notes: newContract.notes || ''
       };
 
+      let imageSendStarted = false;
+      let imageOutcome: WhatsAppDeliveryOutcome | undefined;
+      let imageAlertId: string | undefined;
       try {
         const verificationImageUrl = await createReceiptImageUrl(receiptPayload);
 
@@ -2102,6 +2125,7 @@ function MainDashboard() {
 
         const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
 
+        imageSendStarted = true;
         const imgResult = await sendSilentWhatsApp(
           customerObj.phone,
           imageCaption,
@@ -2119,15 +2143,24 @@ function MainDashboard() {
           }
         );
 
+        imageOutcome = imgResult.outcome;
+        imageAlertId = imgResult.alertId;
         if (imgResult?.success) {
           imageSent = true;
         }
       } catch (err) {
-        console.warn('Primary Image dispatch failed, triggering safe text fallback:', err);
+        console.warn('Primary image dispatch failed:', err);
       }
 
-      // 🛡️ Safe Fallback: If image dispatch failed for any reason, send the reliable text voucher!
-      if (!imageSent) {
+      const imageDefinitelyNotSent = !imageSendStarted
+        || imageOutcome === 'failed'
+        || imageOutcome === 'retryable';
+      if (!imageSent && imageDefinitelyNotSent) {
+        if (imageAlertId && imageOutcome === 'retryable') {
+          setWhatsappAlerts(prev => prev.map(alert => alert.id === imageAlertId
+            ? { ...alert, outcome: 'failed' }
+            : alert));
+        }
         await sendSilentWhatsApp(
           customerObj.phone,
           customerVoucherMessage,
@@ -2136,6 +2169,8 @@ function MainDashboard() {
           newContract.contract_number,
           { contract_id: newContract.id, customer_id: customerObj.id, recipient_role: 'customer', notification_type: 'contract_created' }
         );
+      } else if (!imageSent && imageOutcome === 'unknown') {
+        console.warn('Image send outcome is unknown; skipping text fallback to avoid duplicate customer messages.');
       }
     } else if (shouldNotifyCustomer) {
       // Customer phone was invalid/missing
@@ -2424,9 +2459,11 @@ function MainDashboard() {
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '4px' }}>
-                  {alert.type === 'error' ? '⛔ فشل إرسال الواتساب إلى ' : '✅ تم الإرسال بنجاح إلى '}
-                  {alert.recipient === 'customer' ? 'العميل' : alert.recipient === 'driver' ? 'السائق' : alert.recipient === 'admin' ? 'الإدارة' : 'الموظف'}: {alert.recipientName}
-                </div>
+                {alert.outcome === 'unknown'
+                  ? '⚠️ نتيجة إرسال الواتساب غير مؤكدة إلى '
+                  : alert.type === 'error' ? '⛔ فشل إرسال الواتساب إلى ' : '✅ تم الإرسال بنجاح إلى '}
+                {alert.recipient === 'customer' ? 'العميل' : alert.recipient === 'driver' ? 'السائق' : alert.recipient === 'admin' ? 'الإدارة' : 'الموظف'}: {alert.recipientName}
+              </div>
                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.88)', marginBottom: '4px' }}>
                   عقد رقم: {alert.contractNumber} • {alert.recipientPhone}
                 </div>
@@ -2435,8 +2472,19 @@ function MainDashboard() {
                     تفاصيل الخطأ: {alert.errorMessage}
                   </div>
                 )}
+                {alert.outcome === 'unknown' && (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,240,200,0.95)', marginBottom: '6px' }}>
+                    لا تعِد الإرسال لتجنب تكرار الرسالة. راجع سجل الإشعارات لمعرفة الحالة.
+                  </div>
+                )}
+                {alert.logError && (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,220,220,0.9)', marginBottom: '6px' }}>
+                    تعذر حفظ سجل الإرسال: {alert.logError}
+                  </div>
+                )}
                 {/* Action Buttons */}
-                {alert.type === 'error' && (
+                {alert.type === 'error' && alert.outcome === 'retryable'
+                  && alert.requestPayload && alert.idempotencyKey && (
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
                     <button
                       onClick={() => retryAlert(alert)}
@@ -2453,7 +2501,7 @@ function MainDashboard() {
                       }}
                       onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.35)')}
                       onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
-                    >🔄 التحقق من نتيجة الإرسال</button>
+                    >🔄 إعادة المحاولة بنفس المحتوى</button>
                   </div>
                 )}
               </div>

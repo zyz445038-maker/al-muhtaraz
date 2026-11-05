@@ -224,6 +224,8 @@ CREATE TABLE IF NOT EXISTS public.notification_logs (
     )),
     
     message_body TEXT NOT NULL,                                  -- نص الرسالة المرسلة
+    idempotency_key TEXT UNIQUE,
+    delivery_outcome TEXT CHECK (delivery_outcome IS NULL OR delivery_outcome IN ('sent', 'failed', 'retryable', 'unknown')),
     scheduled_for TIMESTAMPTZ NOT NULL,                          -- موعد الإرسال المجدول
     sent_at TIMESTAMPTZ,                                         -- وقت الإرسال الفعلي
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'cancelled')), -- حالة الإرسال

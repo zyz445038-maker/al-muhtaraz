@@ -78,40 +78,53 @@ export async function POST(request: Request) {
       ...(location && typeof location === 'object' ? { location } : {})
     }, idempotencyKey);
 
+    let logPersisted = false;
+    let logErrorMessage: string | undefined;
     try {
-      if (sendResult.outcome !== 'unknown') {
-        const recipientRole = recipient_role === 'employee' || recipient_role === 'admin'
-          ? recipient_role
-          : 'customer';
-        const logResult = await insertNotificationLog('whatsapp.message.log', {
-          contract_id: typeof contract_id === 'string' ? contract_id : null,
-          customer_id: typeof customer_id === 'string' ? customer_id : null,
-          recipient_phone: cleanPhone,
-          recipient_name: 'recipient_name' in body && typeof body.recipient_name === 'string' ? body.recipient_name : 'مستلم',
-          recipient_role: recipientRole,
-          notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
-          message_body: typeof message === 'string' && message
-            ? message
-            : typeof caption === 'string' && caption ? caption : '[media]',
-          status: sendResult.success ? 'sent' : 'failed',
-          error_message: sendResult.error || null
-        });
-        if (!logResult.ok) {
-          logError('whatsapp.message.log', logResult.error);
-        }
+      const recipientRole = recipient_role === 'employee' || recipient_role === 'admin'
+        ? recipient_role
+        : 'customer';
+      const logResult = await insertNotificationLog('whatsapp.message.log', {
+        idempotency_key: idempotencyKey,
+        contract_id: typeof contract_id === 'string' ? contract_id : null,
+        customer_id: typeof customer_id === 'string' ? customer_id : null,
+        recipient_phone: cleanPhone,
+        recipient_name: 'recipient_name' in body && typeof body.recipient_name === 'string' ? body.recipient_name : 'مستلم',
+        recipient_role: recipientRole,
+        notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
+        message_body: typeof message === 'string' && message
+          ? message
+          : typeof caption === 'string' && caption ? caption : '[media]',
+        status: sendResult.success ? 'sent' : 'failed',
+        delivery_outcome: sendResult.outcome,
+        sent_at: sendResult.success ? new Date().toISOString() : null,
+        error_message: sendResult.error || null
+      });
+      logPersisted = logResult.ok;
+      if (!logResult.ok) {
+        logErrorMessage = logResult.error;
+        logError('whatsapp.message.log', logResult.error);
       }
+
       logEvent('whatsapp.message.completed', {
         phone: cleanPhone,
         success: sendResult.success,
         outcome: sendResult.outcome,
+        logPersisted,
         provider: 'railway',
         messageId: sendResult.messageId || null
       });
     } catch (error) {
+      logErrorMessage = error instanceof Error ? error.message : 'تعذر حفظ سجل إرسال واتساب.';
       logError('whatsapp.message.log', error);
     }
 
-    return NextResponse.json({ ...sendResult, provider: 'railway' }, { status: sendResult.success ? 200 : 502 });
+    return NextResponse.json({
+      ...sendResult,
+      logPersisted,
+      ...(logErrorMessage ? { logError: logErrorMessage } : {}),
+      provider: 'railway'
+    }, { status: sendResult.success ? 200 : 502 });
 
   } catch (error: any) {
     console.error('Send WhatsApp Error:', error);
