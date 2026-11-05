@@ -1893,12 +1893,26 @@ function MainDashboard() {
 
     const isFree = !!contractData.is_free;
     const isCash = !isFree && contractData.payment_choice === 'cash';
+    const isPos = !isFree && contractData.payment_choice === 'pos';
+    const isBankTransfer = !isFree && contractData.payment_choice === 'bank_transfer';
     const isSadad = !isFree && contractData.payment_choice === 'sadad';
+    const isCollectedAtCreation = isCash || isPos || isBankTransfer;
     const totalCost = isFree ? 0 : (Number(contractData.total_cost) || 0);
-    const paidAmount = isFree ? 0 : Number(contractData.paid_amount ?? (isCash ? totalCost : 0));
+    const paidAmount = isFree ? 0 : Number(contractData.paid_amount ?? (isCollectedAtCreation ? totalCost : 0));
     const remainingAmount = isFree ? 0 : Number(contractData.remaining_amount ?? Math.max(0, totalCost - paidAmount));
     const paymentStatus: PaymentStatus = isFree ? 'paid' : (remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid'));
-    const paymentMethod: PaymentMethod = isFree ? 'free' : (isCash ? 'cash' : (isSadad ? 'mada' : 'cash'));
+    const paymentMethod: PaymentMethod | undefined = isFree
+      ? 'free'
+      : isCash ? 'cash'
+        : isPos ? 'pos'
+          : isBankTransfer ? 'bank_transfer'
+            : isSadad ? 'mada'
+              : undefined;
+    const paymentMethodLabel = paymentMethod === 'cash' ? 'كاش'
+      : paymentMethod === 'pos' ? 'نقطة بيع'
+        : paymentMethod === 'bank_transfer' ? 'تحويل بنكي'
+          : paymentMethod === 'mada' ? 'سداد إلكتروني'
+            : isFree ? 'مجاني' : 'آجل';
 
     let newContract: Contract = {
       id: '',
@@ -1923,7 +1937,7 @@ function MainDashboard() {
       payment_status: paymentStatus,
       payment_method: paymentMethod,
       is_free: isFree,
-      receipt_number: (isFree || isCash || paidAmount > 0) ? receiptNumber : undefined,
+      receipt_number: (isFree || isCollectedAtCreation || paidAmount > 0) ? receiptNumber : undefined,
       status: 'active',
       notes: contractData.notes,
       created_at: '',
@@ -1932,7 +1946,7 @@ function MainDashboard() {
       container: containerObj
     };
 
-    const shouldCreateReceipt = isFree || isCash || paidAmount > 0;
+    const shouldCreateReceipt = isFree || isCollectedAtCreation || paidAmount > 0;
     const receiptAmount = isFree ? 0 : (paidAmount > 0 ? paidAmount : totalCost);
     const receiptNotes = isFree
       ? 'عقد تأجير معتمد'
@@ -1961,7 +1975,7 @@ function MainDashboard() {
           total_cost: totalCost,
           paid_amount: paidAmount,
           payment_status: paymentStatus,
-          payment_method: paymentMethod,
+          payment_method: paymentMethod ?? null,
           is_free: isFree,
           notes: newContract.notes,
           receipt_number: shouldCreateReceipt ? receiptNumber : null,
@@ -2014,7 +2028,7 @@ function MainDashboard() {
     setContainers(prev => prev.map(c => c.id === containerObj?.id ? containerObj : c));
 
     // If Free, Cash or partial down payment: Create Receipt immediately
-    if (isFree || isCash || paidAmount > 0) {
+    if (isFree || isCollectedAtCreation || paidAmount > 0) {
       const newReceipt: Receipt = {
         id: persistedReceipt?.id || '',
         receipt_number: receiptNumber,
@@ -2022,7 +2036,7 @@ function MainDashboard() {
         customer_id: customerObj.id,
         customer_name: customerObj.name,
         amount: receiptAmount,
-        payment_method: isFree ? 'free' : (isCash ? 'cash' : 'mada'),
+        payment_method: paymentMethod || 'mada',
         contract_number: newContract.contract_number,
         container_number: containerObj?.container_number,
         container_type: newContract.contract_type,
@@ -2041,8 +2055,7 @@ function MainDashboard() {
       contract: newContract,
       customer: customerObj,
       container: containerObj,
-      receiptNumber,
-      isCash,
+      receiptNumber: (isFree || isCollectedAtCreation || paidAmount > 0) ? receiptNumber : '',
       paidAmount,
       remainingAmount,
       totalCost
@@ -2068,7 +2081,7 @@ function MainDashboard() {
     const newInApp: InAppNotification = {
       id: `inapp-${Date.now()}`,
       contract_id: newContract.id,
-      title: `📝 عقد جديد (${newContract.contract_number}) - ${isFree ? 'عقد مجاني 🎁' : isCash ? 'مدفوع كاش 💵' : isSadad ? 'سداد إلكتروني 💳' : 'آجل ⏳'}`,
+      title: `📝 عقد جديد (${newContract.contract_number}) - ${isFree ? 'عقد مجاني 🎁' : `السداد: ${paymentMethodLabel}`}`,
       message: `تم توثيق عقد للعميل ${customerObj.name} بالحاوية (${containerObj?.container_number || '-'}). المسؤول: ${assignedStaff?.full_name || 'سائق'}.`,
       type: 'contract_created',
       is_read: false,
@@ -2083,7 +2096,7 @@ function MainDashboard() {
       let imageSent = false;
       const receiptPayload = {
         type: 'receipt' as const,
-        receiptNumber,
+        receiptNumber: (isFree || isCollectedAtCreation || paidAmount > 0) ? receiptNumber : 'غير صادر بعد',
         contractNumber: newContract.contract_number,
         customerName: customerObj.name,
         customerPhone: customerObj.phone,
@@ -2091,7 +2104,7 @@ function MainDashboard() {
         contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
         paidAmount,
         totalCost,
-        paymentMethod: isCash ? 'cash' : (isSadad ? 'mada' : 'deferred'),
+        paymentMethod: paymentMethod || 'deferred',
         startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
         endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
         locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',
@@ -2108,7 +2121,7 @@ function MainDashboard() {
         // Generate High-Definition Digital Card Image
         const imageBase64 = await generateContractVoucherImage({
           contractNumber: newContract.contract_number,
-          receiptNumber: (isCash || paidAmount > 0) ? receiptNumber : undefined,
+          receiptNumber: (isCollectedAtCreation || paidAmount > 0) ? receiptNumber : undefined,
           customerName: customerObj.name,
           customerPhone: customerObj.phone,
           containerNumber: containerObj?.container_number || '-',
@@ -2116,7 +2129,10 @@ function MainDashboard() {
           totalCost,
           paidAmount,
           remainingAmount,
-          paymentMethod: isCash ? 'نقدي كاش' : (isSadad ? 'بطاقة مدى / Apple Pay' : 'آجل'),
+          paymentMethod: paymentMethod === 'cash' ? 'نقدي كاش'
+            : paymentMethod === 'pos' ? 'نقطة بيع (POS)'
+              : paymentMethod === 'bank_transfer' ? 'تحويل بنكي'
+                : paymentMethod === 'mada' ? 'بطاقة مدى / Apple Pay' : 'آجل',
           startDate: new Date(newContract.start_date).toLocaleDateString('ar-SA'),
           endDate: new Date(newContract.end_date).toLocaleDateString('ar-SA'),
           locationAddress: newContract.location_address || 'الموقع محدد عبر خرائط Google',

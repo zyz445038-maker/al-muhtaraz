@@ -17,6 +17,7 @@ import {
   UserCheck,
   CreditCard,
   Banknote,
+  Building2,
   Hourglass,
   Sun,
   Sunset,
@@ -31,6 +32,7 @@ import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { getWeeklyRate } from '@/utils/rentalPricing';
 
 export type PaymentChoice = 'cash' | 'sadad' | 'postpaid';
+export type NewContractPaymentChoice = PaymentChoice | 'pos' | 'bank_transfer';
 
 // Date Helpers
 const pad = (n: number) => (n < 10 ? '0' + n : `${n}`);
@@ -93,7 +95,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const [assignedEmployeeId, setAssignedEmployeeId] = useState<string>('');
   
   // Mandatory Payment Choice: 'cash' (نقدي فوري) | 'sadad' (إلكتروني Apple Pay/مدى) | 'postpaid' (آجل لاحقاً)
-  const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
+  const [paymentChoice, setPaymentChoice] = useState<NewContractPaymentChoice>('cash');
 
   // Customer
   const [customerName, setCustomerName] = useState('');
@@ -127,7 +129,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const totalCost = isFreeContract ? 0 : Math.max(0, baseCost - (discountAmount || 0));
   const effectivePaidAmount = isFreeContract
     ? 0
-    : (paymentChoice === 'cash'
+    : (paymentChoice === 'cash' || paymentChoice === 'pos' || paymentChoice === 'bank_transfer'
       ? (downPayment > 0 ? downPayment : totalCost)
       : (downPayment > 0 ? downPayment : 0));
   const remainingAmount = isFreeContract ? 0 : Math.max(0, totalCost - effectivePaidAmount);
@@ -259,8 +261,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   }, [selectedContainerId, contractType, periodType, durationDays, durationMonths, containers]);
 
   // Handle Payment Choice Change
-  const handlePaymentChoiceChange = (choice: PaymentChoice) => {
+  const handlePaymentChoiceChange = (choice: NewContractPaymentChoice) => {
     setPaymentChoice(choice);
+    if (choice === 'postpaid') setDownPayment(0);
   };
 
   // Fetch Current Device GPS Location
@@ -1148,7 +1151,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   step="0.01"
                   className="form-input"
                   aria-label="إجمالي مبلغ العقد حسب الاتفاق"
-                  disabled={isFreeContract}
+                  disabled={isFreeContract || paymentChoice === 'postpaid'}
                   value={isFreeContract ? 0 : baseCost}
                   onChange={(e) => setBaseCost(Math.max(0, Number(e.target.value) || 0))}
                   style={{
@@ -1234,7 +1237,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   {isFreeContract ? '—' : `${effectivePaidAmount} ر.س`}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {isFreeContract ? 'بدون مقابل' : (paymentChoice === 'cash' && downPayment === 0 ? 'سداد كامل' : downPayment > 0 ? 'دفعة مسددة' : 'آجل / رابط')}
+                  {isFreeContract
+                    ? 'بدون مقابل'
+                    : downPayment > 0
+                      ? 'دفعة مسددة'
+                      : ['cash', 'pos', 'bank_transfer'].includes(paymentChoice)
+                        ? 'سداد كامل'
+                        : paymentChoice === 'sadad' ? 'بانتظار السداد الإلكتروني' : 'آجل للتحصيل'}
                 </div>
               </div>
 
@@ -1376,7 +1385,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '12px' }}>
                 
                 {/* Choice 1: Cash */}
                 <div
@@ -1400,7 +1409,51 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
 
-              {/* Choice 2: Sadad Electronic Link */}
+              {/* Choice 2: Point of sale */}
+              <div
+                onClick={() => handlePaymentChoiceChange('pos')}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: `2px solid ${paymentChoice === 'pos' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                  background: paymentChoice === 'pos' ? 'rgba(14, 165, 233, 0.2)' : 'rgba(2, 6, 23, 0.6)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <CreditCard size={24} color={paymentChoice === 'pos' ? '#38bdf8' : '#94a3b8'} style={{ margin: '0 auto 4px auto' }} />
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: paymentChoice === 'pos' ? '#38bdf8' : '#ffffff' }}>
+                  💳 نقطة بيع (POS)
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                  مدفوع عبر الشبكة
+                </div>
+              </div>
+
+              {/* Choice 3: Bank transfer */}
+              <div
+                onClick={() => handlePaymentChoiceChange('bank_transfer')}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: `2px solid ${paymentChoice === 'bank_transfer' ? '#fbbf24' : 'rgba(255, 255, 255, 0.1)'}`,
+                  background: paymentChoice === 'bank_transfer' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(2, 6, 23, 0.6)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Building2 size={24} color={paymentChoice === 'bank_transfer' ? '#fbbf24' : '#94a3b8'} style={{ margin: '0 auto 4px auto' }} />
+                <div style={{ fontSize: '0.9rem', fontWeight: 800, color: paymentChoice === 'bank_transfer' ? '#fbbf24' : '#ffffff' }}>
+                  🏦 تحويل بنكي
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                  تم استلام الحوالة
+                </div>
+              </div>
+
+              {/* Choice 4: Sadad Electronic Link */}
               <div
                 onClick={() => handlePaymentChoiceChange('sadad')}
                 style={{
@@ -1422,7 +1475,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 </div>
               </div>
 
-              {/* Choice 3: Postpaid / Later */}
+              {/* Choice 5: Postpaid / Later */}
               <div
                 onClick={() => handlePaymentChoiceChange('postpaid')}
                 style={{
@@ -1465,7 +1518,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               disabled={isSaving}
               style={{ minWidth: '220px', padding: '10px 24px', fontSize: '0.95rem' }}
             >
-              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${paymentChoice === 'cash' ? 'كاش وفاتورة فورية' : paymentChoice === 'sadad' ? 'إرسال رابط سداد' : 'تسجيل كآجل'})`}
+              {isSaving ? 'جارٍ توثيق العقد...' : isFreeContract ? '🎁 توثيق وحجز العقد المجاني' : `توثيق العقد (${
+                paymentChoice === 'cash' ? 'كاش وفاتورة فورية'
+                  : paymentChoice === 'pos' ? 'نقطة بيع وفاتورة فورية'
+                    : paymentChoice === 'bank_transfer' ? 'تحويل بنكي وفاتورة فورية'
+                      : paymentChoice === 'sadad' ? 'إرسال رابط سداد'
+                        : 'تسجيل كآجل'
+              })`}
             </button>
           </div>
 
