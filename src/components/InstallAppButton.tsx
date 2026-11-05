@@ -17,6 +17,10 @@ function isRunningAsInstalledApp(): boolean {
   return isDisplayMode || isIosStandalone;
 }
 
+function isRunningInElectron(): boolean {
+  return window.navigator.userAgent.toLowerCase().includes('electron/');
+}
+
 export const InstallAppButton: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
@@ -26,12 +30,13 @@ export const InstallAppButton: React.FC = () => {
 
   useEffect(() => {
     const syncInstalledState = () => {
+      const isElectron = isRunningInElectron();
       const isStandalone = isRunningAsInstalledApp();
       try {
         if (isStandalone) window.localStorage.setItem(installedAppStorageKey, 'true');
-        setIsInstalled(isStandalone || window.localStorage.getItem(installedAppStorageKey) === 'true');
+        setIsInstalled(isElectron || isStandalone || window.localStorage.getItem(installedAppStorageKey) === 'true');
       } catch {
-        setIsInstalled(isStandalone);
+        setIsInstalled(isElectron || isStandalone);
       }
     };
 
@@ -48,6 +53,7 @@ export const InstallAppButton: React.FC = () => {
     const handleBeforeInstallPrompt = (event: Event) => {
       const e = event as BeforeInstallPromptEvent;
       e.preventDefault();
+      if (isRunningInElectron()) return;
       try {
         window.localStorage.removeItem(installedAppStorageKey);
       } catch {
