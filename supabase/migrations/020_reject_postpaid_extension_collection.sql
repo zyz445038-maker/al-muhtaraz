@@ -6,28 +6,30 @@ DECLARE
     )'::REGPROCEDURE;
     v_function_definition TEXT;
     v_updated_definition TEXT;
-    v_old_guard CONSTANT TEXT := $guard$    IF p_payment_choice = 'sadad' AND ROUND(COALESCE(p_receipt_amount, 0), 2) > 0 THEN
-        RAISE EXCEPTION 'لا يمكن تسجيل تحصيل سداد قبل تأكيده من مزود الدفع.';
-    END IF;$guard$;
-    v_new_guard CONSTANT TEXT := $guard$    IF p_payment_choice IN ('sadad', 'postpaid')
-       AND ROUND(COALESCE(p_receipt_amount, 0), 2) > 0 THEN
-        RAISE EXCEPTION 'لا يمكن تسجيل تحصيل سداد أو الدفع الآجل قبل تأكيد التحصيل.';
-    END IF;$guard$;
+    v_guard_pattern CONSTANT TEXT := $pattern$p_payment_choice[[:space:]]*=[[:space:]]*'sadad'[[:space:]]+AND[[:space:]]+ROUND[[:space:]]*\([[:space:]]*COALESCE[[:space:]]*\([[:space:]]*p_receipt_amount[[:space:]]*,[[:space:]]*0[[:space:]]*\)[[:space:]]*,[[:space:]]*2[[:space:]]*\)[[:space:]]*>[[:space:]]*0$pattern$;
+    v_guard_count INTEGER;
 BEGIN
-    v_function_definition := replace(
-        replace(pg_get_functiondef(v_function_oid), E'\r\n', E'\n'),
-        E'\r',
-        E'\n'
-    );
+    v_function_definition := pg_get_functiondef(v_function_oid);
 
-    IF (
-        length(v_function_definition)
-        - length(replace(v_function_definition, v_old_guard, ''))
-    ) / length(v_old_guard) <> 1 THEN
+    SELECT count(*)
+    INTO v_guard_count
+    FROM regexp_matches(v_function_definition, v_guard_pattern, 'g');
+
+    IF v_guard_count <> 1 THEN
         RAISE EXCEPTION 'تعذر التحقق من حارس تحصيل سداد في دالة التمديد.';
     END IF;
 
-    v_updated_definition := replace(v_function_definition, v_old_guard, v_new_guard);
+    v_updated_definition := regexp_replace(
+        v_function_definition,
+        v_guard_pattern,
+        $replacement$p_payment_choice IN ('sadad', 'postpaid') AND ROUND(COALESCE(p_receipt_amount, 0), 2) > 0$replacement$
+    );
+
+    IF v_updated_definition = v_function_definition
+       OR POSITION($guard$p_payment_choice IN ('sadad', 'postpaid')$guard$ IN v_updated_definition) = 0 THEN
+        RAISE EXCEPTION 'تعذر إضافة حارس الدفع الآجل إلى دالة التمديد.';
+    END IF;
+
     EXECUTE v_updated_definition;
 END;
 $migration$;
