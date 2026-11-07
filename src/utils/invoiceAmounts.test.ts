@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  allocateExtensionGrossPayment,
   allocateGrossPayment,
   calculateVatAmounts,
   calculatePriceAmounts,
@@ -157,6 +158,82 @@ test('allocates mixed balances to historical non-taxable amounts before taxable 
   });
 });
 
+test('collects a legacy balance before allocating a payment to the taxable extension', () => {
+  const historicalContract = {
+    total_cost: 100,
+    paid_amount: 30
+  };
+  const allocation = allocateExtensionGrossPayment({
+    enteredAmount: 100,
+    existingBalance: getContractPaymentContext(historicalContract),
+    extensionSubtotalAmount: 100,
+    extensionVatAmount: 15
+  });
+
+  assert.deepEqual(allocation, {
+    enteredAmount: 100,
+    existingBalanceAllocation: {
+      enteredAmount: 70,
+      nonTaxableAmount: 70,
+      subtotalAmount: 0,
+      vatAmount: 0,
+      grossAmount: 70
+    },
+    extensionAllocation: {
+      enteredAmount: 30,
+      nonTaxableAmount: 0,
+      subtotalAmount: 26.09,
+      vatAmount: 3.91,
+      grossAmount: 30
+    },
+    nonTaxableAmount: 70,
+    subtotalAmount: 26.09,
+    vatAmount: 3.91,
+    grossAmount: 100
+  });
+});
+
+test('collects an existing taxable contract balance before the new taxable extension', () => {
+  const contract = {
+    total_cost: 115,
+    paid_amount: 45,
+    non_taxable_amount: 0,
+    subtotal_amount: 100,
+    vat_amount: 15,
+    non_taxable_paid_amount: 0,
+    subtotal_paid_amount: 39.13,
+    vat_paid_amount: 5.87
+  };
+  const allocation = allocateExtensionGrossPayment({
+    enteredAmount: 100,
+    existingBalance: getContractPaymentContext(contract),
+    extensionSubtotalAmount: 100,
+    extensionVatAmount: 15
+  });
+
+  assert.deepEqual(allocation, {
+    enteredAmount: 100,
+    existingBalanceAllocation: {
+      enteredAmount: 70,
+      nonTaxableAmount: 0,
+      subtotalAmount: 60.87,
+      vatAmount: 9.13,
+      grossAmount: 70
+    },
+    extensionAllocation: {
+      enteredAmount: 30,
+      nonTaxableAmount: 0,
+      subtotalAmount: 26.09,
+      vatAmount: 3.91,
+      grossAmount: 30
+    },
+    nonTaxableAmount: 0,
+    subtotalAmount: 86.96,
+    vatAmount: 13.04,
+    grossAmount: 100
+  });
+});
+
 test('rejects payments above the gross balance and reconciles the final cent', () => {
   const context = {
     nonTaxableAmount: 0,
@@ -167,6 +244,20 @@ test('rejects payments above the gross balance and reconciles the final cent', (
     vatPaidAmount: 0
   };
   assert.equal(allocateGrossPayment({ enteredAmount: 0.05, ...context }), null);
+  assert.equal(allocateExtensionGrossPayment({
+    enteredAmount: 0.05,
+    existingBalance: {
+      nonTaxableAmount: 0,
+      nonTaxablePaidAmount: 0,
+      subtotalAmount: 0,
+      subtotalPaidAmount: 0,
+      vatAmount: 0,
+      vatPaidAmount: 0,
+      isVatAware: true
+    },
+    extensionSubtotalAmount: 0.03,
+    extensionVatAmount: 0.01
+  }), null);
 
   const fullPayment = allocateGrossPayment({ enteredAmount: 0.04, ...context });
   assert.deepEqual(fullPayment, {

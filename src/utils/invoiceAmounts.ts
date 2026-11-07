@@ -30,6 +30,11 @@ export interface PaymentAllocation extends VatAmounts {
   enteredAmount: number;
 }
 
+export interface ExtensionPaymentAllocation extends PaymentAllocation {
+  existingBalanceAllocation: PaymentAllocation;
+  extensionAllocation: PaymentAllocation;
+}
+
 export interface ContractPaymentContext {
   nonTaxableAmount: number;
   nonTaxablePaidAmount: number;
@@ -243,5 +248,77 @@ export function allocateGrossPayment(input: {
     subtotalAmount: fromCents(subtotalPaidNow),
     vatAmount: fromCents(vatPaidNow),
     grossAmount: fromCents(nonTaxablePaid + subtotalPaidNow + vatPaidNow)
+  };
+}
+
+export function allocateExtensionGrossPayment(input: {
+  enteredAmount: number;
+  existingBalance: ContractPaymentContext;
+  extensionSubtotalAmount: number;
+  extensionVatAmount: number;
+}): ExtensionPaymentAllocation | null {
+  const enteredCents = Math.max(0, toCents(input.enteredAmount));
+  const existingNonTaxableRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.nonTaxableAmount)
+      - toCents(input.existingBalance.nonTaxablePaidAmount)
+  );
+  const existingSubtotalRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.subtotalAmount)
+      - toCents(input.existingBalance.subtotalPaidAmount)
+  );
+  const existingVatRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.vatAmount)
+      - toCents(input.existingBalance.vatPaidAmount)
+  );
+  const existingBalanceRemaining = existingNonTaxableRemaining
+    + existingSubtotalRemaining
+    + existingVatRemaining;
+  const extensionSubtotal = Math.max(0, toCents(input.extensionSubtotalAmount));
+  const extensionVat = Math.max(0, toCents(input.extensionVatAmount));
+  const extensionGross = extensionSubtotal + extensionVat;
+
+  if (enteredCents > existingBalanceRemaining + extensionGross) return null;
+
+  const existingAmount = Math.min(enteredCents, existingBalanceRemaining);
+  const existingBalanceAllocation = allocateGrossPayment({
+    enteredAmount: fromCents(existingAmount),
+    ...input.existingBalance
+  });
+  if (!existingBalanceAllocation) return null;
+
+  const extensionAllocation = allocateGrossPayment({
+    enteredAmount: fromCents(enteredCents - existingAmount),
+    nonTaxableAmount: 0,
+    nonTaxablePaidAmount: 0,
+    subtotalAmount: fromCents(extensionSubtotal),
+    subtotalPaidAmount: 0,
+    vatAmount: fromCents(extensionVat),
+    vatPaidAmount: 0
+  });
+  if (!extensionAllocation) return null;
+
+  return {
+    enteredAmount: fromCents(enteredCents),
+    existingBalanceAllocation,
+    extensionAllocation,
+    nonTaxableAmount: fromCents(
+      toCents(existingBalanceAllocation.nonTaxableAmount)
+        + toCents(extensionAllocation.nonTaxableAmount)
+    ),
+    subtotalAmount: fromCents(
+      toCents(existingBalanceAllocation.subtotalAmount)
+        + toCents(extensionAllocation.subtotalAmount)
+    ),
+    vatAmount: fromCents(
+      toCents(existingBalanceAllocation.vatAmount)
+        + toCents(extensionAllocation.vatAmount)
+    ),
+    grossAmount: fromCents(
+      toCents(existingBalanceAllocation.grossAmount)
+        + toCents(extensionAllocation.grossAmount)
+    )
   };
 }

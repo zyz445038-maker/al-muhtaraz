@@ -64,6 +64,7 @@ import { VehiclesManagement } from '@/components/VehiclesManagement';
 import { TransportVehicle } from '@/types/database';
 import { FinancialReportsView } from '@/components/FinancialReportsView';
 import {
+  allocateExtensionGrossPayment,
   allocateGrossPayment,
   calculatePriceAmounts,
   getContractPaymentContext,
@@ -1554,17 +1555,14 @@ function MainDashboard() {
       discountAmount,
       priceIncludesVat ? 'inclusive' : 'exclusive'
     );
-    const extensionPayment = allocateGrossPayment({
+    const extensionPayment = allocateExtensionGrossPayment({
       enteredAmount: amountReceived,
-      nonTaxableAmount: 0,
-      nonTaxablePaidAmount: 0,
-      subtotalAmount: extensionVat.subtotalAmount,
-      subtotalPaidAmount: 0,
-      vatAmount: extensionVat.vatAmount,
-      vatPaidAmount: 0
+      existingBalance: getContractPaymentContext(contract),
+      extensionSubtotalAmount: extensionVat.subtotalAmount,
+      extensionVatAmount: extensionVat.vatAmount
     });
     if (!extensionPayment) {
-      alert('المبلغ المستلم يتجاوز إجمالي التمديد.');
+      alert('المبلغ المستلم يتجاوز إجمالي الرصيد السابق والتمديد.');
       return false;
     }
 
@@ -1577,7 +1575,7 @@ function MainDashboard() {
 
     const shouldCreateReceipt = isCash || isBankTransfer || extensionPayment.enteredAmount > 0;
     const receiptAmount = extensionPayment.grossAmount;
-    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم): قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
+    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم): رصيد سابق غير خاضع ${extensionPayment.nonTaxableAmount.toFixed(2)} ر.س، قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
     let updatedContract: Contract;
     let persistedReceipt: Receipt | null = null;
 
@@ -1588,13 +1586,13 @@ function MainDashboard() {
         p_additional_subtotal: extensionVat.subtotalAmount,
         p_additional_vat: extensionVat.vatAmount,
         p_new_end_date: newEndDate,
-        p_paid_subtotal: extensionPayment.subtotalAmount,
-        p_paid_vat: extensionPayment.vatAmount,
+        p_paid_subtotal: extensionPayment.extensionAllocation.subtotalAmount,
+        p_paid_vat: extensionPayment.extensionAllocation.vatAmount,
         p_payment_choice: paymentChoice,
         p_extension_notes: extensionNotes,
         p_receipt_number: shouldCreateReceipt ? receiptNumber : null,
         p_receipt_amount: shouldCreateReceipt ? receiptAmount : null,
-        p_receipt_non_taxable_amount: 0,
+        p_receipt_non_taxable_amount: shouldCreateReceipt ? extensionPayment.nonTaxableAmount : null,
         p_receipt_subtotal_amount: shouldCreateReceipt ? extensionPayment.subtotalAmount : null,
         p_receipt_vat_amount: shouldCreateReceipt ? extensionPayment.vatAmount : null,
         p_receipt_notes: shouldCreateReceipt ? receiptNotes : null
@@ -1628,6 +1626,13 @@ function MainDashboard() {
         const persistedAmount = Number(extension.receipt.amount);
         if (!Number.isFinite(persistedAmount) || persistedAmount !== receiptAmount) {
           throw new Error('أعادت قاعدة البيانات مبلغ فاتورة غير مطابق لإجمالي التمديد بعد الضريبة.');
+        }
+        if (
+          Number(extension.receipt.non_taxable_amount ?? 0) !== extensionPayment.nonTaxableAmount
+          || Number(extension.receipt.subtotal_amount ?? 0) !== extensionPayment.subtotalAmount
+          || Number(extension.receipt.vat_amount ?? 0) !== extensionPayment.vatAmount
+        ) {
+          throw new Error('أعادت قاعدة البيانات توزيعًا ضريبيًا غير مطابق للرصيد السابق والتمديد.');
         }
         persistedReceipt = {
           ...extension.receipt,
