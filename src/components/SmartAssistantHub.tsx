@@ -48,6 +48,7 @@ import { formatSaudiCheerResponse, speakSaudiFemaleVoice, stopSpeaking, unlockAu
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 import type { AgentMemoryState } from '@/utils/aiExecutiveAgent';
+import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
 
 interface SmartAssistantHubProps {
   contracts: Contract[];
@@ -478,8 +479,14 @@ export const SmartAssistantHub: React.FC<SmartAssistantHubProps> = ({
             {/* Direct WhatsApp Report Button */}
             <button
               onClick={() => {
-                const targetPhone = localGatewaySettings.admin_phone || '966500000001';
-                onSendWhatsApp(targetPhone, dailyReportText);
+                const adminPhone = staffList.find(profile =>
+                  profile.role === 'admin' && profile.is_active && isRealCallablePhone(profile.phone)
+                )?.phone;
+                if (!adminPhone) {
+                  alert('سجّل رقم جوال سعوديًا صالحًا للمدير من إدارة الموظفين أولاً.');
+                  return;
+                }
+                onSendWhatsApp(adminPhone, dailyReportText);
               }}
               style={{
                 width: '100%',

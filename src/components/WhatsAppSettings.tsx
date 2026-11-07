@@ -41,7 +41,7 @@ import {
   Flame
 } from 'lucide-react';
 import { Contract, WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
-import { SaudiPhoneInput } from './SaudiPhoneInput';
+import { isRealCallablePhone, SaudiPhoneInput } from './SaudiPhoneInput';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
 import { getWhatsAppApiHeaders, sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
@@ -94,7 +94,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const contractNumbers = new Map(contracts.map(contract => [contract.id, contract.contract_number]));
 
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
-  const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
+  const [adminPhone, setAdminPhone] = useState(
+    settings.admin_phone && isRealCallablePhone(settings.admin_phone) ? settings.admin_phone : ''
+  );
   const [autoSendEnabled, setAutoSendEnabled] = useState(settings.auto_send_enabled ?? true);
 
   // Routing Rules State

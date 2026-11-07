@@ -740,7 +740,7 @@ ON CONFLICT (container_number) DO NOTHING;
 -- إعدادات بوابة الواتساب الافتراضية
 INSERT INTO public.whatsapp_settings (provider, instance_id, api_token, sender_phone, admin_phone, is_connected, auto_send_enabled)
 VALUES 
-    ('ultramsg', 'instance_muhtaraz_01', '', '+966920001234', '+966500000001', false, true)
+    ('ultramsg', 'instance_muhtaraz_01', '', '+966920001234', '', false, true)
 ON CONFLICT DO NOTHING;
 
 -- إعدادات بوابة الدفع Moyasar الافتراضية
