@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Profile, StaffPermissions, UserRole } from '@/types/database';
 import { sendWhatsAppAutomatically } from '@/lib/whatsappApiClient';
-import { SaudiPhoneInput } from './SaudiPhoneInput';
+import { isRealCallablePhone, SaudiPhoneInput } from './SaudiPhoneInput';
 
 export interface NewStaffAccount {
   full_name: string;
@@ -169,9 +169,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
   };
 
   const handleTestDriverWhatsApp = async (driver: Profile) => {
+    if (!isRealCallablePhone(driver.phone)) {
+      alert('سجّل رقم جوال سعوديًا صالحًا للسائق من إدارة الموظفين قبل إرسال رسالة الاختبار.');
+      return;
+    }
+
     const msg = `مرحباً ${driver.full_name}، هذا إشعار تجريبي للتحقق من جاهزية استقبال أوامر مهام الحاويات (إنزال وسحب) لدى *المحترز للحاويات*. 🚚`;
     const result = await sendWhatsAppAutomatically({
-      phone: driver.phone || '+966550000004',
+      phone: driver.phone,
       message: msg
     });
     if (!result.success) {

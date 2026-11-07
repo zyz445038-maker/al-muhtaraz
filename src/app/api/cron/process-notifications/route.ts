@@ -67,7 +67,7 @@ async function handleProcess(request: Request) {
     const adminSupabase = getSupabaseAdminClient();
     const settingsResult = await adminSupabase
       .from('whatsapp_settings')
-      .select('admin_phone, auto_send_enabled, notify_driver_on_alerts')
+      .select('auto_send_enabled, notify_driver_on_alerts')
       .limit(1)
       .maybeSingle();
 
@@ -75,7 +75,15 @@ async function handleProcess(request: Request) {
 
     const settings = settingsResult.data;
     const autoSendEnabled = settings?.auto_send_enabled === true;
-    const adminPhone = settings?.admin_phone?.trim() || '';
+    const adminProfileResult = await adminSupabase
+      .from('profiles')
+      .select('phone')
+      .eq('role', 'admin')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (adminProfileResult.error) throw adminProfileResult.error;
+    const adminPhone = adminProfileResult.data?.phone?.trim() || '';
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setUTCHours(0, 0, 0, 0);

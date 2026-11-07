@@ -13,7 +13,7 @@ export type NotificationLogInput = {
   recipient_role: 'customer' | 'employee' | 'admin';
   recipient_phone: string;
   recipient_name?: string | null;
-  notification_type: 'debris_pickup_4h' | 'commercial_7d_before' | 'commercial_2d_before' | 'contract_created' | 'custom_alert';
+  notification_type: 'debris_pickup_4h' | 'commercial_7d_before' | 'commercial_2d_before' | 'contract_created' | 'container_picked_up' | 'custom_alert';
   message_body: string;
   scheduled_for?: string;
   sent_at?: string | null;

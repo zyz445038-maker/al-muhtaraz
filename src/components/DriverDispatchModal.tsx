@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Contract, Profile } from '@/types/database';
 import { formatDriverWhatsAppMessage, DriverTaskType } from '@/utils/driverDispatch';
+import { isRealCallablePhone } from './SaudiPhoneInput';
 
 interface DriverDispatchModalProps {
   isOpen: boolean;
@@ -70,7 +71,7 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
   if (!isOpen || !contract) return null;
 
   const selectedDriver = driverList.find(d => d.id === selectedDriverId) || driverList[0];
-  const driverPhone = selectedDriver?.phone || '+966550000004';
+  const driverPhone = selectedDriver?.phone || '';
 
   const messageText = formatDriverWhatsAppMessage({
     contract,
@@ -79,6 +80,11 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
   });
 
   const handleSendApi = async () => {
+    if (!isRealCallablePhone(driverPhone)) {
+      setSendError('سجّل رقم جوال سعوديًا صالحًا للسائق من إدارة الموظفين قبل إرسال المهمة.');
+      return;
+    }
+
     setIsSending(true);
     setSendError(null);
     try {
@@ -312,7 +318,7 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
             type="button"
             className="btn-emerald"
             onClick={handleSendApi}
-            disabled={isSending}
+            disabled={isSending || !isRealCallablePhone(driverPhone)}
             style={{ fontWeight: 800 }}
           >
             <Send size={16} />

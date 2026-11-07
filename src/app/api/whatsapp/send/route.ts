@@ -91,7 +91,11 @@ export async function POST(request: Request) {
         recipient_phone: cleanPhone,
         recipient_name: 'recipient_name' in body && typeof body.recipient_name === 'string' ? body.recipient_name : 'مستلم',
         recipient_role: recipientRole,
-        notification_type: notification_type === 'contract_created' ? 'contract_created' : 'custom_alert',
+        notification_type: notification_type === 'contract_created'
+          ? 'contract_created'
+          : notification_type === 'container_picked_up'
+            ? 'container_picked_up'
+            : 'custom_alert',
         message_body: typeof message === 'string' && message
           ? message
           : typeof caption === 'string' && caption ? caption : '[media]',

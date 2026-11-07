@@ -78,7 +78,7 @@ const initialStaff: Profile[] = [
     id: 'staff-admin',
     full_name: 'سعود المحترز (المدير العام)',
     email: 'admin@almuhtaraz.com',
-    phone: '+966500000001',
+    phone: '',
     role: 'admin',
     is_active: true,
     can_view_all_records: true,
@@ -99,7 +99,7 @@ const initialStaff: Profile[] = [
     id: 'staff-3',
     full_name: 'سعد الدوسري (سائق رافعة وتوصيل)',
     email: 's.dosari@almuhtaraz.com',
-    phone: '+966550000004',
+    phone: '',
     role: 'employee',
     is_active: true,
     can_view_all_records: false,
@@ -283,7 +283,7 @@ const initialGatewaySettings: IWhatsAppSettings = {
   evolution_instance_name: 'muhtaraz-instance',
   evolution_api_key: '',
   sender_phone: '+966920001234',
-  admin_phone: '+966500000001',
+  admin_phone: '',
   is_connected: true,
   auto_send_enabled: true,
   notify_driver_on_contract_created: false,
@@ -310,7 +310,7 @@ const initialAssistantSettings: SmartAssistantSettings = {
   daily_report: {
     enabled: true,
     send_time: '21:00',
-    admin_phone: '+966500000001',
+    admin_phone: '',
   },
   approval_policy: {
     require_admin_approval_for_staff: false,
@@ -1032,7 +1032,7 @@ function MainDashboard() {
           vehiclesResult,
           sealResult
         ] = await Promise.all([
-          supabase.from('notification_logs').select('*'),
+          supabase.from('notification_logs').select('*').order('created_at', { ascending: false }).limit(200),
           supabase.from('notifications').select('*').order('created_at', { ascending: false }),
           supabase.from('whatsapp_settings')
             .select('id, mode, evolution_instance_name, sender_phone, admin_phone, is_connected, auto_send_enabled, notify_driver_on_contract_created, notify_driver_on_alerts, updated_at')
@@ -1151,7 +1151,7 @@ function MainDashboard() {
     contractNumber: string,
     extraPayload?: Record<string, unknown>
   ): Promise<{ success: boolean; outcome: WhatsAppDeliveryOutcome; error?: string; alertId: string }> => {
-    const requestPayload = { phone, message, ...extraPayload };
+    const requestPayload = { phone, message, ...extraPayload, recipient_name: recipientName };
     const result = await sendWhatsAppAutomatically(requestPayload);
     const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (result.success) {
@@ -1880,6 +1880,15 @@ function MainDashboard() {
     const customerMessage = `مرحباً ${contract.customer?.name || 'العميل'}، نحيطكم علماً بأنه تم سحب الحاوية (${container.container_number}) وإنهاء عقد التأجير رقم (${contract.contract_number}) بتاريخ ${pickupDate}. شكراً لتعاملكم مع المحترز للحاويات.`;
     const driverMessage = `🚛 تأكيد سحب حاوية وإعادتها للمستودع\nرقم الحاوية: ${container.container_number}\nرقم العقد: ${contract.contract_number}\nالعميل: ${contract.customer?.name || '-'}\nالموقع: ${contract.location_address || contract.customer?.address || '-'}\nتم تسجيل إنهاء التأجير وإعادة الحاوية للمخزون بتاريخ: ${pickupDate}.`;
     const pickupNotifications: Promise<unknown>[] = [];
+    const adminProfile = currentProfile?.role === 'admin'
+      && currentProfile.is_active
+      && isRealCallablePhone(currentProfile.phone)
+      ? currentProfile
+      : staffList.find(profile =>
+        profile.role === 'admin' && profile.is_active && isRealCallablePhone(profile.phone)
+      );
+    const adminPhone = adminProfile?.phone;
+    const adminMessage = `✅ تم سحب الحاوية وإنهاء العقد\nرقم العقد: (${contract.contract_number})\nرقم الحاوية: (${container.container_number})\nالعميل: ${contract.customer?.name || '-'}\nتاريخ السحب: ${pickupDate}\nتمت إعادة الحاوية إلى مخزون المستودع.`;
 
     if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       pickupNotifications.push(sendSilentWhatsApp(
@@ -1892,7 +1901,7 @@ function MainDashboard() {
           contract_id: contract.id,
           customer_id: contract.customer_id,
           recipient_role: 'customer',
-          notification_type: 'custom_alert'
+          notification_type: 'container_picked_up'
         }
       ));
     }
@@ -1909,9 +1918,38 @@ function MainDashboard() {
           contract_id: contract.id,
           recipient_role: 'employee',
           recipient_name: assignedDriver.full_name,
-          notification_type: 'custom_alert'
+          notification_type: 'container_picked_up'
         }
       ));
+    }
+
+    if (adminPhone) {
+      pickupNotifications.push(sendSilentWhatsApp(
+        adminPhone,
+        adminMessage,
+        'admin',
+        adminProfile?.full_name || 'المدير العام',
+        contract.contract_number,
+        {
+          contract_id: contract.id,
+          recipient_role: 'admin',
+          recipient_name: adminProfile?.full_name || 'المدير العام',
+          notification_type: 'container_picked_up'
+        }
+      ));
+    } else {
+      const warnAlertId = `wa-alert-admin-pickup-${Date.now()}`;
+      setWhatsappAlerts(prev => [{
+        id: warnAlertId,
+        type: 'error',
+        recipient: 'admin',
+        recipientName: 'المدير العام',
+        recipientPhone: 'غير مسجل',
+        contractNumber: contract.contract_number,
+        message: 'تعذر إرسال إشعار سحب الحاوية إلى الإدارة لعدم وجود رقم جوال مدير صالح.',
+        errorMessage: 'سجّل رقم جوال سعوديًا صالحًا للمدير من إدارة الموظفين.',
+        timestamp: new Date().toISOString()
+      }, ...prev]);
     }
 
     await Promise.all(pickupNotifications);
@@ -2235,22 +2273,6 @@ function MainDashboard() {
       totalCost
     });
 
-    const newNotif: NotificationLog = {
-      id: `notif-${Date.now()}`,
-      contract_id: newContract.id,
-      customer_id: customerObj.id,
-      recipient_role: 'customer',
-      recipient_phone: customerObj.phone,
-      recipient_name: customerObj.name,
-      notification_type: 'contract_created',
-      message_body: customerVoucherMessage,
-      scheduled_for: new Date().toISOString(),
-      status: 'sent',
-      sent_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-
     // 🔔 Auto-generate in-app notification with red badge
     const newInApp: InAppNotification = {
       id: `inapp-${Date.now()}`,
@@ -2421,7 +2443,7 @@ function MainDashboard() {
             contract_id: newContract.id,
             recipient_role: 'employee',
             recipient_name: assignedStaff.full_name,
-            notification_type: 'custom_alert'
+            notification_type: 'contract_created'
           }
         );
       } else {
@@ -2444,15 +2466,15 @@ function MainDashboard() {
     // ⏱️ Pacing Delay (800ms)
     await new Promise(r => setTimeout(r, 800));
 
-    // 🚀 3. Check Routing & Dispatch Instant Executive Alert to Admin (ONLY if real admin phone configured)
+    // Send the executive alert to the active manager profile when it has a valid phone.
     const adminProfile = currentProfile?.role === 'admin'
+      && currentProfile.is_active
+      && isRealCallablePhone(currentProfile.phone)
       ? currentProfile
-      : staffList.find(profile => profile.role === 'admin' && profile.is_active);
-    const adminPhone = [
-      gatewaySettings.admin_phone,
-      assistantSettings.daily_report?.admin_phone,
-      adminProfile?.phone
-    ].find(isRealCallablePhone);
+      : staffList.find(profile =>
+        profile.role === 'admin' && profile.is_active && isRealCallablePhone(profile.phone)
+      );
+    const adminPhone = adminProfile?.phone;
     if (adminPhone) {
       const adminAlertMsg = formatAdminAlertMessage({
         contract: newContract,
@@ -2469,7 +2491,12 @@ function MainDashboard() {
         'admin',
         'المدير العام',
         newContract.contract_number,
-        { contract_id: newContract.id, recipient_role: 'admin', notification_type: 'admin_alert' }
+        {
+          contract_id: newContract.id,
+          recipient_role: 'admin',
+          recipient_name: adminProfile?.full_name || 'المدير العام',
+          notification_type: 'contract_created'
+        }
       );
     } else {
       const warnAlertId = `wa-alert-admin-${Date.now()}`;
@@ -2481,7 +2508,7 @@ function MainDashboard() {
         recipientPhone: 'غير مسجل',
         contractNumber: newContract.contract_number,
         message: 'تعذر إرسال إشعار العقد للإدارة لعدم وجود رقم جوال مدير صالح.',
-        errorMessage: 'أضف رقم المدير الصحيح في إعدادات واتساب أو ملف المدير.',
+        errorMessage: 'سجّل رقم جوال سعوديًا صالحًا للمدير من إدارة الموظفين.',
         timestamp: new Date().toISOString()
       }, ...prev]);
     }
@@ -3074,6 +3101,7 @@ function MainDashboard() {
               <WhatsAppSettings
                 settings={gatewaySettings}
                 notifications={notifications}
+                contracts={contracts}
                 onSaveSettings={handleSaveGatewaySettings}
                 onTestConnection={handleTestConnection}
                 onSendWhatsApp={handleSendWhatsApp}
