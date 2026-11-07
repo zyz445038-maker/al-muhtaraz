@@ -1032,7 +1032,7 @@ function MainDashboard() {
           vehiclesResult,
           sealResult
         ] = await Promise.all([
-          supabase.from('notification_logs').select('*'),
+          supabase.from('notification_logs').select('*').order('created_at', { ascending: false }).limit(200),
           supabase.from('notifications').select('*').order('created_at', { ascending: false }),
           supabase.from('whatsapp_settings')
             .select('id, mode, evolution_instance_name, sender_phone, admin_phone, is_connected, auto_send_enabled, notify_driver_on_contract_created, notify_driver_on_alerts, updated_at')
@@ -1151,7 +1151,7 @@ function MainDashboard() {
     contractNumber: string,
     extraPayload?: Record<string, unknown>
   ): Promise<{ success: boolean; outcome: WhatsAppDeliveryOutcome; error?: string; alertId: string }> => {
-    const requestPayload = { phone, message, ...extraPayload };
+    const requestPayload = { phone, message, ...extraPayload, recipient_name: recipientName };
     const result = await sendWhatsAppAutomatically(requestPayload);
     const alertId = `wa-alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (result.success) {
@@ -1892,7 +1892,7 @@ function MainDashboard() {
           contract_id: contract.id,
           customer_id: contract.customer_id,
           recipient_role: 'customer',
-          notification_type: 'custom_alert'
+          notification_type: 'container_picked_up'
         }
       ));
     }
@@ -1909,7 +1909,7 @@ function MainDashboard() {
           contract_id: contract.id,
           recipient_role: 'employee',
           recipient_name: assignedDriver.full_name,
-          notification_type: 'custom_alert'
+          notification_type: 'container_picked_up'
         }
       ));
     }
@@ -2235,22 +2235,6 @@ function MainDashboard() {
       totalCost
     });
 
-    const newNotif: NotificationLog = {
-      id: `notif-${Date.now()}`,
-      contract_id: newContract.id,
-      customer_id: customerObj.id,
-      recipient_role: 'customer',
-      recipient_phone: customerObj.phone,
-      recipient_name: customerObj.name,
-      notification_type: 'contract_created',
-      message_body: customerVoucherMessage,
-      scheduled_for: new Date().toISOString(),
-      status: 'sent',
-      sent_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-
     // 🔔 Auto-generate in-app notification with red badge
     const newInApp: InAppNotification = {
       id: `inapp-${Date.now()}`,
@@ -2421,7 +2405,7 @@ function MainDashboard() {
             contract_id: newContract.id,
             recipient_role: 'employee',
             recipient_name: assignedStaff.full_name,
-            notification_type: 'custom_alert'
+            notification_type: 'contract_created'
           }
         );
       } else {
@@ -3074,6 +3058,7 @@ function MainDashboard() {
               <WhatsAppSettings
                 settings={gatewaySettings}
                 notifications={notifications}
+                contracts={contracts}
                 onSaveSettings={handleSaveGatewaySettings}
                 onTestConnection={handleTestConnection}
                 onSendWhatsApp={handleSendWhatsApp}

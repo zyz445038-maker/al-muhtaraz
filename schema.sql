@@ -232,6 +232,7 @@ CREATE TABLE IF NOT EXISTS public.notification_logs (
         'commercial_7d_before',  -- إشعار تجاري أول قبل 7 أيام من انتهاء العقد
         'commercial_2d_before',  -- إشعار تجاري ثانٍ قبل يومين لتأكيد التجديد وتجهيز الفاتورة
         'contract_created',      -- إشعار توثيق العقد للعميل والموظف فور إنشائه
+        'container_picked_up',   -- تأكيد سحب الحاوية وإنهاء العقد
         'custom_alert'           -- تنبيه مخصص يدوي
     )),
     

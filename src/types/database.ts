@@ -131,6 +131,7 @@ export type NotificationType =
   | 'commercial_7d_before'
   | 'commercial_2d_before'
   | 'contract_created'
+  | 'container_picked_up'
   | 'custom_alert';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'cancelled';
 

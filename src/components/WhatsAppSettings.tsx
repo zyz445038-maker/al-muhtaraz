@@ -40,7 +40,7 @@ import {
   Layers,
   Flame
 } from 'lucide-react';
-import { WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
+import { Contract, WhatsAppSettings as IWhatsAppSettings, NotificationLog } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { normalizeSaudiMobileNumber } from '@/utils/saudiPhone';
 import { normalizeWhatsAppPairingCode } from '@/utils/whatsappPairing';
@@ -49,6 +49,7 @@ import { getWhatsAppApiHeaders, sendWhatsAppAutomatically } from '@/lib/whatsapp
 interface WhatsAppSettingsProps {
   settings: IWhatsAppSettings;
   notifications: NotificationLog[];
+  contracts: Contract[];
   onSaveSettings: (updated: IWhatsAppSettings) => Promise<boolean>;
   onTestConnection: (testPhone: string) => Promise<boolean>;
   onSendWhatsApp: (phone: string, message: string) => void;
@@ -58,6 +59,7 @@ interface WhatsAppSettingsProps {
 export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   settings,
   notifications,
+  contracts,
   onSaveSettings,
   onTestConnection,
   onSendWhatsApp,
@@ -65,6 +67,31 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 }) => {
   // Navigation within WhatsApp Engine Hub
   const [activeSection, setActiveSection] = useState<'connection' | 'routing' | 'sandbox' | 'guide'>('connection');
+  const [deliveryLogFilter, setDeliveryLogFilter] = useState<'all' | 'contract_created' | 'container_picked_up'>('all');
+  const [deliveryOutcomeFilter, setDeliveryOutcomeFilter] = useState<'all' | 'sent' | 'errors'>('all');
+  const eventFilteredLogs = notifications.filter(notification =>
+    deliveryLogFilter === 'all' || notification.notification_type === deliveryLogFilter
+  );
+  const confirmedSentCount = eventFilteredLogs.filter(notification =>
+    notification.delivery_outcome === 'sent'
+    || (!notification.delivery_outcome && notification.status === 'sent')
+  ).length;
+  const filteredDeliveryLogs = eventFilteredLogs
+    .filter(notification => {
+      if (deliveryOutcomeFilter === 'sent') {
+        return notification.delivery_outcome === 'sent'
+          || (!notification.delivery_outcome && notification.status === 'sent');
+      }
+      if (deliveryOutcomeFilter === 'errors') {
+        return notification.delivery_outcome === 'failed'
+          || notification.delivery_outcome === 'retryable'
+          || notification.delivery_outcome === 'unknown'
+          || notification.status === 'failed';
+      }
+      return true;
+    })
+    .slice(0, 20);
+  const contractNumbers = new Map(contracts.map(contract => [contract.id, contract.contract_number]));
 
   const [senderPhone, setSenderPhone] = useState(settings.sender_phone || '+966536971105');
   const [adminPhone, setAdminPhone] = useState(settings.admin_phone || '+966500000001');
@@ -1160,25 +1187,92 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             }}>
               <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Activity size={16} color="#34d399" />
-                <span>سجل الإشعارات المرسلة حديثاً</span>
+                <span>سجل رسائل إتمام العقد وسحب الحاوية</span>
               </h4>
 
-              {notifications.length === 0 ? (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {([
+                  ['all', 'الكل'],
+                  ['contract_created', 'إتمام العقد'],
+                  ['container_picked_up', 'سحب الحاوية']
+                ] as const).map(([filter, label]) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setDeliveryLogFilter(filter)}
+                    style={{
+                      padding: '5px 9px',
+                      borderRadius: '8px',
+                      border: `1px solid ${deliveryLogFilter === filter ? '#34d399' : 'rgba(255,255,255,0.12)'}`,
+                      color: deliveryLogFilter === filter ? '#34d399' : '#cbd5e1',
+                      background: deliveryLogFilter === filter ? 'rgba(16,185,129,0.12)' : 'transparent',
+                      cursor: 'pointer',
+                      fontSize: '0.7rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {([
+                  ['all', 'كل الحالات'],
+                  ['sent', `أُرسلت بلا خطأ (${confirmedSentCount})`],
+                  ['errors', 'أخطاء أو غير مؤكدة']
+                ] as const).map(([filter, label]) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setDeliveryOutcomeFilter(filter)}
+                    style={{
+                      padding: '5px 9px',
+                      borderRadius: '8px',
+                      border: `1px solid ${deliveryOutcomeFilter === filter ? '#38bdf8' : 'rgba(255,255,255,0.12)'}`,
+                      color: deliveryOutcomeFilter === filter ? '#38bdf8' : '#cbd5e1',
+                      background: deliveryOutcomeFilter === filter ? 'rgba(56,189,248,0.12)' : 'transparent',
+                      cursor: 'pointer',
+                      fontSize: '0.7rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {filteredDeliveryLogs.length === 0 ? (
                 <p style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', margin: 'auto' }}>
-                  لا توجد سجلات إرسال حتى الآن
+                  لا توجد رسائل مسجلة لهذا النوع
                 </p>
               ) : (
-                notifications.slice(0, 8).map((n) => {
+                filteredDeliveryLogs.map((n) => {
                   const deliveryLabel = n.delivery_outcome === 'unknown'
                     ? '⚠ نتيجة غير مؤكدة'
                     : n.delivery_outcome === 'retryable'
                       ? '↻ قابلة لإعادة المحاولة'
-                      : n.status === 'sent' ? '✓ أُرسلت' : '✕ لم تُرسل';
+                      : n.delivery_outcome === 'failed' || n.status === 'failed'
+                        ? '✕ فشل الإرسال'
+                        : n.delivery_outcome === 'sent' || n.status === 'sent'
+                          ? '✓ أُرسلت بلا خطأ'
+                          : 'بانتظار الإرسال';
                   const deliveryColor = n.delivery_outcome === 'unknown'
                     ? '#fbbf24'
                     : n.delivery_outcome === 'retryable'
                       ? '#38bdf8'
-                      : n.status === 'sent' ? '#34d399' : '#f87171';
+                      : n.delivery_outcome === 'failed' || n.status === 'failed'
+                        ? '#f87171'
+                        : n.delivery_outcome === 'sent' || n.status === 'sent'
+                          ? '#34d399'
+                          : '#94a3b8';
+                  const recipientLabel = n.recipient_role === 'customer'
+                    ? '👤 عميل'
+                    : n.recipient_role === 'employee' ? '🚚 موظف' : '🏢 الإدارة';
+                  const eventLabel = n.notification_type === 'contract_created'
+                    ? 'إتمام العقد'
+                    : n.notification_type === 'container_picked_up' ? 'سحب الحاوية' : 'إشعار آخر';
+                  const contractNumber = n.contract_id ? contractNumbers.get(n.contract_id) : undefined;
 
                   return (
                     <div key={n.id} style={{
@@ -1192,8 +1286,19 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                       justifyContent: 'space-between'
                     }}>
                       <div>
-                        <strong style={{ color: '#ffffff' }}>{(n.recipient_role as string) === 'driver' ? '🚚 سائق' : '👤 عميل'}:</strong> {n.recipient_phone}
+                        <strong style={{ color: '#ffffff' }}>{recipientLabel}:</strong> {n.recipient_name || n.recipient_phone}
+                        {n.recipient_name && (
+                          <div dir="ltr" style={{ color: '#94a3b8', fontSize: '0.68rem', textAlign: 'right' }}>
+                            {n.recipient_phone}
+                          </div>
+                        )}
+                        <div style={{ color: '#34d399', fontSize: '0.7rem', fontWeight: 700 }}>
+                          {eventLabel}{contractNumber ? ` · العقد ${contractNumber}` : ''}
+                        </div>
                         <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{n.message_body.slice(0, 45)}{n.message_body.length > 45 ? '…' : ''}</div>
+                        <div style={{ color: '#64748b', fontSize: '0.65rem' }}>
+                          {new Date(n.created_at).toLocaleString('ar-SA')}
+                        </div>
                       </div>
                       <span style={{ color: deliveryColor, fontWeight: 800 }}>{deliveryLabel}</span>
                     </div>
