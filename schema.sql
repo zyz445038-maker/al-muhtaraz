@@ -151,6 +151,9 @@ CREATE TABLE IF NOT EXISTS public.contracts (
     total_cost NUMERIC(10, 2) NOT NULL DEFAULT 0.00,             -- الالتزام الإجمالي؛ شامل الضريبة للعقود الجديدة
     paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,            -- إجمالي التحصيل شامل الضريبة للعقود الجديدة
     remaining_amount NUMERIC(10, 2) GENERATED ALWAYS AS (total_cost - paid_amount) STORED, -- المتبقي المحسوب تلقائياً
+    price_amount NUMERIC(10, 2),                                 -- السعر المدخل قبل الخصم بحسب اختيار الشمول الضريبي
+    discount_amount NUMERIC(10, 2),                              -- الخصم المسجل عند إنشاء العقد
+    price_includes_vat BOOLEAN,                                   -- NULL للعقود القديمة؛ يحدد أساس السعر الأصلي للعقود الجديدة
     non_taxable_amount NUMERIC(10, 2),                           -- الرصيد التاريخي المعفى من إعادة احتساب الضريبة
     subtotal_amount NUMERIC(10, 2),                               -- إجمالي المبلغ الخاضع للضريبة قبل الضريبة
     vat_amount NUMERIC(10, 2),                                    -- إجمالي ضريبة القيمة المضافة
@@ -453,7 +456,7 @@ CREATE TABLE IF NOT EXISTS public.receipts (
     subtotal_amount NUMERIC(10, 2),                               -- الجزء قبل الضريبة من الإيصال
     vat_amount NUMERIC(10, 2),                                    -- ضريبة الإيصال
     payment_method TEXT NOT NULL CHECK (payment_method IN (
-        'apple_pay', 'mada', 'credit_card', 'cash', 'pos', 'bank_transfer'
+        'apple_pay', 'mada', 'credit_card', 'cash', 'pos', 'bank_transfer', 'free'
     )),                                                          -- طريقة الدفع
     transaction_ref TEXT,                                        -- الرقم المرجعي للعملية الإلكترونية أو البنكية
     received_by_employee_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- الموظف/السائق المستلم

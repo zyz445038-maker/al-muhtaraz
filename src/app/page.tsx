@@ -32,10 +32,10 @@ import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { PaymentSettings } from '@/components/PaymentSettings';
 import { SmartAssistantHub } from '@/components/SmartAssistantHub';
 import { FloatingVoiceOrb } from '@/components/FloatingVoiceOrb';
-import { NewContractModal, type NewContractPayload, type PaymentChoice } from '@/components/NewContractModal';
+import { NewContractModal, type NewContractPayload } from '@/components/NewContractModal';
 import { ReceiptModal } from '@/components/ReceiptModal';
 import { ManualPaymentModal } from '@/components/ManualPaymentModal';
-import { ExtendContractModal } from '@/components/ExtendContractModal';
+import { ExtendContractModal, type ExtensionSubmission } from '@/components/ExtendContractModal';
 import { InventoryManagement } from '@/components/InventoryManagement';
 import { DriverDispatchModal } from '@/components/DriverDispatchModal';
 import { StaffLoginModal } from '@/components/StaffLoginModal';
@@ -63,7 +63,12 @@ import {
 import { VehiclesManagement } from '@/components/VehiclesManagement';
 import { TransportVehicle } from '@/types/database';
 import { FinancialReportsView } from '@/components/FinancialReportsView';
-import { allocatePaymentAmounts, calculateVatAmounts, getContractPaymentContext, roundCurrency } from '@/utils/invoiceAmounts';
+import {
+  allocateGrossPayment,
+  calculatePriceAmounts,
+  getContractPaymentContext,
+  roundCurrency
+} from '@/utils/invoiceAmounts';
 import { normalizeSaudiVatNumber } from '@/utils/saudiVatNumber';
 
 // Sample Seed Data
@@ -1397,20 +1402,20 @@ function MainDashboard() {
       return false;
     }
 
-    const allocation = allocatePaymentAmounts({
+    const allocation = allocateGrossPayment({
       enteredAmount: amount,
       ...getContractPaymentContext(contract)
     });
     if (!allocation || amount <= 0) {
-      alert('مبلغ التحصيل يتجاوز الرصيد المتبقي قبل الضريبة.');
+      alert('مبلغ التحصيل يتجاوز الرصيد الإجمالي المتبقي.');
       return false;
     }
 
     const receiptNumber = `RCP-${new Date().getFullYear()}-${crypto.randomUUID().toUpperCase()}`;
     try {
-      const { data, error } = await supabase.rpc('record_contract_payment', {
+      const { data, error } = await supabase.rpc('record_contract_payment_actual', {
         p_contract_id: contractId,
-        p_amount: amount,
+        p_amount_received: allocation.enteredAmount,
         p_payment_method: method,
         p_receipt_number: receiptNumber,
         p_receipt_notes: notes || null
@@ -1526,16 +1531,16 @@ function MainDashboard() {
   };
 
   // 3. [🔄 تمديد العقد] - Extend & Renew Contract
-  const handleConfirmExtension = async (
-    contractId: string,
-    additionalDays: number,
-    additionalCost: number,
-    paymentChoice: PaymentChoice,
-    newEndDate: string,
-    paidAmount?: number,
-    discountAmount?: number,
-    downPayment?: number
-  ): Promise<boolean> => {
+  const handleConfirmExtension = async ({
+    contractId,
+    additionalDays,
+    priceAmount,
+    discountAmount,
+    priceIncludesVat,
+    paymentChoice,
+    newEndDate,
+    amountReceived
+  }: ExtensionSubmission): Promise<boolean> => {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return false;
 
@@ -1544,32 +1549,33 @@ function MainDashboard() {
     const isBankTransfer = paymentChoice === 'bank_transfer';
     const isSadad = paymentChoice === 'sadad';
 
-    const netCost = roundCurrency(Number(additionalCost) || 0);
-    const extensionVat = calculateVatAmounts(netCost);
-    const paidSubtotal = roundCurrency(Number(paidAmount ?? (isCash ? netCost : 0)));
-    const extensionPayment = allocatePaymentAmounts({
-      enteredAmount: paidSubtotal,
+    const extensionVat = calculatePriceAmounts(
+      priceAmount,
+      discountAmount,
+      priceIncludesVat ? 'inclusive' : 'exclusive'
+    );
+    const extensionPayment = allocateGrossPayment({
+      enteredAmount: amountReceived,
       nonTaxableAmount: 0,
       nonTaxablePaidAmount: 0,
-      subtotalAmount: netCost,
+      subtotalAmount: extensionVat.subtotalAmount,
       subtotalPaidAmount: 0,
       vatAmount: extensionVat.vatAmount,
       vatPaidAmount: 0
     });
     if (!extensionPayment) {
-      alert('مبلغ دفعة التمديد يتجاوز قيمة التمديد قبل الضريبة.');
+      alert('المبلغ المستلم يتجاوز إجمالي التمديد.');
       return false;
     }
 
-    let extensionNotes = `تمديد (+${additionalDays} يوم)`;
-    const notesParts = [];
-    if (discountAmount && discountAmount > 0) notesParts.push(`خصم قبل الضريبة: ${discountAmount} ر.س`);
-    if (downPayment && downPayment > 0) notesParts.push(`دفعة قبل الضريبة: ${downPayment} ر.س`);
-    if (notesParts.length > 0) {
-      extensionNotes += ` [${notesParts.join(' - ')}]`;
-    }
+    const pricingLabel = priceIncludesVat ? 'شامل الضريبة' : 'غير شامل الضريبة';
+    const extensionNotes = [
+      `تمديد (+${additionalDays} يوم)`,
+      `السعر ${pricingLabel}: ${roundCurrency(priceAmount).toFixed(2)} ر.س`,
+      discountAmount > 0 ? `الخصم: ${roundCurrency(discountAmount).toFixed(2)} ر.س` : null
+    ].filter(Boolean).join(' | ');
 
-    const shouldCreateReceipt = isCash || isBankTransfer || paidSubtotal > 0;
+    const shouldCreateReceipt = isCash || isBankTransfer || extensionPayment.enteredAmount > 0;
     const receiptAmount = extensionPayment.grossAmount;
     const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم): قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
     let updatedContract: Contract;
@@ -1579,10 +1585,10 @@ function MainDashboard() {
       const { data, error } = await supabase.rpc('extend_container_rental_contract_vat', {
         p_contract_id: contract.id,
         p_additional_days: additionalDays,
-        p_additional_subtotal: netCost,
+        p_additional_subtotal: extensionVat.subtotalAmount,
         p_additional_vat: extensionVat.vatAmount,
         p_new_end_date: newEndDate,
-        p_paid_subtotal: paidSubtotal,
+        p_paid_subtotal: extensionPayment.subtotalAmount,
         p_paid_vat: extensionPayment.vatAmount,
         p_payment_choice: paymentChoice,
         p_extension_notes: extensionNotes,
@@ -1999,12 +2005,33 @@ function MainDashboard() {
     const isBankTransfer = !isFree && contractData.payment_choice === 'bank_transfer';
     const isSadad = !isFree && contractData.payment_choice === 'sadad';
     const isCollectedAtCreation = isCash || isPos || isBankTransfer;
-    const subtotalAmount = isFree ? 0 : roundCurrency(Number(contractData.subtotal_amount) || 0);
-    const contractVat = calculateVatAmounts(subtotalAmount);
+    const enteredPrice = Number(contractData.price_amount);
+    const discountAmount = Number(contractData.discount_amount);
+    const initialPaymentAmount = Number(contractData.initial_payment_amount);
+    if (
+      !Number.isFinite(enteredPrice)
+      || enteredPrice < 0
+      || !Number.isFinite(discountAmount)
+      || discountAmount < 0
+      || discountAmount > enteredPrice
+      || !Number.isFinite(initialPaymentAmount)
+      || initialPaymentAmount < 0
+    ) {
+      setBusinessDataError('تحقق من السعر والخصم والمبلغ المستلم قبل حفظ العقد.');
+      return false;
+    }
+
+    const priceIncludesVat = !isFree && contractData.price_includes_vat;
+    const contractPricing = calculatePriceAmounts(
+      isFree ? 0 : enteredPrice,
+      isFree ? 0 : discountAmount,
+      priceIncludesVat ? 'inclusive' : 'exclusive'
+    );
+    const subtotalAmount = isFree ? 0 : contractPricing.subtotalAmount;
+    const contractVat = isFree ? calculatePriceAmounts(0, 0, 'exclusive') : contractPricing;
     const totalCost = isFree ? 0 : contractVat.grossAmount;
-    const paidSubtotalAmount = isFree ? 0 : roundCurrency(Number(contractData.subtotal_paid_amount) || 0);
-    const initialPayment = allocatePaymentAmounts({
-      enteredAmount: paidSubtotalAmount,
+    const initialPayment = allocateGrossPayment({
+      enteredAmount: isFree ? 0 : initialPaymentAmount,
       nonTaxableAmount: 0,
       nonTaxablePaidAmount: 0,
       subtotalAmount,
@@ -2013,10 +2040,10 @@ function MainDashboard() {
       vatPaidAmount: 0
     });
     if (!initialPayment) {
-      setBusinessDataError('مبلغ الدفعة الأولى يتجاوز قيمة العقد قبل الضريبة.');
+      setBusinessDataError('المبلغ المستلم يتجاوز إجمالي العقد.');
       return false;
     }
-    const paidAmount = initialPayment.grossAmount;
+    const paidAmount = initialPayment.enteredAmount;
     const remainingAmount = isFree ? 0 : Math.max(0, roundCurrency(totalCost - paidAmount));
     const paymentStatus: PaymentStatus = isFree ? 'paid' : (remainingAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'unpaid'));
     const paymentMethod: PaymentMethod | undefined = isFree
@@ -2050,6 +2077,9 @@ function MainDashboard() {
       location_longitude: contractData.location_longitude ?? undefined,
       google_maps_url: contractData.google_maps_url,
       location_address: contractData.location_address,
+      price_amount: isFree ? 0 : roundCurrency(enteredPrice),
+      discount_amount: isFree ? 0 : roundCurrency(discountAmount),
+      price_includes_vat: priceIncludesVat,
       total_cost: totalCost,
       paid_amount: paidAmount,
       remaining_amount: remainingAmount,
@@ -2098,6 +2128,10 @@ function MainDashboard() {
           location_longitude: newContract.location_longitude,
           google_maps_url: newContract.google_maps_url,
           location_address: newContract.location_address,
+          price_amount: newContract.price_amount,
+          discount_amount: newContract.discount_amount,
+          price_includes_vat: newContract.price_includes_vat,
+          initial_payment_amount: paidAmount,
           total_cost: totalCost,
           paid_amount: paidAmount,
           non_taxable_amount: 0,

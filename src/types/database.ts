@@ -97,6 +97,9 @@ export interface Contract {
   total_cost: number;
   paid_amount: number;
   remaining_amount: number;
+  price_amount?: number | null;
+  discount_amount?: number | null;
+  price_includes_vat?: boolean | null;
   non_taxable_amount?: number | null;
   subtotal_amount?: number | null;
   vat_amount?: number | null;
