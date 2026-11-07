@@ -18,22 +18,29 @@ import {
 } from 'lucide-react';
 import { Contract } from '@/types/database';
 import { PaymentChoice } from './NewContractModal';
-import { allocatePaymentAmounts, calculateVatAmounts, roundCurrency } from '@/utils/invoiceAmounts';
+import {
+  allocateExtensionGrossPayment,
+  calculatePriceAmounts,
+  getContractPaymentContext,
+  roundCurrency
+} from '@/utils/invoiceAmounts';
+
+export interface ExtensionSubmission {
+  contractId: string;
+  additionalDays: number;
+  priceAmount: number;
+  discountAmount: number;
+  priceIncludesVat: boolean;
+  paymentChoice: PaymentChoice;
+  newEndDate: string;
+  amountReceived: number;
+}
 
 interface ExtendContractModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
-  onConfirmExtension: (
-    contractId: string, 
-    additionalDays: number, 
-    additionalCost: number, 
-    paymentChoice: PaymentChoice, 
-    newEndDate: string,
-    paidAmount?: number,
-    discountAmount?: number,
-    downPayment?: number
-  ) => Promise<boolean>;
+  onConfirmExtension: (extension: ExtensionSubmission) => Promise<boolean>;
 }
 
 export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
@@ -47,6 +54,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   const [additionalMonths, setAdditionalMonths] = useState(1);
   const [baseExtensionCost, setBaseExtensionCost] = useState(150);
   const [discountAmount, setDiscountAmount] = useState(0); // خصم
+  const [priceIncludesVat, setPriceIncludesVat] = useState(false);
   const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [newEndDate, setNewEndDate] = useState('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
@@ -102,22 +110,37 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
   // Derived Financial Calculations
   const effectiveDiscountAmount = Math.min(discountAmount, baseExtensionCost);
-  const netExtensionCost = roundCurrency(Math.max(0, baseExtensionCost - effectiveDiscountAmount));
-  const extensionVat = calculateVatAmounts(netExtensionCost);
+  const extensionVat = calculatePriceAmounts(
+    baseExtensionCost,
+    effectiveDiscountAmount,
+    priceIncludesVat ? 'inclusive' : 'exclusive'
+  );
+  const netExtensionCost = extensionVat.subtotalAmount;
+  const existingBalance = getContractPaymentContext(contract);
+  const existingBalanceRemaining = Math.max(
+    0,
+    roundCurrency(
+      existingBalance.nonTaxableAmount
+      + existingBalance.subtotalAmount
+      + existingBalance.vatAmount
+      - existingBalance.nonTaxablePaidAmount
+      - existingBalance.subtotalPaidAmount
+      - existingBalance.vatPaidAmount
+    )
+  );
+  const maximumReceived = roundCurrency(existingBalanceRemaining + extensionVat.grossAmount);
   const extensionPaymentBase = isManualPaymentChoice
-    ? (downPayment > 0 ? Math.min(downPayment, netExtensionCost) : netExtensionCost)
+    ? (downPayment > 0 ? Math.min(downPayment, maximumReceived) : extensionVat.grossAmount)
     : 0;
-  const extensionPayment = allocatePaymentAmounts({
+  const extensionPayment = allocateExtensionGrossPayment({
     enteredAmount: extensionPaymentBase,
-    nonTaxableAmount: 0,
-    nonTaxablePaidAmount: 0,
-    subtotalAmount: netExtensionCost,
-    subtotalPaidAmount: 0,
-    vatAmount: extensionVat.vatAmount,
-    vatPaidAmount: 0
+    existingBalance,
+    extensionSubtotalAmount: netExtensionCost,
+    extensionVatAmount: extensionVat.vatAmount
   });
   const effectivePaidAmount = extensionPayment?.grossAmount ?? 0;
-  const remainingExtensionAmount = Math.max(0, extensionVat.grossAmount - effectivePaidAmount);
+  const extensionPaidAmount = extensionPayment?.extensionAllocation.grossAmount ?? 0;
+  const remainingExtensionAmount = Math.max(0, extensionVat.grossAmount - extensionPaidAmount);
 
   // Overall Contract Impact
   const newContractTotal = (contract.total_cost || 0) + extensionVat.grossAmount;
@@ -129,16 +152,16 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
     setIsSubmitting(true);
 
     const daysToAdd = isDebris ? additionalDays : (additionalMonths * 30);
-    const success = await onConfirmExtension(
-      contract.id,
-      daysToAdd,
-      netExtensionCost,
+    const success = await onConfirmExtension({
+      contractId: contract.id,
+      additionalDays: daysToAdd,
+      priceAmount: roundCurrency(baseExtensionCost),
+      discountAmount: effectiveDiscountAmount,
+      priceIncludesVat,
       paymentChoice,
-      new Date(newEndDate).toISOString(),
-      extensionPaymentBase,
-      effectiveDiscountAmount,
-      downPayment
-    );
+      newEndDate: new Date(newEndDate).toISOString(),
+      amountReceived: extensionPaymentBase
+    });
 
     setIsSubmitting(false);
     if (success) {
@@ -360,14 +383,14 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '2px', fontWeight: 700 }}>
-                  المبلغ قبل الضريبة
+                  {priceIncludesVat ? 'السعر شامل الضريبة' : 'السعر قبل الضريبة'}
                 </div>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   className="form-input"
-                  aria-label="قيمة التمديد قبل الضريبة"
+                  aria-label={priceIncludesVat ? 'قيمة التمديد شاملة الضريبة' : 'قيمة التمديد قبل الضريبة'}
                   value={baseExtensionCost}
                   onChange={(e) => setBaseExtensionCost(roundCurrency(Math.max(0, Number(e.target.value) || 0)))}
                   style={{
@@ -385,9 +408,40 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 </div>
                 {discountAmount > 0 && (
                   <div style={{ fontSize: '0.65rem', color: '#94a3b8', textDecoration: 'line-through' }}>
-                    بعد الخصم: {netExtensionCost.toFixed(2)} ر.س
+                    بعد الخصم وقبل الضريبة: {netExtensionCost.toFixed(2)} ر.س
                   </div>
                 )}
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', textAlign: 'right' }}>
+                <div style={{ fontSize: '0.74rem', color: '#cbd5e1', fontWeight: 700, marginBottom: '6px' }}>
+                  السعر المتفق عليه:
+                </div>
+                <div role="radiogroup" aria-label="طريقة إدخال سعر التمديد" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {([
+                    [false, 'غير شامل الضريبة'],
+                    [true, 'شامل الضريبة']
+                  ] as const).map(([includesVat, label]) => (
+                    <button
+                      key={String(includesVat)}
+                      type="button"
+                      role="radio"
+                      aria-checked={priceIncludesVat === includesVat}
+                      onClick={() => setPriceIncludesVat(includesVat)}
+                      style={{
+                        border: `1px solid ${priceIncludesVat === includesVat ? '#fbbf24' : 'rgba(255,255,255,0.16)'}`,
+                        borderRadius: '8px',
+                        padding: '6px 11px',
+                        background: priceIncludesVat === includesVat ? 'rgba(245,158,11,0.16)' : 'rgba(15,23,42,0.5)',
+                        color: priceIncludesVat === includesVat ? '#fbbf24' : '#cbd5e1',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div style={{
@@ -434,13 +488,13 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <label style={{ display: 'block', fontSize: '0.74rem', color: '#38bdf8', marginBottom: '2px', fontWeight: 700 }}>
-                  الدفعة قبل الضريبة
+                  المبلغ المستلم فعليًا
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
                   <input
                     type="number"
                     min="0"
-                    max={netExtensionCost}
+                    max={maximumReceived}
                     className="form-input"
                     disabled={!isManualPaymentChoice}
                     style={{
@@ -455,16 +509,33 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                       width: '100%',
                       opacity: isManualPaymentChoice ? 1 : 0.6
                     }}
-                    value={downPayment === 0 ? '' : downPayment}
-                    placeholder={isManualPaymentChoice ? '0' : '—'}
+                    value={downPayment === 0 ? '' : Math.min(downPayment, maximumReceived)}
+                    placeholder={isManualPaymentChoice ? 'فارغ = كامل' : '—'}
                     onChange={(e) => {
-                      const val = roundCurrency(Math.max(0, Math.min(netExtensionCost, Number(e.target.value) || 0)));
+                      const val = roundCurrency(Math.max(0, Math.min(maximumReceived, Number(e.target.value) || 0)));
                       setDownPayment(val);
                     }}
                   />
                   <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>ر.س</span>
                 </div>
               </div>
+
+              {existingBalanceRemaining > 0 && (
+                <div style={{
+                  gridColumn: '1 / -1',
+                  color: '#fbbf24',
+                  fontSize: '0.78rem',
+                  textAlign: 'center'
+                }}>
+                  رصيد سابق مستحق: {existingBalanceRemaining.toFixed(2)} ر.س — يُخصم من التحصيل أولًا
+                  {extensionPayment && (
+                    <span>
+                      {' '}| منه {extensionPayment.existingBalanceAllocation.grossAmount.toFixed(2)} ر.س للرصيد السابق
+                      و{extensionPayment.extensionAllocation.grossAmount.toFixed(2)} ر.س للتمديد
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
@@ -476,7 +547,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.74rem', color: '#34d399', marginBottom: '2px', fontWeight: 700 }}>
-                  المحصل شامل الضريبة
+                  إجمالي المبلغ المحصل
                 </div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#34d399' }}>
                   {effectivePaidAmount} <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>ر.س</span>
@@ -484,9 +555,11 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
                   {paymentChoice === 'sadad'
                     ? 'بانتظار تأكيد السداد الإلكتروني'
-                    : (paymentChoice === 'cash' || paymentChoice === 'bank_transfer') && downPayment === 0
-                    ? 'سداد كامل'
-                    : downPayment > 0 ? 'دفعة تمديد' : 'غير مسدد'}
+                    : isManualPaymentChoice && extensionPaymentBase > 0
+                      ? existingBalanceRemaining > 0
+                        ? 'تحصيل الرصيد الأقدم أولًا'
+                        : downPayment === 0 ? 'سداد كامل للتمديد' : 'دفعة تمديد'
+                      : 'غير مسدد'}
                 </div>
               </div>
 

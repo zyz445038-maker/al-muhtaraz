@@ -1,9 +1,18 @@
 export const VAT_RATE = 0.15;
 
+export type VatPriceMode = 'exclusive' | 'inclusive';
+
 export interface VatAmounts {
   subtotalAmount: number;
   vatAmount: number;
   grossAmount: number;
+}
+
+export interface PricedAmounts extends VatAmounts {
+  priceAmount: number;
+  discountAmount: number;
+  discountedAmount: number;
+  priceIncludesVat: boolean;
 }
 
 export interface ContractAmounts extends VatAmounts {
@@ -19,6 +28,11 @@ export interface ReceiptAmounts extends VatAmounts {
 export interface PaymentAllocation extends VatAmounts {
   nonTaxableAmount: number;
   enteredAmount: number;
+}
+
+export interface ExtensionPaymentAllocation extends PaymentAllocation {
+  existingBalanceAllocation: PaymentAllocation;
+  extensionAllocation: PaymentAllocation;
 }
 
 export interface ContractPaymentContext {
@@ -39,6 +53,15 @@ function fromCents(amount: number): number {
   return amount / 100;
 }
 
+function roundRatioToInteger(numerator: number, multiplier: number, denominator: number): number {
+  const two = BigInt(2);
+  const scaledNumerator = BigInt(numerator) * BigInt(multiplier);
+  const scaledDenominator = BigInt(denominator);
+  return Number(
+    (scaledNumerator * two + scaledDenominator) / (scaledDenominator * two)
+  );
+}
+
 export function roundCurrency(amount: number): number {
   return fromCents(toCents(amount));
 }
@@ -51,6 +74,39 @@ export function calculateVatAmounts(subtotalAmount: number): VatAmounts {
     subtotalAmount: fromCents(subtotalCents),
     vatAmount: fromCents(vatCents),
     grossAmount: fromCents(subtotalCents + vatCents)
+  };
+}
+
+export function calculatePriceAmounts(
+  priceAmount: number,
+  discountAmount: number,
+  mode: VatPriceMode
+): PricedAmounts {
+  const priceCents = Math.max(0, toCents(priceAmount));
+  const discountCents = Math.min(priceCents, Math.max(0, toCents(discountAmount)));
+  const discountedCents = priceCents - discountCents;
+  const priceIncludesVat = mode === 'inclusive';
+
+  if (priceIncludesVat) {
+    const vatCents = Math.round(discountedCents * 15 / 115);
+    return {
+      priceAmount: fromCents(priceCents),
+      discountAmount: fromCents(discountCents),
+      discountedAmount: fromCents(discountedCents),
+      priceIncludesVat,
+      subtotalAmount: fromCents(discountedCents - vatCents),
+      vatAmount: fromCents(vatCents),
+      grossAmount: fromCents(discountedCents)
+    };
+  }
+
+  const amounts = calculateVatAmounts(fromCents(discountedCents));
+  return {
+    priceAmount: fromCents(priceCents),
+    discountAmount: fromCents(discountCents),
+    discountedAmount: fromCents(discountedCents),
+    priceIncludesVat,
+    ...amounts
   };
 }
 
@@ -161,7 +217,7 @@ export function getReceiptAmounts(receipt: {
   };
 }
 
-export function allocatePaymentAmounts(input: {
+export function allocateGrossPayment(input: {
   enteredAmount: number;
   nonTaxableAmount: number;
   nonTaxablePaidAmount: number;
@@ -177,18 +233,25 @@ export function allocatePaymentAmounts(input: {
   );
   const subtotalTotal = Math.max(0, toCents(input.subtotalAmount));
   const subtotalPaid = Math.max(0, toCents(input.subtotalPaidAmount));
-  const subtotalRemaining = Math.max(0, subtotalTotal - subtotalPaid);
+  const vatTotal = Math.max(0, toCents(input.vatAmount));
+  const vatPaid = Math.max(0, toCents(input.vatPaidAmount));
+  const taxableGrossTotal = subtotalTotal + vatTotal;
+  const taxableGrossPaid = subtotalPaid + vatPaid;
+  const taxableGrossRemaining = Math.max(0, taxableGrossTotal - taxableGrossPaid);
 
-  if (enteredCents > nonTaxableRemaining + subtotalRemaining) return null;
+  if (enteredCents > nonTaxableRemaining + taxableGrossRemaining) return null;
 
   const nonTaxablePaid = Math.min(enteredCents, nonTaxableRemaining);
-  const subtotalPaidNow = Math.min(enteredCents - nonTaxablePaid, subtotalRemaining);
-  const newSubtotalPaid = subtotalPaid + subtotalPaidNow;
-  const totalVat = Math.max(0, toCents(input.vatAmount));
-  const vatPaid = Math.max(0, toCents(input.vatPaidAmount));
-  const targetVatPaid = subtotalTotal === 0 || newSubtotalPaid >= subtotalTotal
-    ? totalVat
-    : Math.min(totalVat, Math.round(totalVat * newSubtotalPaid / subtotalTotal));
+  const taxableGrossPaidNow = enteredCents - nonTaxablePaid;
+  const newTaxableGrossPaid = taxableGrossPaid + taxableGrossPaidNow;
+  const targetVatPaid = taxableGrossTotal === 0 || newTaxableGrossPaid >= taxableGrossTotal
+    ? vatTotal
+    : Math.max(
+      vatPaid,
+      Math.min(vatTotal, roundRatioToInteger(vatTotal, newTaxableGrossPaid, taxableGrossTotal))
+    );
+  const newSubtotalPaid = newTaxableGrossPaid - targetVatPaid;
+  const subtotalPaidNow = newSubtotalPaid - subtotalPaid;
   const vatPaidNow = Math.max(0, targetVatPaid - vatPaid);
 
   return {
@@ -197,5 +260,77 @@ export function allocatePaymentAmounts(input: {
     subtotalAmount: fromCents(subtotalPaidNow),
     vatAmount: fromCents(vatPaidNow),
     grossAmount: fromCents(nonTaxablePaid + subtotalPaidNow + vatPaidNow)
+  };
+}
+
+export function allocateExtensionGrossPayment(input: {
+  enteredAmount: number;
+  existingBalance: ContractPaymentContext;
+  extensionSubtotalAmount: number;
+  extensionVatAmount: number;
+}): ExtensionPaymentAllocation | null {
+  const enteredCents = Math.max(0, toCents(input.enteredAmount));
+  const existingNonTaxableRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.nonTaxableAmount)
+      - toCents(input.existingBalance.nonTaxablePaidAmount)
+  );
+  const existingSubtotalRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.subtotalAmount)
+      - toCents(input.existingBalance.subtotalPaidAmount)
+  );
+  const existingVatRemaining = Math.max(
+    0,
+    toCents(input.existingBalance.vatAmount)
+      - toCents(input.existingBalance.vatPaidAmount)
+  );
+  const existingBalanceRemaining = existingNonTaxableRemaining
+    + existingSubtotalRemaining
+    + existingVatRemaining;
+  const extensionSubtotal = Math.max(0, toCents(input.extensionSubtotalAmount));
+  const extensionVat = Math.max(0, toCents(input.extensionVatAmount));
+  const extensionGross = extensionSubtotal + extensionVat;
+
+  if (enteredCents > existingBalanceRemaining + extensionGross) return null;
+
+  const existingAmount = Math.min(enteredCents, existingBalanceRemaining);
+  const existingBalanceAllocation = allocateGrossPayment({
+    enteredAmount: fromCents(existingAmount),
+    ...input.existingBalance
+  });
+  if (!existingBalanceAllocation) return null;
+
+  const extensionAllocation = allocateGrossPayment({
+    enteredAmount: fromCents(enteredCents - existingAmount),
+    nonTaxableAmount: 0,
+    nonTaxablePaidAmount: 0,
+    subtotalAmount: fromCents(extensionSubtotal),
+    subtotalPaidAmount: 0,
+    vatAmount: fromCents(extensionVat),
+    vatPaidAmount: 0
+  });
+  if (!extensionAllocation) return null;
+
+  return {
+    enteredAmount: fromCents(enteredCents),
+    existingBalanceAllocation,
+    extensionAllocation,
+    nonTaxableAmount: fromCents(
+      toCents(existingBalanceAllocation.nonTaxableAmount)
+        + toCents(extensionAllocation.nonTaxableAmount)
+    ),
+    subtotalAmount: fromCents(
+      toCents(existingBalanceAllocation.subtotalAmount)
+        + toCents(extensionAllocation.subtotalAmount)
+    ),
+    vatAmount: fromCents(
+      toCents(existingBalanceAllocation.vatAmount)
+        + toCents(extensionAllocation.vatAmount)
+    ),
+    grossAmount: fromCents(
+      toCents(existingBalanceAllocation.grossAmount)
+        + toCents(extensionAllocation.grossAmount)
+    )
   };
 }

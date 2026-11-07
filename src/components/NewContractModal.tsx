@@ -30,7 +30,7 @@ import {
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod, StaffPermissions } from '@/types/database';
 import { SaudiPhoneInput } from './SaudiPhoneInput';
 import { getWeeklyRate } from '@/utils/rentalPricing';
-import { allocatePaymentAmounts, calculateVatAmounts, roundCurrency } from '@/utils/invoiceAmounts';
+import { allocateGrossPayment, calculatePriceAmounts, roundCurrency, type VatPriceMode } from '@/utils/invoiceAmounts';
 import { getSaudiVatNumberError, normalizeSaudiVatNumber } from '@/utils/saudiVatNumber';
 
 export type PaymentChoice = 'cash' | 'sadad' | 'postpaid' | 'bank_transfer';
@@ -53,6 +53,10 @@ export interface NewContractPayload {
   location_longitude: number | null;
   google_maps_url: string;
   location_address: string;
+  price_amount: number;
+  discount_amount: number;
+  price_includes_vat: boolean;
+  initial_payment_amount: number;
   total_cost: number;
   paid_amount: number;
   remaining_amount: number;
@@ -154,6 +158,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   // Pricing & Financial Calculations
   const [baseCost, setBaseCost] = useState(1050);
   const [discountAmount, setDiscountAmount] = useState(0); // خصم
+  const [priceMode, setPriceMode] = useState<VatPriceMode>('exclusive');
   const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [isFreeContract, setIsFreeContract] = useState(false); // عقد مجاني / إهداء
   const [notes, setNotes] = useState('');
@@ -161,8 +166,11 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
 
   // Derived Financial Amounts
   const effectiveDiscountAmount = Math.min(discountAmount, baseCost);
-  const subtotalAmount = isFreeContract ? 0 : roundCurrency(Math.max(0, baseCost - effectiveDiscountAmount));
-  const vatAmounts = calculateVatAmounts(subtotalAmount);
+  const pricingAmounts = calculatePriceAmounts(baseCost, effectiveDiscountAmount, priceMode);
+  const subtotalAmount = isFreeContract ? 0 : pricingAmounts.subtotalAmount;
+  const vatAmounts = isFreeContract
+    ? calculatePriceAmounts(0, 0, 'exclusive')
+    : pricingAmounts;
   const totalCost = isFreeContract ? 0 : vatAmounts.grossAmount;
   const isManualPaymentChoice = paymentChoice === 'cash'
     || paymentChoice === 'pos'
@@ -170,9 +178,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   const paymentBaseAmount = isFreeContract
     ? 0
     : isManualPaymentChoice
-      ? (downPayment > 0 ? Math.min(downPayment, subtotalAmount) : subtotalAmount)
+      ? (downPayment > 0 ? Math.min(downPayment, totalCost) : totalCost)
       : 0;
-  const initialPayment = allocatePaymentAmounts({
+  const initialPayment = allocateGrossPayment({
     enteredAmount: paymentBaseAmount,
     nonTaxableAmount: 0,
     nonTaxablePaidAmount: 0,
@@ -380,10 +388,11 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     const contractNumber = `CTR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const finalDiscount = Math.min(discountAmount, baseCost);
-    const finalSubtotal = isFreeContract ? 0 : roundCurrency(Math.max(0, baseCost - finalDiscount));
-    const finalVat = calculateVatAmounts(finalSubtotal);
+    const finalPricing = calculatePriceAmounts(baseCost, finalDiscount, priceMode);
+    const finalSubtotal = isFreeContract ? 0 : finalPricing.subtotalAmount;
+    const finalVat = isFreeContract ? calculatePriceAmounts(0, 0, 'exclusive') : finalPricing;
     const finalTotalCost = isFreeContract ? 0 : finalVat.grossAmount;
-    const finalPaidAllocation = allocatePaymentAmounts({
+    const finalPaidAllocation = allocateGrossPayment({
       enteredAmount: isFreeContract ? 0 : paymentBaseAmount,
       nonTaxableAmount: 0,
       nonTaxablePaidAmount: 0,
@@ -400,8 +409,8 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     if (isFreeContract) {
       financialNotes.push('🎁 عقد مجاني (بدون مقابل)');
     } else {
-      if (finalDiscount > 0) financialNotes.push(`خصم قبل الضريبة: ${roundCurrency(finalDiscount)} ر.س`);
-      if (downPayment > 0) financialNotes.push(`دفعة قبل الضريبة: ${roundCurrency(downPayment)} ر.س`);
+      if (finalDiscount > 0) financialNotes.push(`خصم ${priceMode === 'inclusive' ? 'شامل الضريبة' : 'قبل الضريبة'}: ${roundCurrency(finalDiscount)} ر.س`);
+      if (downPayment > 0) financialNotes.push(`المبلغ المستلم فعليًا: ${roundCurrency(downPayment)} ر.س`);
     }
     if (financialNotes.length > 0) {
       notesWithFinancials = notesWithFinancials ? `${notesWithFinancials} | ${financialNotes.join(' - ')}` : financialNotes.join(' - ');
@@ -424,6 +433,10 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       location_longitude: longitude,
       google_maps_url: googleMapsUrl,
       location_address: locationAddress,
+      price_amount: isFreeContract ? 0 : roundCurrency(baseCost),
+      discount_amount: isFreeContract ? 0 : roundCurrency(finalDiscount),
+      price_includes_vat: priceMode === 'inclusive',
+      initial_payment_amount: isFreeContract ? 0 : roundCurrency(paymentBaseAmount),
       total_cost: finalTotalCost,
       paid_amount: finalPaid,
       remaining_amount: finalRemaining,
@@ -453,6 +466,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       setPaymentChoice('cash');
       setDiscountAmount(0);
       setDownPayment(0);
+      setPriceMode('exclusive');
       setIsFreeContract(false);
     }
   };
@@ -1221,6 +1235,39 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               )}
             </div>
 
+            {!isFreeContract && (
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: '#cbd5e1', fontWeight: 700, marginBottom: '6px' }}>
+                    السعر المتفق عليه:
+                  </div>
+                  <div role="radiogroup" aria-label="طريقة إدخال السعر" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {([
+                      ['exclusive', 'غير شامل الضريبة'],
+                      ['inclusive', 'شامل الضريبة']
+                    ] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={priceMode === mode}
+                        onClick={() => setPriceMode(mode)}
+                        style={{
+                          border: `1px solid ${priceMode === mode ? '#fbbf24' : 'rgba(255,255,255,0.16)'}`,
+                          borderRadius: '8px',
+                          padding: '7px 12px',
+                          background: priceMode === mode ? 'rgba(245,158,11,0.16)' : 'rgba(15,23,42,0.5)',
+                          color: priceMode === mode ? '#fbbf24' : '#cbd5e1',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+            )}
+
             {/* Tax totals and payment summary */}
             <div style={{
               display: 'grid',
@@ -1238,14 +1285,14 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 700 }}>
-                  المبلغ قبل الضريبة
+                  {priceMode === 'inclusive' ? 'السعر شامل الضريبة' : 'السعر قبل الضريبة'}
                 </div>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   className="form-input"
-                  aria-label="المبلغ قبل الضريبة"
+                  aria-label={priceMode === 'inclusive' ? 'السعر شامل الضريبة' : 'السعر قبل الضريبة'}
                   disabled={isFreeContract}
                   value={isFreeContract ? 0 : baseCost}
                   onChange={(e) => setBaseCost(roundCurrency(Math.max(0, Number(e.target.value) || 0)))}
@@ -1267,7 +1314,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
-                    بعد الخصم: {subtotalAmount.toFixed(2)} ر.س
+                    بعد الخصم وقبل الضريبة: {subtotalAmount.toFixed(2)} ر.س
                   </div>
                 )}
               </div>
@@ -1316,13 +1363,13 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 justifyContent: 'center'
               }}>
                 <label style={{ display: 'block', fontSize: '0.76rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 700 }}>
-                  الدفعة قبل الضريبة
+                  المبلغ المستلم فعليًا
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
                   <input
                     type="number"
                     min="0"
-                    max={subtotalAmount}
+                    max={totalCost}
                     disabled={isFreeContract || !isManualPaymentChoice}
                     className="form-input"
                     style={{
@@ -1338,9 +1385,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                       opacity: isFreeContract || !isManualPaymentChoice ? 0.6 : 1
                     }}
                     value={isFreeContract ? '' : (downPayment === 0 ? '' : downPayment)}
-                    placeholder={isFreeContract || !isManualPaymentChoice ? '—' : '0'}
+                    placeholder={isFreeContract || !isManualPaymentChoice ? '—' : 'فارغ = كامل'}
                     onChange={(e) => {
-                      const val = roundCurrency(Math.max(0, Math.min(subtotalAmount, Number(e.target.value) || 0)));
+                      const val = roundCurrency(Math.max(0, Math.min(totalCost, Number(e.target.value) || 0)));
                       setDownPayment(val);
                     }}
                   />
@@ -1410,7 +1457,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#e2e8f0' }}>
-                    خصم:
+                    خصم {priceMode === 'inclusive' ? '(من السعر الشامل للضريبة)' : '(قبل الضريبة)'}:
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '130px' }}>
                     <input
