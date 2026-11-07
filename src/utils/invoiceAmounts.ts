@@ -53,6 +53,15 @@ function fromCents(amount: number): number {
   return amount / 100;
 }
 
+function roundRatioToInteger(numerator: number, multiplier: number, denominator: number): number {
+  const two = BigInt(2);
+  const scaledNumerator = BigInt(numerator) * BigInt(multiplier);
+  const scaledDenominator = BigInt(denominator);
+  return Number(
+    (scaledNumerator * two + scaledDenominator) / (scaledDenominator * two)
+  );
+}
+
 export function roundCurrency(amount: number): number {
   return fromCents(toCents(amount));
 }
@@ -237,7 +246,10 @@ export function allocateGrossPayment(input: {
   const newTaxableGrossPaid = taxableGrossPaid + taxableGrossPaidNow;
   const targetVatPaid = taxableGrossTotal === 0 || newTaxableGrossPaid >= taxableGrossTotal
     ? vatTotal
-    : Math.max(vatPaid, Math.min(vatTotal, Math.round(vatTotal * newTaxableGrossPaid / taxableGrossTotal)));
+    : Math.max(
+      vatPaid,
+      Math.min(vatTotal, roundRatioToInteger(vatTotal, newTaxableGrossPaid, taxableGrossTotal))
+    );
   const newSubtotalPaid = newTaxableGrossPaid - targetVatPaid;
   const subtotalPaidNow = newSubtotalPaid - subtotalPaid;
   const vatPaidNow = Math.max(0, targetVatPaid - vatPaid);

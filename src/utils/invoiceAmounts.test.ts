@@ -269,6 +269,26 @@ test('rejects payments above the gross balance and reconciles the final cent', (
   });
 });
 
+test('matches PostgreSQL numeric rounding for large cent-based balances', () => {
+  const allocation = allocateGrossPayment({
+    enteredAmount: 29_258_435.70,
+    nonTaxableAmount: 0,
+    nonTaxablePaidAmount: 0,
+    subtotalAmount: 47_504_490.77,
+    subtotalPaidAmount: 0,
+    vatAmount: 8_383_145.43,
+    vatPaidAmount: 0
+  });
+
+  assert.deepEqual(allocation, {
+    enteredAmount: 29_258_435.70,
+    nonTaxableAmount: 0,
+    subtotalAmount: 24_869_670.34,
+    vatAmount: 4_388_765.36,
+    grossAmount: 29_258_435.70
+  });
+});
+
 test('does not infer VAT for old receipts with no persisted tax breakdown', () => {
   assert.deepEqual(getReceiptAmounts({ amount: 115 }), {
     nonTaxableAmount: 0,
