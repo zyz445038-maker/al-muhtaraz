@@ -16,8 +16,8 @@ const validPayload = {
   version: '1.0.1',
   tag: 'v1.0.1',
   repository: 'zyz445038-maker/al-muhtaraz',
-  fileName: 'Al-Muhtaraz Setup 1.0.1.exe',
-  downloadUrl: 'https://github.com/zyz445038-maker/al-muhtaraz/releases/download/v1.0.1/Al-Muhtaraz%20Setup%201.0.1.exe',
+  fileName: 'Al-Muhtaraz-Setup-1.0.1.exe',
+  downloadUrl: 'https://github.com/zyz445038-maker/al-muhtaraz/releases/download/v1.0.1/Al-Muhtaraz-Setup-1.0.1.exe',
   sha256: createHash('sha256').update(installer).digest('hex'),
   sizeBytes: installer.length,
 };
@@ -70,6 +70,17 @@ test('rejects installer filenames that are unsafe on Windows', () => {
       /installer filename is invalid/,
     );
   }
+});
+
+test('rejects an installer name that differs from the release naming contract', () => {
+  assert.throws(
+    () => verifyUpdateManifest(createManifest({
+      ...validPayload,
+      fileName: 'Setup.1.0.1.exe',
+      downloadUrl: 'https://github.com/zyz445038-maker/al-muhtaraz/releases/download/v1.0.1/Setup.1.0.1.exe',
+    }), { publicKey }),
+    /installer filename is invalid/,
+  );
 });
 
 test('rejects same-version and downgrade manifests', () => {

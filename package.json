@@ -1,6 +1,6 @@
 {
   "name": "al-muhtaraz-containers",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
@@ -66,6 +66,7 @@
       "!node_modules/**"
     ],
     "win": {
+      "artifactName": "Al-Muhtaraz-Setup-${version}.${ext}",
       "signtoolOptions": {
         "signingHashAlgorithms": [
           "sha256"
