@@ -286,6 +286,48 @@ async function downloadUpdate(payload) {
   }
 }
 
+async function showUpdateDownloadWindow() {
+  const parentWindow = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
+  const downloadWindow = new BrowserWindow({
+    width: 520,
+    height: 220,
+    ...(parentWindow ? { parent: parentWindow } : {}),
+    autoHideMenuBar: true,
+    resizable: false,
+    show: false,
+    title: 'جارٍ تنزيل التحديث',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>جارٍ تنزيل التحديث</title>
+  <style>
+    body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; padding: 28px; color: #172033; }
+    h1 { font-size: 19px; margin: 0 0 14px; }
+    p { font-size: 15px; line-height: 1.8; margin: 0 0 18px; }
+    progress { width: 100%; height: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>جارٍ تنزيل التحديث والتحقق منه</h1>
+    <p>جارٍ تنزيل التحديث والتحقق منه. يمكنك مواصلة العمل، ويرجى إبقاء المحترز مفتوحًا حتى يظهر زر التثبيت.</p>
+    <progress aria-label="جارٍ تنزيل التحديث والتحقق منه"></progress>
+  </main>
+</body>
+</html>`;
+  await downloadWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  downloadWindow.show();
+  return downloadWindow;
+}
+
 async function checkForUpdate() {
   if (!app.isPackaged || smokeTestMode) {
     return;
@@ -333,15 +375,21 @@ async function checkForUpdate() {
   }
 
   let installerPath;
+  let downloadWindow;
   try {
     log(`Downloading update ${payload.version} from ${payload.downloadUrl}.`);
+    downloadWindow = await showUpdateDownloadWindow();
     installerPath = await downloadUpdate(payload);
+    if (!downloadWindow.isDestroyed()) {
+      downloadWindow.close();
+    }
+    downloadWindow = undefined;
     log(`Downloaded and verified update ${payload.version} at ${installerPath}.`);
     const installChoice = await dialog.showMessageBox({
       type: 'info',
       title: 'اكتمل تنزيل التحديث',
       message: `تم تنزيل التحديث ${payload.version} والتحقق منه بنجاح.`,
-      detail: 'سيُغلق التطبيق لتشغيل برنامج التثبيت. وافق على التثبيت فوق النسخة الحالية عند ظهور نافذة Windows.',
+      detail: 'احفظ عملك قبل المتابعة. عند الضغط على «تشغيل برنامج التثبيت»، سيُغلق المحترز تلقائيًا، ثم يُفتح من جديد بعد اكتمال التحديث. يرجى الانتظار. وافق على التثبيت فوق النسخة الحالية عند ظهور نافذة Windows.',
       buttons: ['تشغيل برنامج التثبيت', 'إلغاء'],
       defaultId: 0,
       cancelId: 1,
@@ -363,6 +411,9 @@ async function checkForUpdate() {
     log(`Started installer for update ${payload.version}.`);
     app.quit();
   } catch (error) {
+    if (downloadWindow && !downloadWindow.isDestroyed()) {
+      downloadWindow.close();
+    }
     if (installerPath) {
       await rm(installerPath, { force: true });
     }
