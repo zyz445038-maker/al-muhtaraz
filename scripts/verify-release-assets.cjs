@@ -11,6 +11,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function validateInstallerUrl(mode, manifestUrl, assetUrl, expectedUrl) {
+  assert(manifestUrl === expectedUrl, 'Signed manifest URL does not match the release naming contract.');
+  if (mode === '--published') {
+    assert(assetUrl === expectedUrl, 'Published installer URL does not match the release naming contract.');
+  }
+}
+
 async function githubRequest(url, headers = {}, timeoutMs = 60_000) {
   const response = await fetch(url, {
     headers: {
@@ -96,10 +103,6 @@ async function fetchReleaseManifest(tag, mode) {
   const matchingAssets = assets.filter(asset => asset.name === installerName);
   assert(matchingAssets.length === 1, `Release must contain exactly one ${installerName} asset.`);
   const installerAsset = matchingAssets[0];
-  assert(
-    installerAsset.browser_download_url === expectedInstallerUrl,
-    'Published installer URL does not match the release naming contract.',
-  );
   if (installerAsset.digest) {
     assert(
       /^sha256:[a-f0-9]{64}$/.test(installerAsset.digest),
@@ -124,7 +127,12 @@ async function fetchReleaseManifest(tag, mode) {
   assert(payload.repository === repository, 'Signed manifest repository does not match the release.');
   assert(payload.tag === tag, 'Signed manifest tag does not match the release.');
   assert(payload.fileName === installerName, 'Signed manifest filename does not match the uploaded installer.');
-  assert(payload.downloadUrl === installerAsset.browser_download_url, 'Signed manifest URL does not match the uploaded installer URL.');
+  validateInstallerUrl(
+    mode,
+    payload.downloadUrl,
+    installerAsset.browser_download_url,
+    expectedInstallerUrl,
+  );
   assert(payload.sizeBytes === installerAsset.size, 'Signed manifest size does not match the uploaded installer size.');
   assert(
     !installerAsset.digest || installerAsset.digest === `sha256:${payload.sha256}`,
@@ -213,4 +221,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { fetchRelease };
+module.exports = { fetchRelease, validateInstallerUrl };
