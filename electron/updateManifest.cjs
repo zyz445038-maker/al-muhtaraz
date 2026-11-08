@@ -49,7 +49,8 @@ function validatePayload(payload, currentVersion) {
   if (currentVersion && compareStableVersions(payload.version, currentVersion) <= 0) {
     throw new Error('Update manifest does not describe a newer application version.');
   }
-  if (typeof payload.fileName !== 'string' || !payload.fileName.endsWith('.exe')) {
+  const expectedFileName = `Al-Muhtaraz-Setup-${payload.version}.exe`;
+  if (payload.fileName !== expectedFileName) {
     throw new Error('Update manifest installer filename is invalid.');
   }
   if (

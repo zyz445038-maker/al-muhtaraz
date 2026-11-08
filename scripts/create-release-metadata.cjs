@@ -32,10 +32,13 @@ async function main() {
     throw new Error(`Release tag ${tag} does not match package version ${packageJson.version}.`);
   }
 
+  const expectedInstallerName = `Al-Muhtaraz-Setup-${version}.exe`;
   const installers = (await fs.readdir(DIST_DIRECTORY, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.exe') && entry.name.includes('Setup'));
-  if (installers.length !== 1) {
-    throw new Error(`Expected exactly one Windows Setup installer in ${DIST_DIRECTORY}; found ${installers.length}.`);
+  if (installers.length !== 1 || installers[0].name !== expectedInstallerName) {
+    throw new Error(
+      `Expected exactly ${expectedInstallerName} in ${DIST_DIRECTORY}; found ${installers.map(entry => entry.name).join(', ') || 'none'}.`,
+    );
   }
 
   const fileName = installers[0].name;
