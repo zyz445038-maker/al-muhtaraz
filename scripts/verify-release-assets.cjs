@@ -59,7 +59,27 @@ async function readBoundedBody(response, maxBytes, label) {
   return Buffer.concat(chunks, totalBytes);
 }
 
-async function fetchReleaseManifest(tag) {
+async function fetchRelease(tag, mode, repository) {
+  if (mode === '--published') {
+    const releaseResponse = await githubRequest(`${API_BASE_URL}/repos/${repository}/releases/tags/${tag}`);
+    return releaseResponse.json();
+  }
+
+  for (let page = 1; ; page += 1) {
+    const url = `${API_BASE_URL}/repos/${repository}/releases?per_page=100&page=${page}`;
+    const releasesResponse = await githubRequest(url);
+    const releases = await releasesResponse.json();
+    assert(Array.isArray(releases), 'GitHub releases response must be an array.');
+    const matchingDrafts = releases.filter(release => release.tag_name === tag && release.draft);
+    assert(matchingDrafts.length <= 1, `Found multiple draft releases for ${tag}.`);
+    if (matchingDrafts.length === 1) return matchingDrafts[0];
+    if (releases.length < 100) break;
+  }
+
+  throw new Error(`Draft release ${tag} was not found in the authenticated GitHub releases list.`);
+}
+
+async function fetchReleaseManifest(tag, mode) {
   const repository = process.env.GITHUB_REPOSITORY;
   assert(
     typeof repository === 'string' && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository),
@@ -67,8 +87,7 @@ async function fetchReleaseManifest(tag) {
   );
   assert(process.env.GH_TOKEN || process.env.GITHUB_TOKEN, 'A GitHub token is required to verify release assets.');
 
-  const releaseResponse = await githubRequest(`${API_BASE_URL}/repos/${repository}/releases/tags/${tag}`);
-  const release = await releaseResponse.json();
+  const release = await fetchRelease(tag, mode, repository);
   const version = tag.replace(/^v/, '');
   const installerName = `Al-Muhtaraz-Setup-${version}.exe`;
   const expectedInstallerUrl =
@@ -172,7 +191,7 @@ async function main() {
   assert(/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tag || ''), 'Pass a stable vMAJOR.MINOR.PATCH release tag.');
   assert(mode === '--draft' || mode === '--published', 'Choose --draft or --published verification mode.');
 
-  const releaseInfo = await fetchReleaseManifest(tag);
+  const releaseInfo = await fetchReleaseManifest(tag, mode);
   assert(
     releaseInfo.release.draft === (mode === '--draft'),
     mode === '--draft' ? 'Pre-publication validation requires a draft release.' : 'Post-publication validation requires a published release.',
@@ -187,7 +206,11 @@ async function main() {
   console.log(`PASS: ${UPDATE_CHECK_URL} serves the signed ${tag} manifest, and its installer URL downloads with matching size and SHA-256.`);
 }
 
-main().catch(error => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { fetchRelease };
