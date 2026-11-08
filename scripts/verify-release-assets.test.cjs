@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { fetchRelease } = require('./verify-release-assets.cjs');
+const { fetchRelease, validateInstallerUrl } = require('./verify-release-assets.cjs');
 
 function configureGitHubMocks(t, handler) {
   const originalFetch = global.fetch;
@@ -49,4 +49,20 @@ test('keeps published release lookup by tag', async (t) => {
   const release = await fetchRelease('v1.0.3', '--published', 'example/app');
   assert.equal(release.tag_name, 'v1.0.3');
   assert.equal(release.draft, false);
+});
+
+test('allows GitHub draft URLs while requiring the signed final release URL', () => {
+  const expectedUrl = 'https://github.com/example/app/releases/download/v1.0.3/Al-Muhtaraz-Setup-1.0.3.exe';
+  const draftUrl = 'https://github.com/example/app/releases/download/untagged-abc/Al-Muhtaraz-Setup-1.0.3.exe';
+
+  assert.doesNotThrow(() => validateInstallerUrl('--draft', expectedUrl, draftUrl, expectedUrl));
+  assert.throws(
+    () => validateInstallerUrl('--draft', draftUrl, draftUrl, expectedUrl),
+    /Signed manifest URL/,
+  );
+  assert.throws(
+    () => validateInstallerUrl('--published', expectedUrl, draftUrl, expectedUrl),
+    /Published installer URL/,
+  );
+  assert.doesNotThrow(() => validateInstallerUrl('--published', expectedUrl, expectedUrl, expectedUrl));
 });
