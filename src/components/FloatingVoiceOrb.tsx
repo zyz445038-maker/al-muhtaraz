@@ -26,6 +26,7 @@ import { AlMuhtarazExecutiveAgent, AgentMemoryState } from '@/utils/aiExecutiveA
 import { processDeepAssistantQuery } from '@/utils/aiCopilotBrain';
 import { playInteractionFeedback } from '@/utils/audioFeedback';
 import { cleanSpeechText } from '@/utils/speechSanitizer';
+import { speakWithKokoro, isKokoroSupported } from '@/utils/kokoroTTS';
 import { getSpeechRecognitionConstructor, type SpeechRecognitionLike } from './speechRecognition';
 
 interface FloatingVoiceOrbProps {
@@ -77,14 +78,28 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // 🎙️ Main Neural Voice Player (Exclusively Zariyah - No Male Device Fallback)
-  const handlePlayVoice = (textToPlay: string) => {
+  // 🎙️ Main Voice Player — Kokoro-js (local, no external service) with msedge-tts API fallback
+  const handlePlayVoice = async (textToPlay: string) => {
     const cleanedText = cleanSpeechText(textToPlay);
     if (!cleanedText || !cleanedText.trim()) return;
-    
+
     // Stop any previous audio
     handleStopAudio();
 
+    // Try Kokoro-js first (local browser TTS, no external service)
+    if (isKokoroSupported()) {
+      try {
+        await speakWithKokoro(cleanedText);
+        setIsPlayingAudio(true);
+        // Kokoro-js creates its own Audio element; we track playing state loosely
+        setTimeout(() => setIsPlayingAudio(false), 3000);
+        return;
+      } catch (kokoroError) {
+        console.warn('Kokoro TTS failed, falling back to msedge-tts API:', kokoroError);
+      }
+    }
+
+    // Fallback: msedge-tts server API
     const streamUrl = `/api/voice/neural-tts?text=${encodeURIComponent(cleanedText)}&voice=zariyah&rate=0%&t=${Date.now()}`;
 
     if (!audioPlayerRef.current) {
@@ -97,7 +112,6 @@ export const FloatingVoiceOrb: React.FC<FloatingVoiceOrbProps> = ({
     audio.onplay = () => setIsPlayingAudio(true);
     audio.onended = () => setIsPlayingAudio(false);
     audio.onerror = () => {
-      // Clean silent failure - never fall back to male robot speech
       setIsPlayingAudio(false);
     };
 
