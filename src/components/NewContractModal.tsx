@@ -28,7 +28,7 @@ import {
   Gift
 } from 'lucide-react';
 import { Container, ContractPeriodType, ContainerType, Profile, PaymentMethod, StaffPermissions } from '@/types/database';
-import { SaudiPhoneInput } from './SaudiPhoneInput';
+import { normalizeSaudiPhone, SaudiPhoneInput } from './SaudiPhoneInput';
 import { getWeeklyRate } from '@/utils/rentalPricing';
 import { allocateGrossPayment, calculatePriceAmounts, roundCurrency, type VatPriceMode } from '@/utils/invoiceAmounts';
 import { getSaudiVatNumberError, normalizeSaudiVatNumber } from '@/utils/saudiVatNumber';
@@ -388,8 +388,29 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       alert('يرجى اختيار حاوية واحدة على الأقل.');
       return;
     }
-    if (!customerName.trim() || !customerPhone.trim()) {
-      alert('يرجى إدخال اسم العميل ورقم الجوال.');
+    if (!customerName.trim()) {
+      alert('يرجى إدخال اسم العميل.');
+      return;
+    }
+    if (!normalizeSaudiPhone(customerPhone).isValid) {
+      alert('يرجى إدخال رقم جوال سعودي صحيح مكوّن من 10 أرقام ويبدأ بـ 05.');
+      return;
+    }
+    if (
+      !locationAddress.trim()
+      && !googleMapsUrl.trim()
+      && !(
+        latitude !== null
+        && longitude !== null
+        && Number.isFinite(latitude)
+        && Number.isFinite(longitude)
+        && latitude >= -90
+        && latitude <= 90
+        && longitude >= -180
+        && longitude <= 180
+      )
+    ) {
+      alert('يرجى تحديد موقع التنزيل عبر GPS أو رابط خرائط Google، أو إدخال العنوان. يكفي أحدها.');
       return;
     }
     const vatNumberError = getSaudiVatNumberError(customerVatNumber);
@@ -1192,7 +1213,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#e2e8f0' }}>
-                الموقع الجغرافي ورابط خرائط Google:
+                موقع أو عنوان التنزيل <span style={{ color: '#f87171' }}>*</span>
               </label>
               <button
                 type="button"
@@ -1233,6 +1254,9 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
                 value={locationAddress}
                 onChange={(e) => setLocationAddress(e.target.value)}
               />
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '0.76rem', color: '#fbbf24' }}>
+              مطلوب: حدد GPS أو أدخل رابط خرائط Google أو اكتب العنوان. يكفي اختيار واحد.
             </div>
           </div>
 

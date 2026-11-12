@@ -42,7 +42,7 @@ import { DriverDispatchModal } from '@/components/DriverDispatchModal';
 import { StaffLoginModal } from '@/components/StaffLoginModal';
 import { formatDriverWhatsAppMessage } from '@/utils/driverDispatch';
 import { formatCustomerVoucherMessage, formatDriverMissionMessage, formatAdminAlertMessage } from '@/utils/voucherFormatter';
-import { isRealCallablePhone } from '@/components/SaudiPhoneInput';
+import { isRealCallablePhone, normalizeSaudiPhone } from '@/components/SaudiPhoneInput';
 import { generateContractVoucherImage } from '@/lib/contractImageGenerator';
 import { DevLab } from '@/components/DevLab';
 import { OfficialContractModal } from '@/components/OfficialContractModal';
@@ -2069,6 +2069,28 @@ function MainDashboard() {
 
   // Save New Contract Handler
   const handleSaveContract = async (contractData: NewContractPayload): Promise<boolean> => {
+    if (!normalizeSaudiPhone(contractData.customer_phone).isValid) {
+      setBusinessDataError('يرجى إدخال رقم جوال سعودي صحيح مكوّن من 10 أرقام ويبدأ بـ 05.');
+      return false;
+    }
+    if (
+      !contractData.location_address?.trim()
+      && !contractData.google_maps_url?.trim()
+      && !(
+        contractData.location_latitude != null
+        && Number.isFinite(contractData.location_latitude)
+        && contractData.location_latitude >= -90
+        && contractData.location_latitude <= 90
+        && contractData.location_longitude != null
+        && Number.isFinite(contractData.location_longitude)
+        && contractData.location_longitude >= -180
+        && contractData.location_longitude <= 180
+      )
+    ) {
+      setBusinessDataError('موقع أو عنوان التنزيل إلزامي. أدخل العنوان أو حدد الموقع عبر GPS أو رابط الخرائط.');
+      return false;
+    }
+
     let customerObj: Customer = {
       id: '',
       name: contractData.customer_name,
