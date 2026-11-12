@@ -2458,7 +2458,7 @@ function MainDashboard() {
           issueDate: new Date().toISOString()
         });
 
-        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
+        const imageCaption = `مرحباً ${customerObj.name}، مرفق صورة وثيقة وفاتورة عقد الحاوية رقم (${newContract.contract_number}) من ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️\n\n⚠️ يرجى تحميل الفاتورة المرفقة خلال 72 ساعة من استلام هذه الرسالة، حيث سيتم حذف رابط التحميل تلقائياً بعد هذه المدة للحفاظ على سرية الوثيقة. النسخة الأصلية محفوظة في أرشيف النظام ويمكن استخراجها عند الحاجة.\n\nشكراً لتعاملكم واختياركم المحترز للحاويات 🙏`;
 
         imageSendStarted = true;
         const imgResult = await sendSilentWhatsApp(
