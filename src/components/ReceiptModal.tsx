@@ -316,9 +316,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     setIsSharing(true);
     try {
       const customerName = contract.customer.name || 'عزيزنا العميل';
+      const shareNote = `\n\n⚠️ يرجى تحميل الفاتورة المرفقة خلال 72 ساعة من استلام هذه الرسالة، حيث سيتم حذف رابط التحميل تلقائياً بعد هذه المدة للحفاظ على سرية الوثيقة. النسخة الأصلية محفوظة في أرشيف النظام ويمكن استخراجها عند الحاجة.`;
       const message = isFree
-        ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.\n\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`
-        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${formatMoney(paidAmount)} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${presentation.issueDate}\n\nامسح رمز QR في الصورة لفتحها مباشرة.\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`;
+        ? `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}). امسح رمز QR في الصورة لفتحها مباشرة.${shareNote}\n\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`
+        : `مرحباً ${customerName}، مرفق صورة الفاتورة رقم (${receiptNumber}) للعقد (${contract.contract_number}).\n💰 المبلغ: ${formatMoney(paidAmount)} ر.س\n💳 طريقة الدفع: ${methodInfo.label}\n📅 تاريخ الفاتورة: ${presentation.issueDate}\n\nامسح رمز QR في الصورة لفتحها مباشرة.${shareNote}\n\nشكراً لتعاملكم مع ${COMPANY_OFFICIAL_INFO.nameArabic} 🏗️`;
       const result = await onSendWhatsAppReceipt(contract.customer.phone, message, receiptImage);
       if (!result.success) {
         throw new Error(result.error || 'تعذر إرسال صورة الفاتورة عبر واتساب.');
