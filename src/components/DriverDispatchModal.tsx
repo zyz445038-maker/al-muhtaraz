@@ -52,8 +52,13 @@ export const DriverDispatchModal: React.FC<DriverDispatchModalProps> = ({
       }
 
       // Default task type: if contract is active & expired/close to end -> pickup, else delivery
-      if (contract.status === 'active' && contract.expected_pickup_time) {
-        const pickupDate = new Date(contract.expected_pickup_time);
+      if (contract.status === 'active' && (contract.expected_pickup_time || contract.container_units?.length)) {
+        const activeUnitDates = contract.container_units
+          ?.filter(unit => unit.status === 'active')
+          .map(unit => new Date(unit.end_date).getTime()) || [];
+        const pickupDate = new Date(activeUnitDates.length
+          ? Math.min(...activeUnitDates)
+          : contract.expected_pickup_time || contract.end_date);
         if (pickupDate.getTime() - Date.now() < 24 * 3600 * 1000) {
           setTaskType('pickup');
         } else {

@@ -27,6 +27,7 @@ import {
 
 export interface ExtensionSubmission {
   contractId: string;
+  containerIds: string[];
   additionalDays: number;
   priceAmount: number;
   discountAmount: number;
@@ -57,6 +58,7 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   const [priceIncludesVat, setPriceIncludesVat] = useState(false);
   const [downPayment, setDownPayment] = useState(0); // دفعة على الحساب
   const [newEndDate, setNewEndDate] = useState('');
+  const [selectedContainerIds, setSelectedContainerIds] = useState<string[]>([]);
   const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isManualPaymentChoice = paymentChoice === 'cash' || paymentChoice === 'bank_transfer';
@@ -67,6 +69,20 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   };
 
   const isDebris = contract?.contract_type === 'debris';
+  const activeUnits = contract?.container_units?.filter(unit => unit.status === 'active') || [];
+
+  useEffect(() => {
+    if (!contract) {
+      setSelectedContainerIds([]);
+      return;
+    }
+    const activeContainerIds = (contract.container_units?.filter(unit => unit.status === 'active') || [])
+      .map(unit => unit.container_id)
+      .filter((id): id is string => Boolean(id));
+    setSelectedContainerIds(activeContainerIds.length
+      ? activeContainerIds
+      : contract.container_id ? [contract.container_id] : []);
+  }, [contract]);
 
   // Initialize extendMode based on contract's period_type
   useEffect(() => {
@@ -83,28 +99,43 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
   useEffect(() => {
     if (!contract) return;
 
-    const baseEnd = new Date(contract.expected_pickup_time || contract.end_date || new Date());
+    const assignedUnits = contract.container_units?.filter(unit => unit.status === 'active') || [];
+    const selectedUnits = assignedUnits.filter(unit => selectedContainerIds.includes(unit.container_id || ''));
+    const selectedContainers = selectedUnits
+      .map(unit => unit.container)
+      .filter((container): container is NonNullable<typeof container> => Boolean(container));
+    const legacyFallback = selectedContainers.length === 0 && selectedContainerIds.includes(contract.container_id || '')
+      ? [contract.container]
+      : selectedContainers;
+    const baseDate = selectedUnits.length
+      ? Math.max(...selectedUnits.map(unit => new Date(unit.end_date).getTime()))
+      : new Date(contract.expected_pickup_time || contract.end_date || new Date()).getTime();
+    const baseEnd = new Date(baseDate);
+    const daysToAdd = extendMode === 'days' ? additionalDays : additionalMonths * 30;
 
     if (extendMode === 'days') {
-      const dailyRate = (contract.container?.daily_rate ?? 0) > 0 ? (contract.container?.daily_rate ?? 150) : 150;
+      const dailyRate = legacyFallback.reduce((total, container) => {
+        const rate = container?.daily_rate || 150;
+        return total + rate;
+      }, 0);
       const cost = dailyRate * additionalDays;
       setBaseExtensionCost(cost);
 
-      const nextDate = new Date(baseEnd.getTime() + additionalDays * 24 * 60 * 60 * 1000);
+      const nextDate = new Date(baseEnd.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
       setNewEndDate(nextDate.toISOString().slice(0, 16));
     } else {
-      let monthlyRate = contract.container?.monthly_rate || 0;
-      if (monthlyRate <= 0) {
-        monthlyRate = (contract.container?.daily_rate ?? 0) > 0 ? (contract.container?.daily_rate ?? 0) * 25 : 2000;
-      }
+      const monthlyRate = legacyFallback.reduce((total, container) => {
+        let rate = container?.monthly_rate || 0;
+        if (rate <= 0) rate = (container?.daily_rate || 0) > 0 ? (container?.daily_rate || 0) * 25 : 2000;
+        return total + rate;
+      }, 0);
       const cost = monthlyRate * additionalMonths;
       setBaseExtensionCost(cost);
 
-      const nextDate = new Date(baseEnd);
-      nextDate.setMonth(nextDate.getMonth() + additionalMonths);
+      const nextDate = new Date(baseEnd.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
       setNewEndDate(nextDate.toISOString().slice(0, 16));
     }
-  }, [contract, additionalDays, additionalMonths, extendMode]);
+  }, [contract, selectedContainerIds, additionalDays, additionalMonths, extendMode]);
 
   if (!isOpen || !contract) return null;
 
@@ -149,11 +180,20 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (contract.container_units?.length && activeUnits.length === 0) {
+      alert('لا توجد حاويات نشطة يمكن تمديدها في هذا العقد.');
+      return;
+    }
+    if (selectedContainerIds.length === 0) {
+      alert('اختر حاوية نشطة واحدة على الأقل للتمديد.');
+      return;
+    }
     setIsSubmitting(true);
 
     const daysToAdd = isDebris ? additionalDays : (additionalMonths * 30);
     const success = await onConfirmExtension({
       contractId: contract.id,
+      containerIds: selectedContainerIds,
       additionalDays: daysToAdd,
       priceAmount: roundCurrency(baseExtensionCost),
       discountAmount: effectiveDiscountAmount,
@@ -229,7 +269,9 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
           <div>
             <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>رقم الحاوية</div>
             <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#fbbf24' }}>
-              {contract.container?.container_number || '-'}
+              {activeUnits.length
+                ? activeUnits.map(unit => unit.container_number_snapshot).join('، ')
+                : contract.container?.container_number || '-'}
             </div>
           </div>
           <div>
@@ -247,6 +289,29 @@ export const ExtendContractModal: React.FC<ExtendContractModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {activeUnits.length > 1 && (
+            <fieldset style={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '10px 12px' }}>
+              <legend style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '0.82rem', padding: '0 6px' }}>
+                الحاويات التي يشملها التمديد
+              </legend>
+              {activeUnits.map(unit => (
+                <label key={unit.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px', color: '#fff' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(unit.container_id && selectedContainerIds.includes(unit.container_id))}
+                    onChange={() => {
+                      if (!unit.container_id) return;
+                      setSelectedContainerIds(current => current.includes(unit.container_id!)
+                        ? current.filter(id => id !== unit.container_id)
+                        : [...current, unit.container_id!]);
+                    }}
+                  />
+                  <span>{unit.container_number_snapshot} — الموعد الحالي: {new Date(unit.end_date).toLocaleDateString('ar-SA')}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           
           {/* 1. Duration Extension Picker */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

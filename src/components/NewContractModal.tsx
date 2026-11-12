@@ -39,6 +39,7 @@ export type NewContractPaymentChoice = PaymentChoice | 'pos';
 export interface NewContractPayload {
   contract_number: string;
   container_id: string;
+  container_ids: string[];
   assigned_employee_id: string | null;
   customer_name: string;
   customer_phone: string;
@@ -128,7 +129,8 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
   // Form State
   const [contractType, setContractType] = useState<ContainerType>('debris');
   const [periodType, setPeriodType] = useState<ContractPeriodType>('daily');
-  const [selectedContainerId, setSelectedContainerId] = useState<string>('');
+  const [selectedContainerIds, setSelectedContainerIds] = useState<string[]>([]);
+  const selectedContainerId = selectedContainerIds[0] || '';
   const [assignedEmployeeId, setAssignedEmployeeId] = useState<string>('');
   
   // Mandatory Payment Choice: 'cash' (نقدي فوري) | 'sadad' (إلكتروني Apple Pay/مدى) | 'postpaid' (آجل لاحقاً)
@@ -248,7 +250,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       const found = containers.find(c => c.id === preSelectedContainerId);
       if (found) {
         setContractType(found.type);
-        setSelectedContainerId(found.id);
+        setSelectedContainerIds([found.id]);
         if (found.type === 'debris') {
           if (periodType === 'monthly') {
             const cost = (found.monthly_rate || 2000) * durationMonths;
@@ -353,7 +355,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
 
   const handleContractTypeChange = (type: ContainerType) => {
     setContractType(type);
-    setSelectedContainerId('');
+    setSelectedContainerIds([]);
     setDiscountAmount(0);
     setDownPayment(0);
     if (type === 'debris') {
@@ -368,10 +370,22 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     }
   };
 
+  const toggleContainer = (containerId: string) => {
+    setSelectedContainerIds(current => {
+      if (current.includes(containerId)) return current.filter(id => id !== containerId);
+      if (contractType !== 'debris') return [containerId];
+      if (current.length >= 50) {
+        alert('الحد الأقصى للعقد الواحد هو 50 حاوية.');
+        return current;
+      }
+      return [...current, containerId];
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedContainerId) {
-      alert('يرجى اختيار الحاوية المطلوبة.');
+    if (selectedContainerIds.length === 0) {
+      alert('يرجى اختيار حاوية واحدة على الأقل.');
       return;
     }
     if (!customerName.trim() || !customerPhone.trim()) {
@@ -419,6 +433,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
     const contractPayload: NewContractPayload = {
       contract_number: contractNumber,
       container_id: selectedContainerId,
+      container_ids: selectedContainerIds,
       assigned_employee_id: assignedEmployeeId || null,
       customer_name: customerName,
       customer_phone: customerPhone,
@@ -460,7 +475,7 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
       setCustomerName('');
       setCustomerPhone('+9665');
       setCustomerVatNumber('');
-      setSelectedContainerId('');
+      setSelectedContainerIds([]);
       setGoogleMapsUrl('');
       setLocationAddress('');
       setPaymentChoice('cash');
@@ -574,21 +589,61 @@ export const NewContractModal: React.FC<NewContractModalProps> = ({
             {/* Container */}
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', marginBottom: '6px', color: '#e2e8f0' }}>
-                2. الحاوية المتاحة للتأجير:
+                2. {contractType === 'debris' ? 'الحاويات المتاحة للتأجير (يمكن اختيار عدة حاويات):' : 'الحاوية المتاحة للتأجير:'}
               </label>
-              <select
-                className="form-select"
-                value={selectedContainerId}
-                onChange={(e) => setSelectedContainerId(e.target.value)}
-                required
-              >
-                <option value="">-- اختر حاوية ({availableContainers.length} متاحة) --</option>
-                {availableContainers.map(cont => (
-                  <option key={cont.id} value={cont.id}>
-                    {cont.container_number} — {contractType === 'debris' ? `${getWeeklyRate(cont.daily_rate)} ر.س/7 أيام` : `${cont.monthly_rate} ر.س/شهر`}
-                  </option>
-                ))}
-              </select>
+              {contractType === 'debris' && (
+                <div style={{ marginBottom: '8px', color: '#7dd3fc', fontSize: '0.78rem', fontWeight: 700 }}>
+                  اختر حاوية واحدة أو أكثر — عدد المحدد: {selectedContainerIds.length}
+                </div>
+              )}
+              <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '6px' }}>
+                {availableContainers.length === 0 && (
+                  <div style={{ padding: '8px', color: '#94a3b8' }}>لا توجد حاويات متاحة من هذا النوع.</div>
+                )}
+                {availableContainers.map(cont => {
+                  const isSelected = selectedContainerIds.includes(cont.id);
+                  return (
+                    <label
+                      key={cont.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        minHeight: '46px',
+                        marginBottom: '4px',
+                        padding: '8px 10px',
+                        border: `1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.14)'}`,
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(56,189,248,0.14)' : 'rgba(15,23,42,0.5)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type={contractType === 'debris' ? 'checkbox' : 'radio'}
+                        name="contract-container"
+                        checked={isSelected}
+                        onChange={() => toggleContainer(cont.id)}
+                        aria-label={`اختيار الحاوية ${cont.container_number}`}
+                        style={{
+                          width: '20px',
+                          height: '20px',
+                          flexShrink: 0,
+                          margin: 0,
+                          accentColor: contractType === 'debris' ? '#38bdf8' : '#fbbf24',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <span style={{ color: isSelected ? '#ffffff' : '#cbd5e1', fontWeight: isSelected ? 700 : 500 }}>
+                        {cont.container_number} — {contractType === 'debris' ? `${getWeeklyRate(cont.daily_rate)} ر.س/7 أيام` : `${cont.monthly_rate} ر.س/شهر`}
+                      </span>
+                      {isSelected && <CheckCircle size={18} color="#38bdf8" style={{ marginInlineStart: 'auto', flexShrink: 0 }} />}
+                    </label>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '6px' }}>
+                المحدد: {selectedContainerIds.length} — قيمة العقد الموحّد توزّع بالتساوي على الحاويات المحددة.
+              </div>
             </div>
 
             {/* Responsible Driver / Staff Dropdown */}

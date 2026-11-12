@@ -177,7 +177,7 @@ export default function ReceiptPage({
         // A) Query receipts table
         const { data: recItem } = await supabase
           .from('receipts')
-          .select('*, contract:contracts(*, customer:customers(*), container:containers(*)), customer:customers(*)')
+          .select('*, contract:contracts(*, customer:customers(*), container:containers(*), container_units:contract_container_units(container_number_snapshot)), customer:customers(*)')
           .eq('receipt_number', rawNumber)
           .maybeSingle();
 
@@ -194,7 +194,7 @@ export default function ReceiptPage({
             customerName: cust?.name || 'عميل مؤسسة المحترز',
             customerVatNumber: recItem.customer_vat_number || '',
             customerPhone: cust?.phone || '-',
-            containerNumber: cont?.container_number || '-',
+            containerNumber: c.container_units?.map((unit: { container_number_snapshot: string }) => unit.container_number_snapshot).join('، ') || cont?.container_number || '-',
             contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : getDebrisContractTypeLabel(c.period_type, c.duration_days),
             paidAmount: Number(recItem.amount ?? c.paid_amount ?? c.total_cost ?? 0),
             totalCost: receiptHasVatData ? Number(c.total_cost || 0) : Number(recItem.amount || 0),
@@ -221,7 +221,7 @@ export default function ReceiptPage({
         // B) Query contracts table fallback
         const { data: contractItem } = await supabase
           .from('contracts')
-          .select('*, customer:customers(*), container:containers(*)')
+          .select('*, customer:customers(*), container:containers(*), container_units:contract_container_units(container_number_snapshot)')
           .or(`receipt_number.eq.${rawNumber},contract_number.eq.${rawNumber}`)
           .maybeSingle();
 
@@ -237,7 +237,7 @@ export default function ReceiptPage({
             customerName: cust?.name || 'عميل مؤسسة المحترز',
             customerVatNumber: c.customer_vat_number || '',
             customerPhone: cust?.phone || '-',
-            containerNumber: cont?.container_number || '-',
+            containerNumber: c.container_units?.map((unit: { container_number_snapshot: string }) => unit.container_number_snapshot).join('، ') || cont?.container_number || '-',
             contractType: c.contract_type === 'commercial' ? 'حاوية تجارية للمنشآت' : getDebrisContractTypeLabel(c.period_type, c.duration_days),
             paidAmount: Number(c.paid_amount || c.total_cost || 0),
             totalCost: Number(c.total_cost || 0),

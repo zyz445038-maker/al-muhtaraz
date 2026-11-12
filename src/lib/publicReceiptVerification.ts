@@ -35,6 +35,7 @@ type VerifiedContract = {
   notes?: string | null;
   customer: Relation<CustomerDetails>;
   container: Relation<ContainerDetails>;
+  container_units?: Array<{ container_number_snapshot: string }>;
 };
 
 function buildReceiptPayload(input: {
@@ -67,7 +68,9 @@ function buildReceiptPayload(input: {
       ? receipt.customer_vat_number || ''
       : contract.customer_vat_number || '',
     customerPhone: receiptCustomer?.phone || contractCustomer?.phone || '-',
-    containerNumber: container?.container_number || '-',
+    containerNumber: contract.container_units?.map(unit => unit.container_number_snapshot).join('، ')
+      || container?.container_number
+      || '-',
     contractType: contract.contract_type === 'commercial'
       ? 'حاوية تجارية للمنشآت'
       : getDebrisContractTypeLabel(contract.period_type, contract.duration_days),
@@ -114,7 +117,8 @@ export async function getPublicReceiptVerification(token: string): Promise<{
         payment_method, customer_vat_number, non_taxable_amount, subtotal_amount,
         vat_amount, non_taxable_paid_amount, subtotal_paid_amount, vat_paid_amount,
         created_at, notes, customer:customers(name, phone),
-        container:containers(container_number)
+        container:containers(container_number),
+        container_units:contract_container_units(container_number_snapshot)
       )
     `)
     .eq('public_verification_token', token)
@@ -136,7 +140,8 @@ export async function getPublicReceiptVerification(token: string): Promise<{
       payment_method, customer_vat_number, non_taxable_amount, subtotal_amount,
       vat_amount, non_taxable_paid_amount, subtotal_paid_amount, vat_paid_amount,
       created_at, notes, customer:customers(name, phone),
-      container:containers(container_number)
+      container:containers(container_number),
+      container_units:contract_container_units(container_number_snapshot)
     `)
     .eq('public_verification_token', token)
     .maybeSingle();

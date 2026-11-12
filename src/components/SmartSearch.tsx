@@ -385,7 +385,14 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
 
                           {/* Small Contract Review Icon for Rented Container in Search */}
                           {container.status === 'rented' && (() => {
-                            const activeCont = contracts.find(c => c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled');
+                            const activeCont = contracts.find(c =>
+                              c.status !== 'completed'
+                              && c.status !== 'cancelled'
+                              && (
+                                c.container_units?.some(unit => unit.container_id === container.id && unit.status === 'active')
+                                || (!c.container_units?.length && c.container_id === container.id)
+                              )
+                            );
                             return activeCont && onOpenReceipt ? (
                               <button
                                 onClick={() => onOpenReceipt(activeCont)}
@@ -450,7 +457,14 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                     )}
 
                     {container.status === 'rented' && (() => {
-                      const activeCont = contracts.find(c => c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled');
+                      const activeCont = contracts.find(c =>
+                        c.status !== 'completed'
+                        && c.status !== 'cancelled'
+                        && (
+                          c.container_units?.some(unit => unit.container_id === container.id && unit.status === 'active')
+                          || (!c.container_units?.length && c.container_id === container.id)
+                        )
+                      );
                       return activeCont ? (
                         <div style={{ display: 'flex', gap: '6px' }}>
                           {onOpenReceipt && (

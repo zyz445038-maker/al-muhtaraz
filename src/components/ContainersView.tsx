@@ -233,8 +233,14 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
 
           // Find active contract if container is rented
           const activeContract = contracts.find(c => 
-            c.container_id === container.id && c.status !== 'completed' && c.status !== 'cancelled'
+            c.status !== 'completed'
+            && c.status !== 'cancelled'
+            && (
+              c.container_units?.some(unit => unit.container_id === container.id && unit.status === 'active')
+              || (!c.container_units?.length && c.container_id === container.id)
+            )
           );
+          const activeUnit = activeContract?.container_units?.find(unit => unit.container_id === container.id && unit.status === 'active');
 
           return (
             <div
@@ -355,7 +361,7 @@ export const ContainersView: React.FC<ContainersViewProps> = ({
                     </button>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#f87171' }}>
-                    موعد السحب: {new Date(activeContract.expected_pickup_time || activeContract.end_date).toLocaleDateString('ar-SA')}
+                    موعد السحب: {new Date(activeUnit?.end_date || activeContract.expected_pickup_time || activeContract.end_date).toLocaleDateString('ar-SA')}
                   </div>
                 </div>
               )}

@@ -34,6 +34,11 @@ type ContractReminder = {
   container: {
     container_number: string;
   } | null;
+  container_units: {
+    container_number_snapshot: string;
+    end_date: string;
+    status: 'active' | 'returned' | 'cancelled';
+  }[];
 };
 
 function isAuthorized(request: Request, secret: string): boolean {
@@ -92,10 +97,11 @@ async function handleProcess(request: Request) {
 
     const contractsResult = await adminSupabase
       .from('contracts')
-      .select('id, contract_number, end_date, location_address, customer:customers(id, name, phone), container:containers(container_number), created_by_employee:profiles!contracts_created_by_employee_id_fkey(id, full_name, phone, role), assigned_employee:profiles!contracts_assigned_employee_id_fkey(id, full_name, phone, role)')
+      .select('id, contract_number, end_date, location_address, customer:customers(id, name, phone), container:containers(container_number), container_units:contract_container_units!inner(container_number_snapshot, end_date, status), created_by_employee:profiles!contracts_created_by_employee_id_fkey(id, full_name, phone, role), assigned_employee:profiles!contracts_assigned_employee_id_fkey(id, full_name, phone, role)')
       .in('status', ['active', 'extended'])
-      .lte('end_date', tomorrow.toISOString())
-      .gte('end_date', now.toISOString());
+      .eq('container_units.status', 'active')
+      .lte('container_units.end_date', tomorrow.toISOString())
+      .gte('container_units.end_date', now.toISOString());
 
     if (contractsResult.error) throw contractsResult.error;
 
@@ -127,11 +133,16 @@ async function handleProcess(request: Request) {
         const driver = settings?.notify_driver_on_alerts === true
           ? contract.assigned_employee
           : null;
+        const nextUnitEnd = contract.container_units.length
+          ? Math.min(...contract.container_units.map(unit => new Date(unit.end_date).getTime()))
+          : new Date(contract.end_date).getTime();
         const daysLeft = Math.max(
           0,
-          Math.ceil((new Date(contract.end_date).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+          Math.ceil((nextUnitEnd - now.getTime()) / (24 * 60 * 60 * 1000))
         );
-        const containerNumber = contract.container?.container_number || '-';
+        const containerNumber = contract.container_units.map(unit => unit.container_number_snapshot).join('، ')
+          || contract.container?.container_number
+          || '-';
         const customerName = customer?.name || 'عزيزنا العميل';
         const customerMessage = `تذكير آلي بانتهاء عقد الحاوية\nمرحباً ${customerName} 👋\nعقد الحاوية رقم (${contract.contract_number}) سينتهي خلال ${daysLeft} يوم. الحاوية: (${containerNumber}). يرجى التواصل معنا لتجديد العقد أو جدولة سحب الحاوية.\n\nالمحترز للحاويات 🏗️`;
 

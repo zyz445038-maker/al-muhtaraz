@@ -7,6 +7,7 @@ import { supabaseBrowser as supabase } from '@/lib/supabaseBrowser';
 import { 
   Container, 
   Contract, 
+  ContractContainerUnit,
   Customer, 
   NotificationLog, 
   Profile, 
@@ -324,6 +325,20 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return 'حدث خطأ غير معروف أثناء الاتصال بقاعدة البيانات.';
+}
+
+function getContractContainerNumbers(contract: Contract, containerIds?: string[]): string {
+  const isSelected = (containerId: string | null | undefined) => !containerIds
+    || Boolean(containerId && containerIds.includes(containerId));
+  const unitNumbers = contract.container_units
+    ?.filter(unit => isSelected(unit.container_id))
+    .map(unit => unit.container_number_snapshot);
+  if (unitNumbers?.length) return unitNumbers.join('، ');
+
+  const containerNumbers = contract.containers
+    ?.filter(container => isSelected(container.id))
+    .map(container => container.container_number);
+  return containerNumbers?.join('، ') || contract.container?.container_number || '-';
 }
 
 function MainDashboard() {
@@ -996,7 +1011,7 @@ function MainDashboard() {
         const [containersResult, customersResult, contractsResult] = await Promise.all([
           supabase.from('containers').select('*'),
           supabase.from('customers').select('*'),
-          supabase.from('contracts').select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
+          supabase.from('contracts').select('*, customer:customers(*), container:containers(*), container_units:contract_container_units(*, container:containers(*)), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
         ]);
         if (!isCurrent) return;
 
@@ -1287,6 +1302,7 @@ function MainDashboard() {
 
   // 1. [💵 كاش] - Quick Cash Payment (One-click Confirm & Open Receipt)
   const handleConfirmCashPayment = async (contract: Contract) => {
+    const containerNumbers = getContractContainerNumbers(contract);
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     let updatedContract: Contract;
     let newReceipt: Receipt;
@@ -1334,7 +1350,7 @@ function MainDashboard() {
         amount,
         payment_method: 'cash',
         contract_number: contract.contract_number,
-        container_number: contract.container?.container_number,
+        container_number: containerNumbers,
         container_type: contract.contract_type,
         issued_at: payment.receipt.issued_at || new Date().toISOString(),
         notes: payment.receipt.notes || 'تم الاستلام نقداً (كاش في الموقع)'
@@ -1402,6 +1418,7 @@ function MainDashboard() {
       alert('تعذر العثور على العقد المطلوب.');
       return false;
     }
+    const containerNumbers = getContractContainerNumbers(contract);
 
     const allocation = allocateGrossPayment({
       enteredAmount: amount,
@@ -1468,7 +1485,7 @@ function MainDashboard() {
         amount: receiptAmount,
         payment_method: method,
         contract_number: contract.contract_number,
-        container_number: contract.container?.container_number,
+        container_number: containerNumbers,
         container_type: contract.contract_type,
         issued_at: payment.receipt.issued_at || new Date().toISOString(),
         notes: payment.receipt.notes || notes
@@ -1534,6 +1551,7 @@ function MainDashboard() {
   // 3. [🔄 تمديد العقد] - Extend & Renew Contract
   const handleConfirmExtension = async ({
     contractId,
+    containerIds,
     additionalDays,
     priceAmount,
     discountAmount,
@@ -1544,6 +1562,7 @@ function MainDashboard() {
   }: ExtensionSubmission): Promise<boolean> => {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return false;
+    const contractContainerNumbers = getContractContainerNumbers(contract, containerIds);
 
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const isCash = paymentChoice === 'cash';
@@ -1568,19 +1587,19 @@ function MainDashboard() {
 
     const pricingLabel = priceIncludesVat ? 'شامل الضريبة' : 'غير شامل الضريبة';
     const extensionNotes = [
-      `تمديد (+${additionalDays} يوم)`,
+      `تمديد الحاويات (${contractContainerNumbers}) لمدة (+${additionalDays} يوم)`,
       `السعر ${pricingLabel}: ${roundCurrency(priceAmount).toFixed(2)} ر.س`,
       discountAmount > 0 ? `الخصم: ${roundCurrency(discountAmount).toFixed(2)} ر.س` : null
     ].filter(Boolean).join(' | ');
 
     const shouldCreateReceipt = isCash || isBankTransfer || extensionPayment.enteredAmount > 0;
     const receiptAmount = extensionPayment.grossAmount;
-    const receiptNotes = `فاتورة تمديد عقد (+${additionalDays} يوم): رصيد سابق غير خاضع ${extensionPayment.nonTaxableAmount.toFixed(2)} ر.س، قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
+    const receiptNotes = `فاتورة تمديد الحاويات (${contractContainerNumbers}) لمدة (+${additionalDays} يوم): رصيد سابق غير خاضع ${extensionPayment.nonTaxableAmount.toFixed(2)} ر.س، قبل الضريبة ${extensionPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${extensionPayment.vatAmount.toFixed(2)} ر.س، الإجمالي ${receiptAmount.toFixed(2)} ر.س`;
     let updatedContract: Contract;
     let persistedReceipt: Receipt | null = null;
 
     try {
-      const { data, error } = await supabase.rpc('extend_container_rental_contract_vat', {
+      const { data, error } = await supabase.rpc('extend_container_rental_contract_for_units', {
         p_contract_id: contract.id,
         p_additional_days: additionalDays,
         p_additional_subtotal: extensionVat.subtotalAmount,
@@ -1595,12 +1614,14 @@ function MainDashboard() {
         p_receipt_non_taxable_amount: shouldCreateReceipt ? extensionPayment.nonTaxableAmount : null,
         p_receipt_subtotal_amount: shouldCreateReceipt ? extensionPayment.subtotalAmount : null,
         p_receipt_vat_amount: shouldCreateReceipt ? extensionPayment.vatAmount : null,
-        p_receipt_notes: shouldCreateReceipt ? receiptNotes : null
+        p_receipt_notes: shouldCreateReceipt ? receiptNotes : null,
+        p_container_ids: containerIds
       });
       if (error) throw error;
 
       const extension = data as {
         contract?: Partial<Contract>;
+        contract_container_units?: ContractContainerUnit[];
         receipt?: Partial<Receipt> | null;
       } | null;
       if (
@@ -1619,7 +1640,8 @@ function MainDashboard() {
         ...contract,
         ...extension.contract,
         customer: contract.customer,
-        container: contract.container
+        container: contract.container,
+        container_units: extension.contract_container_units || contract.container_units
       };
 
       if (extension.receipt) {
@@ -1644,7 +1666,7 @@ function MainDashboard() {
           amount: persistedAmount,
           payment_method: isCash ? 'cash' : isBankTransfer ? 'bank_transfer' : 'mada',
           contract_number: contract.contract_number,
-          container_number: contract.container?.container_number,
+          container_number: contractContainerNumbers,
           container_type: contract.contract_type,
           issued_at: extension.receipt.issued_at || new Date().toISOString(),
           notes: extension.receipt.notes || receiptNotes
@@ -1667,7 +1689,7 @@ function MainDashboard() {
 
     // Prepare WhatsApp Message
     const formattedDate = new Date(newEndDate).toLocaleDateString('ar-SA');
-    let messageContent = `مرحباً ${contract.customer?.name}، تم تمديد عقد الحاوية (${contract.contract_number}) بنجاح بمقدار (+${additionalDays} يوم) حتى تاريخ: ${formattedDate}. قيمة التمديد بعد الضريبة: ${extensionVat.grossAmount.toFixed(2)} ر.س.`;
+    let messageContent = `مرحباً ${contract.customer?.name}، تم تمديد الحاويات (${contractContainerNumbers}) في العقد (${contract.contract_number}) بمقدار (+${additionalDays} يوم) حتى تاريخ: ${formattedDate}. قيمة التمديد بعد الضريبة: ${extensionVat.grossAmount.toFixed(2)} ر.س.`;
 
     if (isSadad) {
       const invoiceLink = `https://checkout.moyasar.com/invoices/inv_${contract.contract_number}_ext?amount=${extensionVat.grossAmount}`;
@@ -1679,7 +1701,7 @@ function MainDashboard() {
       id: `inapp-${Date.now()}`,
       contract_id: contract.id,
       title: `🔄 تم تمديد العقد (${contract.contract_number})`,
-      message: `تم تمديد الحاوية (${contract.container?.container_number || '-'}) بمقدار +${additionalDays} يوم. موعد السحب الجديد: ${formattedDate}.`,
+      message: `تم تمديد الحاويات (${contractContainerNumbers}) بمقدار +${additionalDays} يوم. موعد السحب الجديد: ${formattedDate}.`,
       type: 'contract_created',
       is_read: false,
       created_at: new Date().toISOString()
@@ -1700,7 +1722,7 @@ function MainDashboard() {
     // Dispatch to assigned driver if present and real
     const extDriver = staffList.find(s => s.id === contract.assigned_employee_id);
     if (gatewaySettings.notify_driver_on_alerts === true && extDriver?.phone && isRealCallablePhone(extDriver.phone)) {
-      const driverMsg = `🔄 تمديد عقد حاوية\nرقم العقد: ${contract.contract_number}\nرقم الحاوية: ${contract.container?.container_number || '-'}\nالعميل: ${contract.customer?.name || '-'} (${contract.customer?.phone || '-'})\nموعد السحب الجديد: ${new Date(newEndDate).toLocaleDateString('ar-SA')}\nمدة إضافية: +${additionalDays} يوم`;
+      const driverMsg = `🔄 تمديد حاويات في العقد\nرقم العقد: ${contract.contract_number}\nأرقام الحاويات: ${contractContainerNumbers}\nالعميل: ${contract.customer?.name || '-'} (${contract.customer?.phone || '-'})\nموعد السحب الجديد: ${new Date(newEndDate).toLocaleDateString('ar-SA')}\nمدة إضافية: +${additionalDays} يوم`;
       await sendSilentWhatsApp(
         extDriver.phone,
         driverMsg,
@@ -1823,43 +1845,61 @@ function MainDashboard() {
     }
   };
 
-  // 📥 Two-Way Return to Stock: Complete Contract & Set Container to Available 🟢
+  // Return one assigned container while preserving the parent contract.
   const handleCompleteContractAndReturnToStock = async (contractId: string, containerId: string): Promise<boolean> => {
     const contract = contracts.find(c => c.id === contractId);
     const container = containers.find(c => c.id === containerId);
     if (!contract || !container) {
-      const message = 'تعذر العثور على العقد أو الحاوية لإتمام السحب.';
+      const message = 'تعذر العثور على العقد أو الحاوية لتسجيل السحب.';
       setBusinessDataError(message);
       alert(message);
       return false;
     }
 
+    let updatedContract: Contract;
     try {
-      const { data, error } = await supabase.rpc('complete_container_rental_contract', {
+      const { data, error } = await supabase.rpc('complete_container_rental_unit', {
         p_contract_id: contractId,
         p_container_id: containerId
       });
       if (error) throw error;
-      if (!data || typeof data !== 'object' || !('contract' in data) || !('container' in data)) {
-        throw new Error('لم تُرجع قاعدة البيانات تأكيد إنهاء العقد وتحديث الحاوية.');
+      if (!data || typeof data !== 'object' || !('contract' in data) || !('container' in data) || !('unit' in data)) {
+        throw new Error('لم تُرجع قاعدة البيانات تأكيد سحب الحاوية وتحديث المخزون.');
       }
 
-      const completedContract = data.contract as Contract;
+      updatedContract = data.contract as Contract;
       const availableContainer = data.container as Container;
+      const returnedUnit = data.unit as ContractContainerUnit;
       if (
-        !completedContract.id
-        || completedContract.status !== 'completed'
+        !updatedContract.id
         || !availableContainer.id
         || availableContainer.status !== 'available'
+        || !returnedUnit.id
+        || returnedUnit.status !== 'returned'
       ) {
-        throw new Error('لم تؤكد قاعدة البيانات إنهاء العقد وإعادة الحاوية إلى مخزون المستودع.');
+        throw new Error('لم تؤكد قاعدة البيانات تسجيل عودة الحاوية وإتاحتها في مخزون المستودع.');
       }
 
-      setContracts(prev => prev.map(c => c.id === contractId ? { ...c, ...completedContract } : c));
+      setContracts(prev => prev.map(c => {
+        if (c.id !== contractId) return c;
+
+        const units = c.container_units ?? updatedContract.container_units ?? [];
+        const returnedUnitIndex = units.findIndex(
+          unit => unit.id === returnedUnit.id || unit.container_id === containerId
+        );
+
+        return {
+          ...c,
+          ...updatedContract,
+          container_units: returnedUnitIndex < 0
+            ? [...units, returnedUnit]
+            : units.map((unit, index) => index === returnedUnitIndex ? returnedUnit : unit)
+        };
+      }));
       setContainers(prev => prev.map(c => c.id === containerId ? availableContainer : c));
       setBusinessDataError(null);
     } catch (error) {
-      const message = `تعذر إنهاء العقد وإعادة الحاوية للمخزون: ${getErrorMessage(error)}`;
+      const message = `تعذر تسجيل سحب الحاوية وإعادتها للمخزون: ${getErrorMessage(error)}`;
       setBusinessDataError(message);
       alert(message);
       return false;
@@ -1870,15 +1910,15 @@ function MainDashboard() {
       id: `inapp-${Date.now()}`,
       contract_id: contractId,
       title: `🚛 سحب الحاوية (${container.container_number})`,
-      message: `تم تأكيد سحب الحاوية وإنهاء عقد (${contract.contract_number}) وإعادتها إلى مخزون المستودع.`,
+      message: `تم تسجيل عودة الحاوية إلى المستودع ضمن العقد (${contract.contract_number}).`,
       type: 'container_status_change',
       is_read: false,
       created_at: new Date().toISOString()
     };
     setInAppNotifications(prev => [inAppNotif, ...prev]);
 
-    const customerMessage = `مرحباً ${contract.customer?.name || 'العميل'}، نحيطكم علماً بأنه تم سحب الحاوية (${container.container_number}) وإنهاء عقد التأجير رقم (${contract.contract_number}) بتاريخ ${pickupDate}. شكراً لتعاملكم مع المحترز للحاويات.`;
-    const driverMessage = `🚛 تأكيد سحب حاوية وإعادتها للمستودع\nرقم الحاوية: ${container.container_number}\nرقم العقد: ${contract.contract_number}\nالعميل: ${contract.customer?.name || '-'}\nالموقع: ${contract.location_address || contract.customer?.address || '-'}\nتم تسجيل إنهاء التأجير وإعادة الحاوية للمخزون بتاريخ: ${pickupDate}.`;
+    const customerMessage = `مرحباً ${contract.customer?.name || 'العميل'}، نحيطكم علماً بأنه تم سحب الحاوية (${container.container_number}) وإعادتها إلى المستودع ضمن عقد التأجير رقم (${contract.contract_number}) بتاريخ ${pickupDate}. شكراً لتعاملكم مع المحترز للحاويات.`;
+    const driverMessage = `🚛 تأكيد سحب حاوية وإعادتها للمستودع\nرقم الحاوية: ${container.container_number}\nرقم العقد: ${contract.contract_number}\nالعميل: ${contract.customer?.name || '-'}\nالموقع: ${contract.location_address || contract.customer?.address || '-'}\nتم تسجيل عودة هذه الحاوية للمخزون بتاريخ: ${pickupDate}.`;
     const pickupNotifications: Promise<unknown>[] = [];
     const adminProfile = currentProfile?.role === 'admin'
       && currentProfile.is_active
@@ -1888,7 +1928,7 @@ function MainDashboard() {
         profile.role === 'admin' && profile.is_active && isRealCallablePhone(profile.phone)
       );
     const adminPhone = adminProfile?.phone;
-    const adminMessage = `✅ تم سحب الحاوية وإنهاء العقد\nرقم العقد: (${contract.contract_number})\nرقم الحاوية: (${container.container_number})\nالعميل: ${contract.customer?.name || '-'}\nتاريخ السحب: ${pickupDate}\nتمت إعادة الحاوية إلى مخزون المستودع.`;
+    const adminMessage = `✅ تم سحب حاوية وإعادتها للمستودع\nرقم العقد: (${contract.contract_number})\nرقم الحاوية: (${container.container_number})\nالعميل: ${contract.customer?.name || '-'}\nتاريخ السحب: ${pickupDate}\nالحالة المالية: ${updatedContract.status === 'completed' ? 'مكتمل ومستقر' : 'العقد مستمر مع وحدات أخرى أو رصيد مستحق'}.`;
 
     if (contract.customer?.phone && isRealCallablePhone(contract.customer.phone)) {
       pickupNotifications.push(sendSilentWhatsApp(
@@ -1988,12 +2028,19 @@ function MainDashboard() {
         .from('contracts')
         .update({ status })
         .eq('id', contractId)
-        .select('*, customer:customers(*), container:containers(*), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
+        .select('*, customer:customers(*), container:containers(*), container_units:contract_container_units(*, container:containers(*)), assigned_employee:profiles!contracts_assigned_employee_id_fkey(*)')
         .single();
       if (error) throw error;
       if (!data?.id) throw new Error('لم تُرجع قاعدة البيانات العقد بعد تحديثه.');
       setContracts(prev => prev.map(c => c.id === contractId ? data : c));
-      if (data.container) {
+      const updatedUnitContainers = ((data.container_units || []) as ContractContainerUnit[])
+        .map(unit => unit.container)
+        .filter((container): container is Container => Boolean(container));
+      if (updatedUnitContainers.length) {
+        setContainers(prev => prev.map(container =>
+          updatedUnitContainers.find(updated => updated.id === container.id) || container
+        ));
+      } else if (data.container) {
         setContainers(prev => prev.map(c => c.id === data.container_id ? data.container as Container : c));
       }
       setBusinessDataError(null);
@@ -2033,11 +2080,20 @@ function MainDashboard() {
       updated_at: ''
     };
 
-    let containerObj = containers.find(c => c.id === contractData.container_id);
-    if (!containerObj || containerObj.status !== 'available') {
-      setBusinessDataError('الحاوية المختارة غير موجودة أو لم تعد متاحة. حدّث القائمة واختر حاوية متاحة.');
+    const selectedContainers = contractData.container_ids
+      .map(id => containers.find(c => c.id === id))
+      .filter((container): container is Container => Boolean(container));
+    let containerObj = selectedContainers.find(c => c.id === contractData.container_id);
+    if (
+      selectedContainers.length !== contractData.container_ids.length
+      || selectedContainers.some(container => container.status !== 'available')
+      || (selectedContainers.length > 1 && (contractData.contract_type !== 'debris' || selectedContainers.some(container => container.type !== 'debris')))
+      || !containerObj
+    ) {
+      setBusinessDataError('حاوية مختارة غير موجودة أو لم تعد متاحة، أو أن نوعها لا يسمح بضمها لهذا العقد. حدّث القائمة وتحقق من الاختيار.');
       return false;
     }
+    let containerNumbers = selectedContainers.map(container => container.container_number).join('، ');
 
     const assignedStaff = staffList.find(s => s.id === contractData.assigned_employee_id);
     const receiptNumber = `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -2141,7 +2197,8 @@ function MainDashboard() {
       created_at: '',
       updated_at: '',
       customer: customerObj,
-      container: containerObj
+      container: containerObj,
+      containers: selectedContainers
     };
 
     const shouldCreateReceipt = isFree || isCollectedAtCreation || paidAmount > 0;
@@ -2150,9 +2207,11 @@ function MainDashboard() {
       ? 'عقد تأجير معتمد'
       : `قبل الضريبة ${initialPayment.subtotalAmount.toFixed(2)} ر.س، الضريبة ${initialPayment.vatAmount.toFixed(2)} ر.س، الإجمالي المستلم ${receiptAmount.toFixed(2)} ر.س`;
     let persistedReceipt: Partial<Receipt> | null = null;
+    let savedContainers: Container[] = [];
 
     try {
-      const { data, error } = await supabase.rpc('create_container_rental_contract', {
+      const { data, error } = await supabase.rpc('create_container_rental_contract_with_units', {
+        p_container_ids: contractData.container_ids,
         p_payload: {
           contract_number: newContract.contract_number,
           container_id: newContract.container_id,
@@ -2201,19 +2260,38 @@ function MainDashboard() {
         customer?: Customer;
         contract?: Partial<Contract>;
         container?: Container;
+        containers?: Container[];
+        contract_container_units?: NonNullable<Contract['container_units']>;
         receipt?: Partial<Receipt> | null;
       } | null;
+      const expectedContainerIds = new Set(contractData.container_ids);
+      const savedContainerIds = new Set(savedRental?.containers?.map(container => container.id) || []);
+      const assignedContainerIds = new Set(
+        savedRental?.contract_container_units?.map(unit => unit.container_id).filter((id): id is string => Boolean(id)) || []
+      );
       if (
         !savedRental?.customer?.id
         || !savedRental.contract?.id
         || !savedRental.container?.id
+        || !savedRental.containers
+        || savedRental.containers.length !== contractData.container_ids.length
+        || savedContainerIds.size !== expectedContainerIds.size
+        || [...expectedContainerIds].some(id => !savedContainerIds.has(id))
+        || !savedRental.contract_container_units
+        || savedRental.contract_container_units.length !== contractData.container_ids.length
+        || assignedContainerIds.size !== expectedContainerIds.size
+        || [...expectedContainerIds].some(id => !assignedContainerIds.has(id))
+        || savedRental.containers.some(container => container.status !== 'rented')
+        || savedRental.contract_container_units.some(unit => unit.status !== 'active')
         || Boolean(savedRental.receipt) !== shouldCreateReceipt
       ) {
-        throw new Error('لم تُرجع قاعدة البيانات سجلات العميل والعقد والحاوية بعد الحفظ.');
+        throw new Error('لم تُرجع قاعدة البيانات سجلات العقد وجميع الحاويات ووحداتها بعد الحفظ.');
       }
 
       customerObj = savedRental.customer;
       containerObj = savedRental.container;
+      savedContainers = savedRental.containers;
+      containerNumbers = savedContainers.map(container => container.container_number).join('، ');
       persistedReceipt = savedRental.receipt || null;
       newContract = {
         ...newContract,
@@ -2224,6 +2302,8 @@ function MainDashboard() {
         is_free: isFree,
         customer: customerObj,
         container: containerObj,
+        containers: savedContainers,
+        container_units: savedRental.contract_container_units,
         assigned_employee: assignedStaff
       };
       setBusinessDataError(null);
@@ -2237,7 +2317,10 @@ function MainDashboard() {
     // Update Local State
     setCustomers(prev => [customerObj, ...prev]);
     setContracts(prev => [newContract, ...prev]);
-    setContainers(prev => prev.map(c => c.id === containerObj?.id ? containerObj : c));
+    setContainers(prev => prev.map(c => {
+      const savedContainer = newContract.containers?.find(item => item.id === c.id);
+      return savedContainer || c;
+    }));
 
     // If Free, Cash or partial down payment: Create Receipt immediately
     if (isFree || isCollectedAtCreation || paidAmount > 0) {
@@ -2250,7 +2333,7 @@ function MainDashboard() {
         amount: receiptAmount,
         payment_method: paymentMethod || 'mada',
         contract_number: newContract.contract_number,
-        container_number: containerObj?.container_number,
+        container_number: containerNumbers,
         container_type: newContract.contract_type,
         issued_at: new Date().toISOString(),
         notes: receiptNotes,
@@ -2278,7 +2361,7 @@ function MainDashboard() {
       id: `inapp-${Date.now()}`,
       contract_id: newContract.id,
       title: `📝 عقد جديد (${newContract.contract_number}) - ${isFree ? 'عقد مجاني 🎁' : `السداد: ${paymentMethodLabel}`}`,
-      message: `تم توثيق عقد للعميل ${customerObj.name} بالحاوية (${containerObj?.container_number || '-'}). المسؤول: ${assignedStaff?.full_name || 'سائق'}.`,
+      message: `تم توثيق عقد للعميل ${customerObj.name} بالحاويات (${containerNumbers || '-'}). المسؤول: ${assignedStaff?.full_name || 'سائق'}.`,
       type: 'contract_created',
       is_read: false,
       created_at: new Date().toISOString()
@@ -2298,7 +2381,7 @@ function MainDashboard() {
         customerVatNumber: customerObj.vat_number || '',
         contractPaidAmount: paidAmount,
         customerPhone: customerObj.phone,
-        containerNumber: containerObj?.container_number || '-',
+        containerNumber: containerNumbers || '-',
         contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
         paidAmount,
         totalCost,
@@ -2331,7 +2414,7 @@ function MainDashboard() {
           customerName: customerObj.name,
           customerVatNumber: customerObj.vat_number || '',
           customerPhone: customerObj.phone,
-          containerNumber: containerObj?.container_number || '-',
+          containerNumber: containerNumbers || '-',
           contractType: newContract.contract_type === 'debris' ? 'حاوية مخلفات وأنقاض' : 'حاوية تجارية للمنشآت',
           totalCost,
           paidAmount,
@@ -2514,7 +2597,7 @@ function MainDashboard() {
     }
 
     if (currentProfile?.role === 'employee' && currentProfile.phone && isRealCallablePhone(currentProfile.phone)) {
-      const creatorMessage = `عقد جديد تم إنشاؤه بواسطة حسابك\nرقم العقد: (${newContract.contract_number})\nالعميل: ${customerObj.name}\nالحاوية: (${containerObj?.container_number || '-'})\nتاريخ الانتهاء: ${new Date(newContract.end_date).toLocaleDateString('ar-SA')}`;
+      const creatorMessage = `عقد جديد تم إنشاؤه بواسطة حسابك\nرقم العقد: (${newContract.contract_number})\nالعميل: ${customerObj.name}\nالحاويات: (${containerNumbers || '-'})\nتاريخ الانتهاء: ${new Date(newContract.end_date).toLocaleDateString('ar-SA')}`;
       await sendSilentWhatsApp(
         currentProfile.phone,
         creatorMessage,
