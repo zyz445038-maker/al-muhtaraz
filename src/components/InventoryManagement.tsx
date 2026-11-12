@@ -410,7 +410,15 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
           </thead>
           <tbody>
             {filteredList.map((cont) => {
-              const activeContract = contracts.find(c => c.container_id === cont.id && c.status !== 'completed' && c.status !== 'cancelled');
+              const activeContract = contracts.find(c =>
+                c.status !== 'completed'
+                && c.status !== 'cancelled'
+                && (
+                  c.container_units?.some(unit => unit.container_id === cont.id && unit.status === 'active')
+                  || (!c.container_units?.length && c.container_id === cont.id)
+                )
+              );
+              const activeUnit = activeContract?.container_units?.find(unit => unit.container_id === cont.id && unit.status === 'active');
               const isDebris = cont.type === 'debris';
 
               return (
@@ -462,7 +470,7 @@ export const InventoryManagement: React.FC<InventoryManagementProps> = ({
                           👤 {activeContract.customer?.name || 'العميل'}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#fbbf24' }}>
-                          عقد: {activeContract.contract_number} (حتى {new Date(activeContract.expected_pickup_time || activeContract.end_date).toLocaleDateString('ar-SA')})
+                          عقد: {activeContract.contract_number} (حتى {new Date(activeUnit?.end_date || activeContract.expected_pickup_time || activeContract.end_date).toLocaleDateString('ar-SA')})
                         </div>
                       </div>
                     ) : cont.status === 'available' ? (

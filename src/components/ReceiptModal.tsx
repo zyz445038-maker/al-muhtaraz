@@ -69,6 +69,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     ? new Date(receipt.issued_at)
     : new Date(contract?.updated_at || contract?.created_at || Date.now());
   const isFree = contract?.is_free || contract?.payment_method === 'free';
+  const containerNumbers = contract?.containers?.map(container => container.container_number).join('، ')
+    || contract?.container_units?.map(unit => unit.container_number_snapshot).join('، ')
+    || contract?.container?.container_number
+    || '-';
   const invoicePayload: PublicReceiptPayload = {
     type: 'receipt',
     receiptNumber,
@@ -76,7 +80,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     customerName: contract?.customer?.name || '-',
     customerVatNumber,
     customerPhone: contract?.customer?.phone || '-',
-    containerNumber: contract?.container?.container_number || '-',
+    containerNumber: containerNumbers,
     contractType: contract?.contract_type === 'commercial'
       ? 'تجاري مغلق'
       : getDebrisContractTypeLabel(contract?.period_type || 'daily', contract?.duration_days || 7),
@@ -141,7 +145,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           customerName: contract.customer?.name || '-',
           customerVatNumber,
           customerPhone: contract.customer?.phone || '-',
-          containerNumber: contract.container?.container_number || '-',
+          containerNumber: containerNumbers,
           contractType,
           totalCost,
           paidAmount,
@@ -182,6 +186,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     customerVatNumber,
     contract?.customer?.phone,
     contract?.container?.container_number,
+    contract?.container_units,
+    contract?.containers,
     contract?.contract_type,
     contract?.start_date,
     contract?.end_date,
@@ -518,7 +524,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 ['الرقم الضريبي للعميل', customerVatNumber.trim() || 'غير مسجل'],
                 ['رقم العقد', contract.contract_number],
                 ['رقم جوال العميل', contract.customer?.phone || '-'],
-                ['رقم الحاوية', contract.container?.container_number || '-'],
+                ['أرقام الحاويات', containerNumbers],
                 ['نوع العقد والحاوية', contractType],
                 ['تاريخ البداية', startDate],
                 ['تاريخ نهاية الإيجار', endDate],
@@ -580,7 +586,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </span>
                     </td>
                     <td style={{ ...rowValue, lineHeight: 1.6 }}>
-                      {isFree ? 'تأجير حاوية' : 'قيمة تأجير حاوية'} ({contractType}) رقم ({contract.container?.container_number || '-'})
+                      {isFree ? 'تأجير حاوية' : 'قيمة تأجير حاويات'} ({contractType}) رقم ({containerNumbers})
                       {contract.location_address && <span> بموقع ({contract.location_address})</span>}
                       {' '}للفترة من ({startDate}) إلى ({endDate}).
                     </td>

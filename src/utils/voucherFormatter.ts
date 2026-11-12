@@ -46,6 +46,10 @@ export function formatCustomerVoucherMessage(params: {
   totalCost: number;
 }): string {
   const { contract, customer, container, receiptNumber, paidAmount, remainingAmount, totalCost } = params;
+  const containerNumbers = contract.containers?.map(item => item.container_number).join('، ')
+    || contract.container_units?.map(unit => unit.container_number_snapshot).join('، ')
+    || container?.container_number
+    || '-';
   
   const typeLabel = contract.contract_type === 'commercial'
     ? 'حاوية تجارية'
@@ -76,7 +80,7 @@ export function formatCustomerVoucherMessage(params: {
 👤 *العميل:* ${customer.name}
 📄 *رقم العقد:* ${contract.contract_number}
 🔖 *رقم الفاتورة:* ${receiptNumber}
-🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
+🚚 *الحاويات:* ${containerNumbers} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
 📅 *تاريخ البدء:* ${startDateClean}
 🏁 *تاريخ الانتهاء:* ${endDateClean}
@@ -93,7 +97,7 @@ ${paidAmount > 0 ? '🧾 *سند قبض وتوثيق عقد إلكتروني*' :
 ━━━━━━━━━━━━━━━━━━
 👤 *العميل:* ${customer.name}
 📄 *رقم العقد:* ${contract.contract_number}
-${paidAmount > 0 ? `🔖 *رقم سند القبض:* ${receiptNumber}\n` : ''}🚚 *الحاوية:* ${container?.container_number || '-'} (${typeLabel})
+${paidAmount > 0 ? `🔖 *رقم سند القبض:* ${receiptNumber}\n` : ''}🚚 *الحاويات:* ${containerNumbers} (${typeLabel})
 ⏱️ *المدة:* ${durationText}
 📅 *تاريخ البدء:* ${startDateClean}
 🏁 *تاريخ الانتهاء:* ${endDateClean}
@@ -119,12 +123,16 @@ export function formatDriverMissionMessage(params: {
 }): string {
   const { contract, customer, container, mapsUrl, expectedTime } = params;
   const typeLabel = contract.contract_type === 'commercial' ? 'حاوية تجارية' : 'حاوية أنقاض';
+  const containerNumbers = contract.containers?.map(item => item.container_number).join('، ')
+    || contract.container_units?.map(unit => unit.container_number_snapshot).join('، ')
+    || container?.container_number
+    || '-';
   const deliveryTimeClean = expectedTime ? formatCleanArabicDateTime(expectedTime) : 'فوري خلال اليوم';
 
   return `🚛 *مهمة توصيل وتنزيل حاوية جديدة*
 ━━━━━━━━━━━━━━━━━━
 📄 *رقم العقد:* ${contract.contract_number}
-🚚 *رقم الحاوية:* ${container?.container_number || '-'} (${typeLabel})
+🚚 *أرقام الحاويات:* ${containerNumbers} (${typeLabel})
 👤 *العميل:* ${customer.name}
 📞 *جوال العميل:* ${customer.phone}
 📍 *الموقع على الخريطة:*

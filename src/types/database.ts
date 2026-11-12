@@ -122,7 +122,24 @@ export interface Contract {
   // Joined fields for UI convenience
   customer?: Customer;
   container?: Container;
+  containers?: Container[];
+  container_units?: ContractContainerUnit[];
   assigned_employee?: Profile;
+}
+
+export interface ContractContainerUnit {
+  id: string;
+  contract_id: string;
+  container_id: string | null;
+  container_number_snapshot: string;
+  status: 'active' | 'returned' | 'cancelled';
+  start_date: string;
+  end_date: string;
+  returned_at?: string | null;
+  allocated_amount: number;
+  created_at: string;
+  updated_at: string;
+  container?: Container | null;
 }
 
 export type RecipientRole = 'customer' | 'employee' | 'admin';

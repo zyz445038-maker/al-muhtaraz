@@ -77,18 +77,29 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
       c.contract_number.toLowerCase().includes(q) ||
       (c.customer?.name && c.customer.name.toLowerCase().includes(q)) ||
       (c.customer?.phone && c.customer.phone.includes(q)) ||
-      (c.container?.container_number && c.container.container_number.toLowerCase().includes(q))
+      (c.container?.container_number && c.container.container_number.toLowerCase().includes(q)) ||
+      c.container_units?.some(unit => unit.container_number_snapshot.toLowerCase().includes(q))
     );
   });
 
   const calculateRemainingTimeText = (contract: Contract) => {
-    const end = new Date(contract.expected_pickup_time || contract.end_date);
+    const activeUnits = contract.container_units?.filter(unit => unit.status === 'active') || [];
     const now = new Date();
-    const diffMs = end.getTime() - now.getTime();
     
     if (contract.status === 'completed') {
       return { text: 'مكتمل ومستلم ✅', color: '#34d399', isUrgent: false };
     }
+    if (contract.status === 'cancelled') {
+      return { text: 'ملغي', color: '#94a3b8', isUrgent: false };
+    }
+    if (contract.container_units?.length && activeUnits.length === 0) {
+      return { text: 'تم سحب جميع الحاويات — بانتظار التسوية المالية', color: '#fbbf24', isUrgent: true };
+    }
+
+    const nextPickup = activeUnits.length
+      ? Math.min(...activeUnits.map(unit => new Date(unit.end_date).getTime()))
+      : new Date(contract.expected_pickup_time || contract.end_date).getTime();
+    const diffMs = nextPickup - now.getTime();
     
     if (diffMs < 0) {
       return { text: 'منتهي الصلاحية (مستحق السحب أو التمديد)', color: '#f87171', isUrgent: true };
@@ -124,19 +135,23 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
     setLoadingActionId(null);
   };
 
-  const handlePickupClick = async (contract: Contract) => {
-    const containerId = contract.container_id || contract.container?.id;
-    if (!containerId) {
+  const handlePickupClick = async (contract: Contract, containerId?: string | null) => {
+    const targetContainerId = containerId || contract.container_id || contract.container?.id;
+    if (!targetContainerId) {
       alert('تعذر العثور على الحاوية المرتبطة بهذا العقد.');
       return;
     }
 
-    const containerNumber = contract.container?.container_number || 'غير معروف';
-    if (!confirm(`هل تم سحب الحاوية (${containerNumber}) فعلياً؟ سيُنهى عقد التأجير وتعود الحاوية إلى مخزون المستودع.`)) return;
+    const unit = contract.container_units?.find(item => item.container_id === targetContainerId && item.status === 'active');
+    const containerNumber = unit?.container_number_snapshot
+      || contract.containers?.find(item => item.id === targetContainerId)?.container_number
+      || contract.container?.container_number
+      || 'غير معروف';
+    if (!confirm(`هل تم سحب الحاوية (${containerNumber}) فعلياً؟ ستعود هذه الحاوية وحدها للمخزون، ويستمر العقد لبقية الحاويات إن وجدت.`)) return;
 
-    setLoadingActionId(`pickup-${contract.id}`);
+    setLoadingActionId(`pickup-${contract.id}-${targetContainerId}`);
     try {
-      await onCompleteContractAndReturnToStock(contract.id, containerId);
+      await onCompleteContractAndReturnToStock(contract.id, targetContainerId);
     } finally {
       setLoadingActionId(null);
     }
@@ -281,6 +296,12 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
           const remainingAmount = Number(contract.remaining_amount ?? (contract.total_cost - contract.paid_amount));
           const isPaid = remainingAmount <= 0 || contract.payment_status === 'paid';
           const driverName = contract.assigned_employee?.full_name || 'سعد الدوسري (سائق 🚛)';
+          const hasActiveUnits = contract.container_units?.length
+            ? contract.container_units.some(unit => unit.status === 'active')
+            : Boolean(contract.container_id || contract.container?.id);
+          const canExtend = contract.status !== 'completed'
+            && contract.status !== 'cancelled'
+            && hasActiveUnits;
 
           return (
             <div
@@ -349,7 +370,11 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                     )}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
-                    حاوية: <strong style={{ color: '#ffffff' }}>{contract.container?.container_number || 'غير محددة'}</strong>
+                    الحاويات: <strong style={{ color: '#ffffff' }}>
+                      {contract.container_units?.length
+                        ? contract.container_units.map(unit => `${unit.container_number_snapshot}${unit.status === 'returned' ? ' (عادت)' : unit.status === 'cancelled' ? ' (ملغاة)' : ` (موعد السحب ${new Date(unit.end_date).toLocaleDateString('ar-SA')})`}`).join('، ')
+                        : contract.container?.container_number || 'غير محددة'}
+                    </strong>
                   </div>
                 </div>
 
@@ -578,7 +603,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                       </button>
                     )}
 
-                    {(userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
+                    {canExtend && (userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
                       <button
                         onClick={() => onOpenExtendModal(contract)}
                         className="btn-secondary"
@@ -655,7 +680,7 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
                     )}
 
                     {/* Option 3: Extend */}
-                    {(userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
+                    {canExtend && (userRole === 'admin' || permissions?.can_extend_contracts !== false) && (
                       <button
                         onClick={() => onOpenExtendModal(contract)}
                         className="btn-secondary"
@@ -672,26 +697,39 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
               {contract.status !== 'completed'
                 && contract.status !== 'cancelled'
                 && (userRole === 'admin' || permissions?.can_manage_inventory === true)
-                && (contract.container_id || contract.container?.id) && (
-                <button
-                  onClick={() => handlePickupClick(contract)}
-                  disabled={loadingActionId === `pickup-${contract.id}`}
-                  className="btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    fontSize: '0.85rem',
-                    fontWeight: 800,
-                    justifyContent: 'center',
-                    color: '#34d399',
-                    borderColor: 'rgba(52, 211, 153, 0.4)',
-                    opacity: loadingActionId === `pickup-${contract.id}` ? 0.65 : 1
-                  }}
-                  title="تأكيد سحب الحاوية وإنهاء التأجير وإعادتها للمستودع"
-                >
-                  <ArrowDownLeft size={16} />
-                  <span>{loadingActionId === `pickup-${contract.id}` ? 'جارٍ تأكيد السحب...' : 'سحب وإرجاع للمستودع'}</span>
-                </button>
+                && (contract.container_units?.some(unit => unit.status === 'active')
+                  || contract.container_id || contract.container?.id) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(contract.container_units ? contract.container_units.filter(unit => unit.status === 'active') : [{
+                    container_id: contract.container_id || contract.container?.id || null,
+                    container_number_snapshot: contract.container?.container_number || 'الحاوية'
+                  }]).map(unit => {
+                    if (!unit.container_id) return null;
+                    const actionId = `pickup-${contract.id}-${unit.container_id}`;
+                    return (
+                      <button
+                        key={unit.container_id}
+                        onClick={() => handlePickupClick(contract, unit.container_id)}
+                        disabled={loadingActionId === actionId}
+                        className="btn-secondary"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          fontSize: '0.85rem',
+                          fontWeight: 800,
+                          justifyContent: 'center',
+                          color: '#34d399',
+                          borderColor: 'rgba(52, 211, 153, 0.4)',
+                          opacity: loadingActionId === actionId ? 0.65 : 1
+                        }}
+                        title={`تأكيد سحب الحاوية ${unit.container_number_snapshot} وإعادتها للمستودع`}
+                      >
+                        <ArrowDownLeft size={16} />
+                        <span>{loadingActionId === actionId ? 'جارٍ تأكيد السحب...' : `سحب ${unit.container_number_snapshot} وإرجاعها`}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
 
             </div>
